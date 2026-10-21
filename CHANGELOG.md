@@ -8,6 +8,9 @@ collect under "Unreleased".
 
 ## Unreleased
 
+- All search terms are explained at the top of the help (the ? button), and the search field's
+  placeholder names a few. The hint under the field is gone: shown while the field had focus,
+  it pushed the list down, so on a computer the first click on a row after a search missed it
 - Self-hosted sites: when config.json's "gm" points to another gm.json, the page loads it at
   once; it used to keep the previous file's data for up to "gmCheckDays", shown under the new
   name

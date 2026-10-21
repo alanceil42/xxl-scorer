@@ -26,7 +26,7 @@
 		<div class="brand-row fit">
 			<h1>xxl-scorer</h1>
 			<div class="tools">
-				<button class="btn small icon" id="help-btn" type="button" aria-label="Which screenshots to take" title="Which screenshots to take" aria-haspopup="dialog"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="vendor/lucide/icons.svg#circle-help"/></svg></button>
+				<button class="btn small icon" id="help-btn" type="button" aria-label="Help" title="Help: searching the list, which screenshots to take" aria-haspopup="dialog"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="vendor/lucide/icons.svg#circle-help"/></svg></button>
 				<details class="menu" id="backup">
 					<summary class="btn small" aria-label="Backup"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="vendor/lucide/icons.svg#hard-drive-download"/></svg><span class="lbl give">Backup</span><span class="dot" id="export-dot" hidden></span></summary>
 					<div class="menu-pop">
@@ -68,7 +68,7 @@
 			<div class="search-row fit">
 				<span class="search-box">
 					<svg class="ic lens" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="vendor/lucide/icons.svg#search"/></svg>
-					<input type="search" id="search" placeholder="Search" aria-label="Search the list" aria-describedby="search-help"
+					<input type="search" id="search" placeholder="A name, xxl, cp1000-…" aria-label="Search the list"
 						autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="search">
 					<button type="button" id="search-clear" class="search-clear" aria-label="Clear search" hidden>
 						<svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><circle cx="10" cy="10" r="9"/><path d="M6.6 6.6l6.8 6.8M13.4 6.6l-6.8 6.8"/></svg>
@@ -84,8 +84,6 @@
 					</div>
 				</details>
 			</div>
-			<p id="search-help" class="search-help muted small">A name, or as in the game: <code>cp700-800</code> <code>hp100-</code> <code>xxl</code> <code>xxs</code> <code>lucky</code> <code>4*</code> <code>3-4attack</code> <code>rock</code> <code>74</code> (Pokédex) <code>year2024</code>, and <code>score1100-</code> <code>check</code>.
-				Combine: <span class="nw"><code>,</code> or</span> · <span class="nw"><code>&amp;</code> and</span> · <span class="nw"><code>!</code> not</span>.</p>
 		</div>
 	</div>
 
@@ -201,7 +199,23 @@
 
 	<dialog id="help" aria-labelledby="help-title">
 		<form method="dialog" class="help-body">
-			<h2 id="help-title" tabindex="-1">Which screenshots to take</h2>
+			<h2 id="help-title" tabindex="-1">Help</h2>
+			<h3 id="help-search">Searching the list</h3>
+			<p>The search field takes a name or the game's own search terms, in English, so most of what works in the game's storage works here too.</p>
+			<dl class="help-terms">
+				<dt><code>cranidos</code></dt><dd>name or form containing it; case and accents don't matter</dd>
+				<dt><code>74</code> <code>1-151</code> <code>387-</code></dt><dd>Pokédex number or range</dd>
+				<dt><code>cp700-800</code> <code>cp-500</code> <code>hp100-</code></dt><dd>CP or HP: one value, a range, or open at one end</dd>
+				<dt><code>xxl</code> <code>xxs</code> <code>lucky</code></dt><dd>XXL, XXS, lucky Pokémon</dd>
+				<dt><code>rock</code> <code>fire</code></dt><dd>type</dd>
+				<dt><code>4*</code> <code>3-4*</code></dt><dd>appraisal stars from the IV sum: 4* = 45, 3* = 37-44, 2* = 30-36, 1* = 23-29, 0* = 0-22</dd>
+				<dt><code>4attack</code> <code>0-1defense</code> <code>3-4hp</code></dt><dd>one IV in the game's groups: 0 = 0, 1 = 1-5, 2 = 6-10, 3 = 11-14, 4 = 15</dd>
+				<dt><code>year2024</code> <code>year2020-2022</code></dt><dd>catch year</dd>
+				<dt><code>score1100-</code></dt><dd>showcase points (not in the game)</dd>
+				<dt><code>check</code></dt><dd>rows marked to check (not in the game)</dd>
+			</dl>
+			<p class="help-combine">Combine: <code>,</code> or · <code>&amp;</code> or a space: and · <code>!</code> not. Or goes first, as in the game: <code>fire,water&amp;xxl</code> is fire or water, and XXL.</p>
+			<h3 id="help-shots" tabindex="-1">Which screenshots to take</h3>
 			<p>Two screenshots of each Pokémon's page in the game, one with the appraisal and one without. Screenshots of the same Pokémon become one row.</p>
 			<div class="hf-pair">
 				<figure>
