@@ -1,0 +1,31 @@
+# Changelog
+
+What changed from one release to the next, newest first. Versions are MAJOR.MINOR (1.0, 1.1,
+2.0), with a third number only for a release that just fixes something (1.0.1); what counts as
+which, and how a release is made: docs/RELEASING.md. Changes on main that are not released yet
+collect under "Unreleased".
+
+
+## Unreleased
+
+
+## 1.0 - 2026-10-21
+
+The first release.
+
+- Showcase points for size showcases from Pokémon GO screenshots, with a ± range for the game's
+  rounding; XXL from the height; an XXS mode for showcases of the smallest, should the game run
+  them
+- Reads species, CP, HP, height, weight, types and catch date, and the IVs from the appraisal
+  bars; English game text, iPhone screenshots of 19.5:9 and 16:9 screens tested
+- Several screenshots of one Pokémon merge into one row, so a quick swipe through the storage
+  works; a screenshot taken mid-swipe is skipped
+- A list to sort (score, newest, CP, Pokédex, name, IVs, catch date) and search with the game's
+  own terms; every value can be edited
+- One tap copies a nickname built from a template (XX1063¹⁸⓿㉚), another a search that finds the
+  Pokémon in the game's storage
+- Everything runs in the browser and nothing is uploaded; the list stays on the device, and a
+  backup file moves it to another one
+- Game data loaded by the browser from PokeMiners, or built on a server with tools/build-gm.sh
+- Any static host: docs/INSTALL.md for nginx and systemd; each release is published to GitHub
+  Pages; an optional legal notice link in the footer

@@ -1,0 +1,305 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { compactGameMaster } from '../src/core/gm.js';
+import { compactText } from '../src/core/text.js';
+import { makeRules, parseWords, parseCp } from '../src/core/read.js';
+import { makeContext, evaluate, duplicateKey, formLabel } from '../src/core/evaluate.js';
+import { levelTable, cpOf, hpOf } from '../src/core/ivs.js';
+import { syntheticGameMaster, syntheticText, CPM } from './synthetic.js';
+
+const gm = compactGameMaster(syntheticGameMaster(), { minSpecies: 1 });
+const en = compactText(syntheticText('en'));
+const ctx = makeContext(gm, en);
+const W = 1184;
+const word = (text, x) => ({ text, bbox: { x0: x - 20, y0: 0, x1: x + 20, y1: 10 } });
+
+test('OCR words → readings', () => {
+	const words = [
+		word('CP', 600), word('XX1143', 600),
+		word('121', 600), word('/', 600), word('121', 600), word('HP', 600),
+		word('109.32', 200), word('2.3m', 1000), word('WEIGHT', 200), word('HEIGHT', 1000),
+		...'This Testmon was caught on 7/28/2024 around Somewhere.'.split(' ').map(t => word(t, 500)),
+	];
+	assert.deepEqual(parseWords(words, W, makeRules(en)), {
+		species: 'Testmon', caught: '7/28/2024', hp: 121, weight_kg: 109.32, height_m: 2.3, types: [],
+	});
+	// decimal comma and German HP label
+	const de = compactText(syntheticText('de'));
+	const r = parseWords([word('59,26kg', 200), word('1,84m', 1000), word('299/299', 600), word('KP', 600)], W, makeRules(de));
+	assert.equal(r.weight_kg, 59.26);
+	assert.equal(r.height_m, 1.84);
+	assert.equal(r.hp, 299);
+});
+
+test('CP text', () => {
+	assert.equal(parseCp('CP1900'), 1900);
+	assert.equal(parseCp('CP 217\n'), 217);
+	assert.equal(parseCp(''), null);
+	assert.equal(parseCp('7'), null);
+});
+
+/** CP/HP the game would show for these IVs at this level. */
+function shown(row, ivs, level) {
+	const m = levelTable(CPM).find(x => x.level === level).m;
+	return { cp: cpOf(row, ivs.a, ivs.d, ivs.s, m), hp: hpOf(row, ivs.s, m) };
+}
+
+test('evaluate: species, IVs from bars + CP/HP, XXL, score, key', () => {
+	const row = gm.species.TESTMON.f[''];
+	const ivs = { a: 15, d: 13, s: 15 };
+	const { cp, hp } = shown(row, ivs, 20);
+	const r = evaluate({ species: 'Testmon', caught: '7/28/2024', hp, cp, height_m: 1.7, weight_kg: 30, bars: { a: 14.85, d: 12.99, s: 14.85 } }, ctx);
+	assert.equal(r.id, 'TESTMON');
+	assert.equal(r.form, '');
+	assert.deepEqual(r.ivs, ivs);
+	assert.equal(r.level, 20);
+	assert.equal(r.xxl, true);
+	assert.ok(Math.abs(r.score.total - (800 * 1.7 / 1.75 + 100 + 50 * 43 / 45 + 178)) < 1e-9);
+	assert.deepEqual(r.issues, []);
+	assert.equal(r.key, 'TESTMON||d:7/28/2024|1.70|30.00|iv:15/13/15');
+	assert.equal(duplicateKey({ ...r, caught: null }), `TESTMON||cp:${cp}|1.70|30.00|iv:15/13/15`);
+	assert.equal(duplicateKey({ ...r, ivSource: 'cp' }), 'TESTMON||d:7/28/2024|1.70|30.00', 'IVs guessed from CP/HP: left out');
+});
+
+test('evaluate: the form is picked by which one solves CP/HP', () => {
+	const giant = gm.species.TESTMON.f.GIANT;
+	const ivs = { a: 10, d: 10, s: 10 };
+	const { cp, hp } = shown(giant, ivs, 25);
+	const r = evaluate({ species: 'Testmon', hp, cp, height_m: 2.5, weight_kg: 60, bars: { a: 10, d: 10, s: 10 } }, ctx);
+	assert.equal(r.form, 'GIANT');
+	assert.equal(formLabel(r.form), 'Giant');
+	assert.equal(r.types, 'NORMAL/FLYING');
+});
+
+test('evaluate: misread CP is flagged, IVs from bars still score', () => {
+	const row = gm.species.FAKEON.f[''];
+	const { hp } = shown(row, { a: 1, d: 14, s: 11 }, 7);
+	const r = evaluate({ species: 'Fakeon', hp, cp: 99999, height_m: 0.8, weight_kg: 9, bars: { a: 1, d: 14.03, s: 10.93 } }, ctx);
+	assert.deepEqual(r.ivs, { a: 1, d: 14, s: 11 });
+	assert.ok(r.issues.some(i => i.code === 'cp'));
+	assert.ok(r.score.total > 0);
+});
+
+test('evaluate: unknown species, XXL boundary, user edits, in-game check', () => {
+	assert.equal(evaluate({ species: 'Nonexistmon' }, ctx).issues[0].code, 'species');
+	const b = evaluate({ species: 'Testmon', height_m: 1.5, weight_kg: 20, bars: null }, ctx, { ivs: { a: 0, d: 0, s: 0 } });
+	assert.equal(b.xxl, null);
+	assert.ok(b.issues.some(i => i.code === 'xxl'));
+	assert.equal(b.score, null);
+	const e = evaluate({ species: 'Testmon', height_m: 1.5, weight_kg: 20 }, ctx, { ivs: { a: 0, d: 0, s: 0 }, xxl: true, inGame: 1500 });
+	assert.ok(e.score.total > 0);
+	assert.ok(e.issues.some(i => i.code === 'ingame'));
+});
+
+test('evaluate: a CP that lost a digit is replaced by the one the bars and HP allow', () => {
+	const row = gm.species.FAKEON.f[''];
+	const ivs = { a: 1, d: 14, s: 11 };
+	const { cp, hp } = shown(row, ivs, 30);
+	assert.ok(cp >= 100, `want a 3+ digit CP, got ${cp}`);
+	const misread = Number(String(cp).slice(1));	// "521" → 21
+	const r = evaluate({ species: 'Fakeon', hp, cp: misread, height_m: 0.6, weight_kg: 9, bars: { a: 1.02, d: 13.97, s: 10.95 } }, ctx);
+	assert.equal(r.cp, cp);
+	assert.deepEqual(r.ivs, ivs);
+	assert.equal(r.level, 30);
+	assert.ok(r.issues.some(i => i.code === 'cp-fixed' && i.info));
+	assert.ok(!r.issues.some(i => !i.info), JSON.stringify(r.issues));
+});
+
+test('fixSizes: a hidden leading digit is restored, guided by the other value', async () => {
+	const { fixSizes } = await import('../src/core/evaluate.js');
+	const row = gm.species.TESTMON.f[''];	// 1.0 m, 20 kg, XXL max 1.75 m
+	// "62" can't be a height: 0.62 or 1.62? The weight (32 kg, ratio 1.6) says 1.62.
+	assert.equal(fixSizes(62, 32, row).h.value, 1.62);
+	assert.equal(fixSizes(62, 12, row).h.value, 0.62);
+	assert.equal(fixSizes(62, 32, row).h.fixed, true);
+	assert.equal(fixSizes(1.62, 32, row).h.fixed, false);
+	// weight "9.32" for a 1.6 m Testmon: 29.32 kg fits (ratio 1.47)
+	assert.equal(fixSizes(1.6, 9.32, row).w.value, 9.32, 'already possible: left alone');
+	assert.equal(fixSizes(1.6, 0.32, row).w.value, 30.32);
+	// nothing fits: no value, so the page asks
+	assert.equal(fixSizes(999.5, 20, row).h.value, null);
+});
+
+test('fixSizes: several hidden characters ("6" from 1.06 m)', async () => {
+	const { fixSizes } = await import('../src/core/evaluate.js');
+	const row = gm.species.TESTMON.f[''];
+	// weight ratio 1.095: of 0.6, 0.96, 1.06, 1.16, 1.6, … the closest height ratio is 1.06
+	assert.equal(fixSizes(6, 21.9, row).h.value, 1.06);
+});
+
+test('screenshots of one Pokémon merge: bars from one, intact height from the other', async () => {
+	const { canMerge, mergeReadings } = await import('../src/core/evaluate.js');
+	const row = gm.species.TESTMON.f[''];
+	const ivs = { a: 14, d: 14, s: 14 };
+	const { cp, hp } = shown(row, ivs, 20);
+	// with the appraisal: the trainer hides "1." of the height
+	const a = { species: 'Testmon', caught: '10/10/2026', hp, cp, height_m: 7, weight_kg: 30, bars: { a: 14, d: 14, s: 14 } };
+	// without: no bars, no "was caught" line (moves are shown there), but the height is visible
+	const b = { species: null, caught: null, hp, cp, height_m: 1.7, weight_kg: 30, bars: null };
+	assert.ok(canMerge(a, b, ctx) && canMerge(b, a, ctx));
+	for (const m of [mergeReadings(a, b, ctx), mergeReadings(b, a, ctx)]) {
+		assert.equal(m.species, 'Testmon');
+		assert.equal(m.caught, '10/10/2026');
+		assert.equal(m.height_m, 1.7);
+		assert.deepEqual(m.bars, { a: 14, d: 14, s: 14 });
+		assert.equal(m.merged, 2);
+		const e = evaluate(m, ctx);
+		assert.deepEqual(e.ivs, ivs);
+		assert.ok(!e.issues.some(i => !i.info), JSON.stringify(e.issues));
+		assert.ok(e.issues.some(i => i.code === 'merged'));
+	}
+	// not the same Pokémon
+	assert.equal(canMerge(a, { ...b, cp: cp + 1 }, ctx), true, 'other CP, but HP and weight agree: the CP was misread');
+	assert.equal(canMerge(a, { ...b, cp: cp + 555, weight_kg: null }, ctx), false, 'other CP, no weight');
+	assert.equal(canMerge(a, { ...b, weight_kg: 31 }, ctx), false, 'weight contradicts');
+	assert.equal(canMerge(a, { cp, hp: null, weight_kg: null }, ctx), false, 'only the CP agrees');
+	assert.equal(canMerge(a, { cp, hp, weight_kg: null }, ctx), false, 'CP and HP alone are not enough');
+	assert.equal(canMerge(a, { cp, hp, weight_kg: null, species: 'Testmon' }, ctx), true, 'CP, HP and species');
+	assert.equal(canMerge(a, { cp, hp: null, weight_kg: 30 }, ctx), true, 'CP and weight');
+	assert.equal(canMerge(a, { ...b, species: 'Fakeon' }, ctx), false, 'other species');
+});
+
+test('type labels are read from the stats row', () => {
+	const r = parseWords([word('34.26kg', 200), word('ROCK', 500), word('GROUND', 640), word('0.69m', 1000)], W, makeRules(en));
+	assert.deepEqual(r.types, ['ROCK', 'GROUND']);
+});
+
+test('fixSizes: a lost decimal point ("211" for 2.11 m)', async () => {
+	const { fixSizes } = await import('../src/core/evaluate.js');
+	const giant = gm.species.TESTMON.f.GIANT;	// 2.0 m, 50 kg, XXL max 3.1 m
+	assert.equal(fixSizes(211, 52.75, giant).h.value, 2.11);
+});
+
+test('merging: a size with a hidden digit still fits the species; type labels carry over', async () => {
+	const { canMerge, mergeReadings, mergeTarget } = await import('../src/core/evaluate.js');
+	const row = gm.species.TESTMON.f[''];
+	const { cp, hp } = shown(row, { a: 9, d: 9, s: 14 }, 20);
+	const named = { species: 'Testmon', caught: null, hp, cp, height_m: null, weight_kg: null, bars: null, types: [] };
+	// the other screenshot: no name, the trainer hides "1." of the height
+	const other = { species: null, caught: null, hp, cp, height_m: 7, weight_kg: 30, bars: null, types: ['NORMAL'] };
+	assert.ok(canMerge(named, other, ctx), 'height 7 repairs to 1.7 m');
+	assert.deepEqual(mergeReadings(named, other, ctx).types, ['NORMAL']);
+	assert.deepEqual(mergeReadings(other, named, ctx).types, ['NORMAL']);
+	// labels of another form's types: not this Testmon
+	assert.ok(!canMerge(named, { ...other, types: ['NORMAL', 'FLYING'] }, ctx), 'GIANT labels, normal stats');
+	// one candidate: merge; two: keep it apart
+	assert.equal(mergeTarget([other, { ...other, cp: cp + 400, hp: hp + 9 }], named, ctx), 0);
+	assert.equal(mergeTarget([other, other], named, ctx), -1);
+	assert.equal(mergeTarget([], named, ctx), -1);
+});
+
+test('merging: a CP misread by a digit merges when the other screenshot has the bars', async () => {
+	const { canMerge, mergeReadings, mergeTarget } = await import('../src/core/evaluate.js');
+	const row = gm.species.TESTMON.f[''];
+	const ivs = { a: 15, d: 13, s: 15 };
+	const { cp, hp } = shown(row, ivs, 20);
+	// one digit misread, to a CP no Testmon with this HP can have
+	const { solveIVs } = await import('../src/core/ivs.js');
+	const alike = [...String(cp)].flatMap((_, i) => [...'0123456789'].map(d => Number(String(cp).slice(0, i) + d + String(cp).slice(i + 1))));
+	const bad = alike.find(x => x !== cp && x >= 10 && !solveIVs(row, x, hp, gm.cpm).length);
+	// with the appraisal: height hidden, CP read with an extra digit; without: CP one digit off
+	const a = { species: 'Testmon', caught: null, hp, cp: Number(`${cp}0`), height_m: null, weight_kg: 30.12, bars: ivs };
+	const b = { species: null, caught: null, hp, cp: bad, height_m: 1.7, weight_kg: 30.12, bars: null };
+	assert.notEqual(bad, cp);
+	assert.ok(canMerge(a, b, ctx) && canMerge(b, a, ctx));
+	// with no size at all on the appraisal, HP plus a CP one digit off is too thin (MIN_SCORE):
+	// in a box of hundreds that recurs
+	assert.equal(canMerge({ ...a, weight_kg: null }, b, ctx), false);
+	for (const m of [mergeReadings(a, b, ctx), mergeReadings(b, a, ctx)]) {
+		const e = evaluate(m, ctx);
+		assert.equal(e.cp, cp);
+		assert.deepEqual(e.ivs, ivs);
+		assert.equal(e.height_m, 1.7);
+	}
+	assert.ok(canMerge(a, { ...b, cp: null }, ctx), 'CP not read at all on the one without bars');
+	assert.equal(canMerge({ ...a, weight_kg: null }, { ...b, cp: null }, ctx), false, '… unless that leaves only the HP');
+	assert.equal(mergeTarget([a, { ...a, caught: '1/1/2025' }], { ...b, cp: null }, ctx), -1, 'two candidates: keep apart');
+	// neither has bars: two different Pokémon may well differ by a digit
+	assert.equal(canMerge({ ...a, bars: null, cp, weight_kg: null }, b, ctx), false);
+	// HP differs: never
+	assert.equal(canMerge(a, { ...b, hp: hp + 1 }, ctx), false);
+});
+
+test('merging: of two possible sizes, the one with more characters wins ("1.6" vs 1.68)', async () => {
+	const { mergeReadings } = await import('../src/core/evaluate.js');
+	const r = { species: 'Testmon', caught: null, hp: 80, cp: 500, bars: null };
+	for (const [x, y] of [[1.6, 1.68], [1.68, 1.6]]) {
+		const m = mergeReadings({ ...r, height_m: x, weight_kg: 30 }, { ...r, height_m: y, weight_kg: 30.5 }, ctx);
+		assert.equal(m.height_m, 1.68);
+		assert.equal(m.weight_kg, 30.5);
+	}
+});
+
+test('merging, several candidates: the clearly best one is taken, a close race stays apart', async () => {
+	const { mergeTarget, matchScore, MERGE_MARGIN } = await import('../src/core/evaluate.js');
+	const row = gm.species.TESTMON.f[''];
+	const ivs = { a: 12, d: 12, s: 0 };
+	const { cp, hp } = shown(row, ivs, 20);
+	// the right one: HP, weight, height and CP all agree. The other: same HP, CP one digit off,
+	// bars, no sizes read (the old rule set accepted both, so neither was taken)
+	const right = { species: 'Testmon', caught: '10/2/2026', hp, cp, height_m: 1.6, weight_kg: 33.43, bars: ivs };
+	const near = { species: 'Testmon', caught: '9/1/2026', hp, cp: cp + 1, height_m: null, weight_kg: null, bars: { a: 0, d: 0, s: 0 } };
+	const other = { species: null, caught: null, hp, cp, height_m: 1.6, weight_kg: 33.43, bars: null };
+	assert.equal(mergeTarget([near, right], other, ctx), 1);
+	const twin = { ...right, caught: '10/3/2026' };
+	assert.ok(Math.abs(matchScore(right, other, ctx) - matchScore(twin, other, ctx)) < MERGE_MARGIN);
+	assert.equal(mergeTarget([right, twin], other, ctx), -1, 'equally good: keep apart');
+});
+
+test('merging: what rules a pair out', async () => {
+	const { canMerge } = await import('../src/core/evaluate.js');
+	const row = gm.species.TESTMON.f[''];
+	const ivs = { a: 9, d: 9, s: 9 };
+	const { cp, hp } = shown(row, ivs, 20);
+	const named = { species: 'Testmon', caught: null, hp, cp, height_m: 1.6, weight_kg: 30.12, bars: ivs, types: [] };
+	const other = { species: null, caught: null, hp, cp, height_m: 1.6, weight_kg: 30.12, bars: null, types: ['NORMAL'] };
+	assert.ok(canMerge(named, other, ctx));
+	assert.equal(canMerge(named, { ...other, types: ['WATER'] }, ctx), false, 'a type the species does not have');
+	assert.ok(canMerge(named, { ...other, types: ['NORMAL', 'FLYING'] }, ctx), 'the types of another form (Giant)');
+	assert.equal(canMerge(named, { ...other, slid: true }, ctx), false, 'taken mid-swipe');
+	assert.equal(canMerge(named, { ...other, weight_kg: 30.13 }, ctx), false, 'weight a digit off');
+	assert.ok(canMerge(named, { ...other, weight_kg: 0.12 }, ctx), 'leading characters hidden ("0.12" of 30.12)');
+	assert.ok(canMerge(named, { ...other, height_m: 1.62 }, ctx), 'height a digit off: let off');
+	assert.equal(canMerge(named, { ...other, height_m: 1.2 }, ctx), false, 'height clearly different');
+	// two screenshots without a name, same HP and weight, clearly different CPs: twins
+	const a = { species: null, caught: null, hp: 68, cp: 330, height_m: 0.32, weight_kg: 0.82, bars: null };
+	assert.equal(canMerge(a, { ...a, cp: 284 }, ctx), false);
+	assert.ok(canMerge(a, { ...a, cp: 380 }, ctx), 'CP one digit off');
+});
+
+test('CP: every read counts, a forced one is flagged', async () => {
+	const { mergeReadings } = await import('../src/core/evaluate.js');
+	const row = gm.species.TESTMON.f[''];
+	const ivs = { a: 15, d: 13, s: 15 };
+	const { cp, hp } = shown(row, ivs, 20);
+	const garbage = Number(String(cp).split('').reverse().join('')) + 3000;
+	const a = { species: 'Testmon', caught: null, hp, cp: garbage, height_m: 1.6, weight_kg: 30, bars: ivs };
+	const b = { species: null, caught: null, hp, cp: cp + 10, height_m: 1.6, weight_kg: 30, bars: null };
+	const m = mergeReadings(a, b, ctx);
+	assert.deepEqual(m.cpAlt, [cp + 10]);
+	const e = evaluate(m, ctx);
+	assert.equal(e.cp, cp, 'the other screenshot\'s read looks like the possible CP');
+	const alone = evaluate(a, ctx);
+	if (alone.cp === cp) assert.ok(alone.issues.some(i => i.code === 'cp'), 'nothing like it: taken, but to check');
+});
+
+test('XXL: the badge decides at the boundary and is checked against the height', () => {
+	const r = { species: 'Testmon', hp: null, cp: null, weight_kg: 20, bars: null };
+	const ed = { ivs: { a: 0, d: 0, s: 0 } };
+	assert.equal(evaluate({ ...r, height_m: 1.5 }, ctx, ed).xxl, null);
+	assert.equal(evaluate({ ...r, height_m: 1.5, badge: 'XXL' }, ctx, ed).xxl, true);
+	assert.equal(evaluate({ ...r, height_m: 1.5, badge: 'XL' }, ctx, ed).xxl, false);
+	const c = evaluate({ ...r, height_m: 1.7, badge: 'XL' }, ctx, ed);
+	assert.equal(c.xxl, true);
+	assert.ok(c.issues.some(i => i.code === 'xxl'), 'badge and height disagree');
+});
+
+test('duplicates: twins caught the same day with the same sizes are told apart by their IVs', () => {
+	const row = gm.species.TESTMON.f[''];
+	const r = ivs => ({ species: 'Testmon', caught: '9/6/2026', ...shown(row, ivs, 20), height_m: 1.6, weight_kg: 30.48, bars: ivs });
+	const a = evaluate(r({ a: 8, d: 15, s: 10 }), ctx), b = evaluate(r({ a: 10, d: 13, s: 9 }), ctx);
+	assert.notEqual(a.key, b.key);
+	// the same one powered up: same IVs, other CP and HP, same key
+	const up = evaluate({ ...r({ a: 8, d: 15, s: 10 }), ...shown(row, { a: 8, d: 15, s: 10 }, 25) }, ctx);
+	assert.equal(up.key, a.key);
+});

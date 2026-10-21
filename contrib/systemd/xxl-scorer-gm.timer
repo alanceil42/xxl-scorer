@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekly rebuild of xxl-scorer gm.json (Monday, before showcase Tuesday)
+
+[Timer]
+OnCalendar=Mon *-*-* 05:20
+RandomizedDelaySec=20min
+Persistent=yes
+
+[Install]
+WantedBy=timers.target

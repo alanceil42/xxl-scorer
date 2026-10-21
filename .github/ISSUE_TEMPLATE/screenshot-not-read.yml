@@ -1,0 +1,37 @@
+name: A screenshot isn't read correctly
+description: Wrong species, height, weight, CP, HP or IVs from a screenshot
+labels: [reading]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks! Before attaching a screenshot, **black out the catch location** in the line
+        "This … was caught on … around …" (and anything else you don't want public).
+        Keep the rest unchanged and uncompressed if you can: reading depends on the pixels.
+  - type: input
+    id: version
+    attributes:
+      label: xxl-scorer version
+      description: In the page's footer ("version 1.0"), or the commit if you run main.
+      placeholder: "1.0"
+    validations:
+      required: false
+  - type: input
+    id: device
+    attributes:
+      label: Phone or tablet, and game language
+      placeholder: "iPhone 15, English"
+    validations:
+      required: true
+  - type: textarea
+    id: wrong
+    attributes:
+      label: What was read, and what is right?
+      placeholder: "Weight read as 10.93 kg, the screenshot says 109.32 kg"
+    validations:
+      required: true
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot (with the location blacked out)
+      description: Drag the image in here.

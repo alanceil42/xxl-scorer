@@ -1,0 +1,5 @@
+# name                  version  sha256 of the npm tarball   (tools/vendor.sh --update rewrites this)
+tesseract.js            7.0.0    9a93bf51c3387f945d10a24bf8b3a4bf2e45c7c7161b8242aafbaf9d3c4b606a
+tesseract.js-core       7.0.0    ba584355515eaff877552022853c0e71f2cb70466e759d1d6940484929718ee0
+@tesseract.js-data/eng  1.0.0    c9bddf2e2f0a214ac7918f3f4a3caf45e09ce8674fe26662ae7787ac8927f7bb
+lucide-static           1.60.0   feb647afe973601d3eefa97539f23acfaefecb5f81e51fef9a03b4d6c4787d75

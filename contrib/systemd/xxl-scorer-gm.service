@@ -1,0 +1,52 @@
+# Rebuild xxl-scorer's game data file once a week.
+# Install (paths assume the site lives in /opt/xxl-scorer; adjust all three if not):
+#   install -D -m 0644 contrib/sysusers.d/xxl-scorer.conf /etc/sysusers.d/xxl-scorer.conf
+#   systemd-sysusers                            creates the system user xxl-scorer
+#   install -d -o xxl-scorer -g xxl-scorer -m 0755 /opt/xxl-scorer/local/data
+#   cp contrib/systemd/xxl-scorer-gm.* /etc/systemd/system/ && systemctl daemon-reload
+#   systemctl start xxl-scorer-gm.service       first build; check: journalctl -u xxl-scorer-gm
+#   systemctl enable --now xxl-scorer-gm.timer
+# Result: local/data/gm.json. Point the page at it with local/config.json:
+#   {"gm": "local/data/gm.json"}
+# The user may write local/data/ only: not the code, not local/config.json.
+[Unit]
+Description=Build xxl-scorer gm.json from PokeMiners' game master
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=xxl-scorer
+Group=xxl-scorer
+# build-gm.sh writes the new file next to the target and renames it into place only on success,
+# so a failed download or a format change keeps the last good gm.json.
+ExecStart=/opt/xxl-scorer/tools/build-gm.sh -l en -o /opt/xxl-scorer/local/data/gm.json
+WorkingDirectory=/opt/xxl-scorer/local/data
+ReadWritePaths=/opt/xxl-scorer/local/data
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+TimeoutStartSec=15min
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectProc=invisible
+ProcSubset=pid
+ProtectHostname=yes
+ProtectClock=yes
+ProtectKernelLogs=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RemoveIPC=yes
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+UMask=0022

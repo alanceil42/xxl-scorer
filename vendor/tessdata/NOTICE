@@ -1,0 +1,2 @@
+eng.traineddata.gz: English LSTM model "4.0.0_best_int" from the npm package
+@tesseract.js-data/eng 1.0.0 (MIT), built from tesseract-ocr/tessdata_best (Apache-2.0).

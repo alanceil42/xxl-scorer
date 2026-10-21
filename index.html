@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+	<meta name="color-scheme" content="light dark">
+	<!-- the page has its own dark mode; Dark Reader would invert it and ignore the system setting -->
+	<meta name="darkreader-lock">
+	<!-- What the page may load: its own files, and the game data from PokeMiners on GitHub,
+	     nothing else on raw.githubusercontent.com. A self-hosted gm.json on another host
+	     needs that host in connect-src. Hosts that can send headers should add frame-ancestors
+	     there (contrib/nginx); without it the page refuses to run in a frame (src/ui/app.js). -->
+	<!-- no Referer to GitHub when fetching the game data: it would name this site's URL -->
+	<meta name="referrer" content="no-referrer">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; connect-src 'self' https://raw.githubusercontent.com/PokeMiners/; img-src 'self' data: blob:; style-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
+	<meta name="description" content="Score Pokémon GO screenshots for size showcases, any day of the week. Runs in your browser.">
+	<title>xxl-scorer</title>
+	<link rel="icon" href="icon.svg" type="image/svg+xml">
+	<link rel="stylesheet" href="app.css">
+	<script type="module" src="src/ui/app.js"></script>
+</head>
+<body>
+	<header class="top">
+		<!-- icons: Lucide, vendored by tools/vendor.sh; rows marked .fit hide
+		     their .lbl.give labels when the screen is too narrow for them -->
+		<div class="brand-row fit">
+			<h1>xxl-scorer</h1>
+			<div class="tools">
+				<button class="btn small icon" id="help-btn" type="button" aria-label="Which screenshots to take" title="Which screenshots to take" aria-haspopup="dialog"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="vendor/lucide/icons.svg#circle-help"/></svg></button>
+				<details class="menu" id="backup">
+					<summary class="btn small" aria-label="Backup"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="vendor/lucide/icons.svg#hard-drive-download"/></svg><span class="lbl give">Backup</span><span class="dot" id="export-dot" hidden></span></summary>
+					<div class="menu-pop">
+						<button class="btn" id="export" type="button">Export</button>
+						<label class="btn">
+							<input type="file" id="import" accept="application/json,.json" hidden>
+							Import
+						</label>
+						<p class="muted small">Last export: <span id="export-status">never</span></p>
+					</div>
+				</details>
+				<button class="btn small icon" id="settings-btn" type="button" aria-label="Settings" title="Settings" aria-expanded="false" aria-controls="settings"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="vendor/lucide/icons.svg#settings"/></svg></button>
+			</div>
+		</div>
+		<p class="tag" id="mode-line" hidden><button type="button" class="mode-chip" id="mode-chip" title="XXS mode: the smallest showcase, lowest score wins. Tap to switch back.">XXS mode</button>the lowest score wins</p>
+	</header>
+	<!-- Action row and search: one row each on a phone, side by side on a wider screen.
+	     In select mode the select tools take the action row's place, and the whole bar stays
+	     at the top while scrolling. Outside the header, so it can stick to the page. -->
+	<div class="bar">
+		<div class="list-bar" role="toolbar" aria-label="Selection" id="list-bar" hidden>
+			<span id="list-count" class="muted small" aria-live="polite"></span>
+			<span class="spacer"></span>
+			<span class="select-tools">
+				<button class="btn" id="select-all" type="button">All</button>
+				<button class="btn danger" id="select-delete" type="button" disabled>Delete</button>
+				<button class="btn" id="select-done" type="button">Done</button>
+			</span>
+		</div>
+		<nav class="actions fit" aria-label="Add Pokémon">
+			<label class="btn primary grow" id="add-label">
+				<input type="file" id="add" accept="image/*" multiple hidden>
+				Add screenshots
+			</label>
+			<button class="btn icon" id="paste" type="button" aria-label="Paste" title="Paste: add a screenshot from the clipboard"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="vendor/lucide/icons.svg#clipboard-paste"/></svg></button>
+			<button class="btn icon" id="select-btn" type="button" aria-label="Select" title="Select: mark rows to delete several at once" hidden><svg class="ic" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="vendor/lucide/icons.svg#list-checks"/></svg></button>
+		</nav>
+		<div class="search" id="search-wrap" role="search" hidden>
+			<div class="search-row fit">
+				<span class="search-box">
+					<svg class="ic lens" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="vendor/lucide/icons.svg#search"/></svg>
+					<input type="search" id="search" placeholder="Search" aria-label="Search the list" aria-describedby="search-help"
+						autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="search">
+					<button type="button" id="search-clear" class="search-clear" aria-label="Clear search" hidden>
+						<svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><circle cx="10" cy="10" r="9"/><path d="M6.6 6.6l6.8 6.8M13.4 6.6l-6.8 6.8"/></svg>
+					</button>
+				</span>
+				<span id="search-count" class="muted small" aria-live="polite"></span>
+				<button type="button" id="check-filter" class="btn small check-filter" title="Show only the rows to check" hidden></button>
+				<details class="menu sort-menu" id="sort">
+					<summary class="btn sort" aria-label="Sort" aria-haspopup="true"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="vendor/lucide/icons.svg#arrow-down-up"/></svg></summary>
+					<div class="menu-pop">
+						<p class="menu-head muted small">Sort by</p>
+						<div id="sort-items"></div>
+					</div>
+				</details>
+			</div>
+			<p id="search-help" class="search-help muted small">A name, or as in the game: <code>cp700-800</code> <code>hp100-</code> <code>xxl</code> <code>xxs</code> <code>lucky</code> <code>4*</code> <code>3-4attack</code> <code>rock</code> <code>74</code> (Pokédex) <code>year2024</code>, and <code>score1100-</code> <code>check</code>.
+				Combine: <span class="nw"><code>,</code> or</span> · <span class="nw"><code>&amp;</code> and</span> · <span class="nw"><code>!</code> not</span>.</p>
+		</div>
+	</div>
+
+	<section id="settings" class="panel" hidden>
+		<h2>Settings</h2>
+		<div class="field">Showcase
+			<span class="seg" role="group" aria-label="Showcase">
+				<button type="button" class="btn small" id="mode-xxl" aria-pressed="true">Biggest (XXL)</button>
+				<button type="button" class="btn small" id="mode-xxs" aria-pressed="false">Smallest (XXS)</button>
+			</span>
+		</div>
+		<p class="muted small" id="mode-help">Biggest: the highest score wins, as in the game's showcases.
+			Smallest (XXS mode): for showcases of the smallest Pokémon, which the game doesn't run at the moment. The score is the same,
+			the lowest wins; how the game would really score them is a guess until such a showcase happens.</p>
+		<dl class="facts">
+			<dt>Game language</dt><dd>English <span class="muted">(more need a rules file, see the README)</span></dd>
+			<dt>Game data</dt><dd id="gm-status">not loaded</dd>
+			<dt>Stored here</dt><dd id="store-status">–</dd>
+		</dl>
+		<label class="field">Name to copy
+			<input id="name-tpl" autocomplete="off" spellcheck="false" placeholder="XX{score}{iv:sup}{a:dcirc}{lvl:circ}">
+		</label>
+		<p class="muted small">The Copy button in each row puts this on the clipboard, for pasting as the nickname in the game (12 characters at most).
+			Placeholders: <code>{score}</code> <code>{iv}</code> (percent) <code>{ivsum}</code> <code>{a}</code> <code>{d}</code> <code>{s}</code> <code>{lvl}</code> <code>{name}</code> <code>{xxl}</code> <code>{xxs}</code> <code>{size}</code> (XXL or XXS).
+			Styles: <code>:sup</code> superscript digits, <code>:circ</code> a circled number, <code>:dcirc</code> a dark circled number. The default <code>XX{score}{iv:sup}{a:dcirc}{lvl:circ}</code> gives XX1063¹⁸⓿㉚. Example now: <strong id="name-example">–</strong></p>
+		<div class="row-btns">
+			<button class="btn" id="gm-refresh" type="button">Check for new game data</button>
+			<label class="btn">
+				<input type="file" id="gm-import" accept="application/json,.json" hidden>
+				Import game data file
+			</label>
+			<button class="btn danger" id="clear" type="button">Delete all rows</button>
+		</div>
+		<p class="muted small">Game data is fetched by your browser from PokeMiners' public repositories on GitHub, at most once a week, and kept on this device. "Import game data file" takes a <code>latest.json</code> game master or a <code>gm.json</code> built with <code>tools/build-gm.sh</code>.</p>
+	</section>
+
+	<div id="banners" aria-live="polite"></div>
+
+	<main>
+		<div id="queue" class="queue" hidden aria-live="polite"></div>
+		<p id="loading" class="loading muted" aria-live="polite">Loading…</p>
+		<div id="empty" class="empty" hidden>
+			<div class="hf-pair" aria-hidden="false">
+				<figure><div class="hf-slot" data-phone="appraisal"></div><figcaption><strong>1</strong> With the appraisal: the bars</figcaption></figure>
+				<figure><div class="hf-slot" data-phone="plain"></div><figcaption><strong>2</strong> Without it: height, weight</figcaption></figure>
+			</div>
+			<p><strong>Add screenshots</strong> of Pokémon with the appraisal open (the three IV bars visible). Where the trainer hides the height or weight, add one without the appraisal too: screenshots of the same Pokémon become one row, so a quick swipe through your storage works.</p>
+			<p><button class="btn small" type="button" data-help>Which screenshots, in detail</button></p>
+			<p>Pick many at once, paste one, or drop them here.</p>
+			<p class="muted">Nothing is uploaded: screenshots are read on this device and dropped; only the readings and a small sprite thumbnail are kept.</p>
+		</div>
+		<p id="no-match" class="muted" hidden>No Pokémon match this search.</p>
+		<div class="table-wrap fit">
+			<table id="table" hidden>
+				<thead>
+					<tr>
+						<th scope="col" class="c-thumb"><span class="sr">Picture</span></th>
+						<th scope="col" data-sort="score" class="c-num">Score</th>
+						<th scope="col" data-sort="name">Pokémon</th>
+						<th scope="col" data-sort="cp" class="c-num">CP</th>
+						<th scope="col" data-sort="types">Type</th>
+						<th scope="col" data-sort="iv" class="c-num">IVs</th>
+						<th scope="col" data-sort="level" class="c-num">Lvl</th>
+						<th scope="col" data-sort="height" class="c-num">Height</th>
+						<th scope="col" data-sort="weight" class="c-num">Weight</th>
+						<th scope="col" data-sort="caught">Caught</th>
+						<th scope="col" data-sort="status">Status</th>
+					</tr>
+				</thead>
+				<tbody id="rows"></tbody>
+			</table>
+		</div>
+	</main>
+	<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+	<dialog id="editor" aria-labelledby="ed-title">
+		<form method="dialog" id="ed-form">
+			<header class="ed-head">
+				<img id="ed-thumb" alt="" width="84" height="68">
+				<div>
+					<h2 id="ed-title" tabindex="-1" autofocus>Pokémon</h2>
+					<p id="ed-score" class="ed-score"></p>
+				</div>
+			</header>
+			<ul id="ed-issues" class="issues"></ul>
+			<div class="grid">
+				<label>Species <input id="ed-species" list="species-list" autocomplete="off"></label>
+				<label>Form <select id="ed-form-sel"></select></label>
+				<label>CP <input id="ed-cp" inputmode="numeric"></label>
+				<label>HP <input id="ed-hp" inputmode="numeric"></label>
+				<label>Height (m) <input id="ed-height" inputmode="decimal"></label>
+				<label>Weight (kg) <input id="ed-weight" inputmode="decimal"></label>
+				<label>Attack IV <input id="ed-a" inputmode="numeric"></label>
+				<label>Defense IV <input id="ed-d" inputmode="numeric"></label>
+				<label>HP IV <input id="ed-s" inputmode="numeric"></label>
+				<label>XXL <select id="ed-xxl"><option value="">from height</option><option value="1">yes</option><option value="0">no</option></select></label>
+				<label>Caught <input id="ed-caught"></label>
+				<label>Score in game <input id="ed-ingame" inputmode="numeric" placeholder="Tuesdays"></label>
+			</div>
+			<details id="ed-cands-wrap">
+				<summary>IV combinations that fit CP and HP</summary>
+				<ol id="ed-cands" class="cands"></ol>
+			</details>
+			<footer class="ed-foot">
+				<button class="btn danger" value="delete" id="ed-delete">Delete</button>
+				<span class="spacer"></span>
+				<button class="btn" value="cancel" formnovalidate>Cancel</button>
+				<button class="btn primary" value="save" id="ed-save">Save</button>
+			</footer>
+		</form>
+	</dialog>
+	<datalist id="species-list"></datalist>
+
+	<dialog id="help" aria-labelledby="help-title">
+		<form method="dialog" class="help-body">
+			<h2 id="help-title" tabindex="-1">Which screenshots to take</h2>
+			<p>Two screenshots of each Pokémon's page in the game, one with the appraisal and one without. Screenshots of the same Pokémon become one row.</p>
+			<div class="hf-pair">
+				<figure>
+					<div class="hf-slot" data-phone="appraisal"></div>
+					<figcaption><strong>With the appraisal open.</strong> On the Pokémon's page, open the menu, tap <em>Appraise</em> and tap on until the three bars show. <span class="hf-key">1</span> The bars give the IVs. <span class="hf-key">2</span> The line "This … was caught on …" gives the species and the catch date.</figcaption>
+				</figure>
+				<figure>
+					<div class="hf-slot" data-phone="plain"></div>
+					<figcaption><strong>Without it,</strong> where the trainer covers the size. <span class="hf-key">1</span> Height and weight decide most of the score. On a phone with a 16:9 screen (iPhone 8, SE and the like) the appraisal always covers them: take both for every Pokémon.</figcaption>
+				</figure>
+			</div>
+			<ul class="help-tips">
+				<li>Many at once is fine: swipe through your storage, once with the appraisal and once without. A screenshot taken in the middle of a swipe, between two Pokémon, is skipped.</li>
+				<li>Whole screenshots, not cropped or edited. The game in English (other languages are not supported yet).</li>
+				<li>Nothing is uploaded: screenshots are read on this device and dropped.</li>
+			</ul>
+			<footer class="ed-foot"><span class="spacer"></span><button class="btn primary" value="close">Close</button></footer>
+		</form>
+	</dialog>
+
+	<footer class="foot">
+		<p>Unofficial fan tool, not affiliated with or endorsed by Scopely, Nintendo, Creatures, GAME FREAK or The Pokémon Company. Pokémon and Pokémon GO are trademarks of Nintendo. Game data is loaded by your browser from <a href="https://github.com/PokeMiners">PokeMiners</a>. <a href="https://github.com/alanceil42/xxl-scorer">Source code</a> (MIT), <a href="https://github.com/alanceil42/xxl-scorer/releases/tag/v1.0">version 1.0</a>.</p>
+		<p class="imprint" hidden><a id="imprint" target="_blank" rel="noopener nofollow"></a></p>
+	</footer>
+	<div id="drop" class="drop" hidden>Drop screenshots to add them</div>
+</body>
+</html>

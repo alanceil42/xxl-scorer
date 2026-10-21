@@ -1,0 +1,330 @@
+/* Palette "Sage": paper white, olive green */
+:root {
+	--bg: #f5f4ee;
+	--surface: #fffdf8;
+	--text: #23261f;
+	--muted: #676b5e;
+	--line: #e1dfd3;
+	--accent: #4d7a3a;
+	--accent-text: #ffffff;
+	--accent-soft: #e5eedd;
+	--ok: #2f7a3e;
+	--ok-soft: #e1f0e3;
+	--warn: #94600a;
+	--warn-soft: #fbefd6;
+	--bad: #b3261e;
+	--bad-soft: #f9e0de;
+	--radius: 10px;
+	--mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+	color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {
+		--bg: #161713;
+		--surface: #1f211b;
+		--text: #e6e8de;
+		--muted: #a2a696;
+		--line: #33362c;
+		--accent: #9cc77f;
+		--accent-text: #142010;
+		--accent-soft: #263320;
+		--ok: #8fd19b;
+		--ok-soft: #1f3324;
+		--warn: #f0c46b;
+		--warn-soft: #3a2e14;
+		--bad: #f2a29b;
+		--bad-soft: #3d1f1c;
+	}
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+	margin: 0;
+	background: var(--bg);
+	color: var(--text);
+	font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+	padding: 0 max(16px, env(safe-area-inset-right)) 24px max(16px, env(safe-area-inset-left));
+}
+/* 1280: the table's natural width (about 1235 px with CP and the copy buttons) fits */
+main, .top, .bar, .panel, #banners, .foot { max-width: 1280px; margin-inline: auto; }
+a { color: var(--accent); }
+code { font-family: var(--mono); font-size: 0.92em; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.top { padding: 18px 0 0; }
+/* the action row and search; its padding, not the rows' margins, makes the gaps, so it can stick */
+.bar { padding: 16px 0; }
+.brand-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.brand-row h1 { margin: 0; font-size: 24px; letter-spacing: -0.02em; white-space: nowrap; }
+.brand-row h1::before { content: ""; display: inline-block; width: 0.7em; height: 0.7em; margin-right: 0.35em; border-radius: 4px; background: var(--accent); vertical-align: 0.02em; }
+.tag { margin: 2px 0 0; color: var(--muted); }
+.tools { display: flex; gap: 6px; align-items: center; }
+.actions { display: flex; gap: 8px; max-width: 440px; }
+.actions .btn { min-height: 46px; }
+.actions .grow { flex: 1; }
+.search { margin-top: 10px; max-width: 440px; }
+.search-row { display: flex; align-items: center; gap: 8px; }
+.search-box { position: relative; flex: 1; display: flex; min-width: 0; }
+.search-box input { flex: 1; min-width: 0; background-color: var(--surface); padding-left: 36px; padding-right: 40px; }
+.search-box .lens { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; color: var(--muted); pointer-events: none; }
+/* our own clear button: the same in every browser (WebKit's own is tiny, iOS shows none) */
+.search-box input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; display: none; }
+.search-clear { position: absolute; right: 0; top: 0; width: 44px; height: 44px; display: grid; place-items: center; padding: 0; border: 0; background: none; cursor: pointer; }
+.search-clear circle { fill: var(--muted); opacity: 0.55; }
+.search-clear path { stroke: var(--surface); stroke-width: 1.9; stroke-linecap: round; }
+@media (hover: hover) { .search-clear:hover circle { opacity: 0.8; } }
+#search-count { white-space: nowrap; }
+/* as tall as the search field next to it, whatever height that has (.btn.small would win) */
+.search-row .btn.check-filter { align-self: stretch; min-height: 0; background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+#search-count:empty { display: none; }
+.search-help code { white-space: nowrap; }
+/* the syntax help shows while typing a search, so it doesn't take room otherwise */
+.search-help { display: none; margin: 6px 0 0; line-height: 1.7; }
+/* the field's focus only: not while the sort menu next to it is open */
+.search:has(#search:focus) .search-help { display: block; }
+#no-match { padding: 8px 2px; }
+.btn.small { min-height: 36px; padding: 0 12px; font-size: 14px; }
+.menu { position: relative; }
+.menu { display: flex; margin: 0; }
+.menu > summary { list-style: none; display: flex; }
+.menu > summary::-webkit-details-marker { display: none; }
+.menu[open] > summary { border-color: var(--muted); }
+.menu-pop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 5; min-width: 210px; display: flex; flex-direction: column; gap: 8px; padding: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 30px rgb(0 0 0 / 0.18); }
+.menu-pop p { margin: 2px 2px 0; }
+
+.btn {
+	display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+	min-height: 40px; padding: 0 14px; border-radius: var(--radius);
+	border: 1px solid var(--line); background: var(--surface); color: var(--text);
+	font: inherit; font-weight: 500; cursor: pointer; user-select: none; white-space: nowrap;
+}
+.btn:hover { border-color: var(--muted); }
+.btn:focus-visible, input:focus-visible, select:focus-visible, th[data-sort]:focus-visible, tr:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+.btn.ghost { background: transparent; }
+.btn.danger { color: var(--bad); }
+.btn[disabled] { opacity: 0.5; cursor: default; }
+.btn { position: relative; }
+.dot { position: absolute; top: 5px; right: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.btn.copy { min-height: 30px; padding: 0 9px; gap: 5px; font-size: 13px; font-weight: 600; }
+.btn.copy.done { color: var(--ok); border-color: var(--ok); }
+/* Find in game, then the nickname, as one pill in the order they are used */
+.pair { display: inline-flex; margin-left: 6px; vertical-align: middle; }
+.pair .btn:not(:only-child):first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.pair .btn:not(:only-child):last-child { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -1px; }
+.pair .btn:hover, .pair .btn.done, .pair .btn.next { z-index: 1; }
+.btn.copy.find { width: 34px; padding: 0; }
+.btn.copy.next { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+/* a note at the bottom of the screen, in the page's own surface colours (dark in dark mode) */
+.toast {
+	position: fixed; z-index: 20; left: 50%; transform: translateX(-50%);
+	bottom: calc(16px + env(safe-area-inset-bottom, 0px)); width: min(440px, calc(100% - 32px));
+	display: flex; gap: 10px; align-items: flex-start; padding: 10px 14px;
+	background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 12px;
+	box-shadow: 0 10px 30px rgb(0 0 0 / 0.25); font-size: 14px; line-height: 1.4;
+}
+.toast > div { min-width: 0; }
+.toast b { display: block; font-weight: 600; }
+.toast code { display: block; overflow-wrap: anywhere; color: var(--muted); font-size: 12px; user-select: all; }
+.toast .ic { color: var(--ok); margin-top: 1px; }
+.toast.warn { border-color: var(--warn); }
+.toast.warn .ic { color: var(--warn); }
+.field { display: flex; flex-direction: column; gap: 3px; font-size: 13px; color: var(--muted); margin: 4px 0 6px; max-width: 320px; }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 14px; }
+.panel h2 { margin: 0 0 8px; font-size: 16px; }
+.facts { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0 0 12px; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.row-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.banner { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 10px 14px; border-radius: var(--radius); margin-bottom: 10px; background: var(--warn-soft); color: var(--warn); }
+.banner.bad { background: var(--bad-soft); color: var(--bad); }
+.banner.info { background: var(--accent-soft); color: var(--text); }
+.banner p { margin: 0; flex: 1 1 260px; min-width: 0; overflow-wrap: anywhere; }
+.banner .btn { min-height: 34px; }
+
+.queue { padding: 10px 14px; border-radius: var(--radius); background: var(--accent-soft); margin-bottom: 10px; }
+.queue progress { width: 100%; accent-color: var(--accent); }
+
+.loading { padding: 28px 0; text-align: center; }
+.empty { border: 2px dashed var(--line); border-radius: var(--radius); padding: 28px 20px; text-align: center; }
+.empty p { margin: 6px auto; max-width: 560px; }
+
+.table-wrap { overflow-x: auto; }
+/* a window narrower than the table: tighter cells first (fitRows), scrolling only after that */
+.table-wrap.tight th, .table-wrap.tight td { padding-left: 6px; padding-right: 6px; }
+table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); font-variant-numeric: tabular-nums; }
+th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: none; position: sticky; top: 0; background: var(--surface); }
+th[data-sort] { cursor: pointer; }
+th[aria-sort="ascending"]::after { content: " ↑"; }
+th[aria-sort="descending"]::after { content: " ↓"; }
+tbody tr { cursor: pointer; }
+@media (hover: hover) { tbody tr:hover { background: var(--accent-soft); } }
+tbody tr:last-child td { border-bottom: 0; }
+.c-num { text-align: right; }
+.c-thumb { width: 64px; }
+td.c-thumb img { width: 56px; height: 46px; object-fit: cover; border-radius: 6px; display: block; background: var(--line); }
+.score { font-weight: 700; font-size: 16px; }
+.pm { color: var(--muted); font-size: 12px; margin-left: 2px; }
+.name small { color: var(--muted); }
+.seg { display: inline-flex; gap: 0; margin-top: 2px; }
+.seg .btn { border-radius: 0; }
+.seg .btn:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+.seg .btn:last-child { border-radius: 0 var(--radius) var(--radius) 0; margin-left: -1px; }
+.seg .btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-text); z-index: 1; }
+.mode-chip { font: inherit; font-size: 12px; font-weight: 700; padding: 1px 7px; margin-right: 6px; border-radius: 4px; border: 0; background: var(--accent); color: var(--accent-text); cursor: pointer; vertical-align: 1px; }
+.xxl { display: inline-block; font-size: 11px; font-weight: 700; padding: 0 5px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); margin-left: 4px; vertical-align: 1px; }
+.list-bar { display: flex; align-items: center; gap: 6px; max-width: 440px; }
+.list-bar .btn { min-height: 46px; }
+/* Select mode: the select tools in the action row's place, Done where Select was; the
+   bar with the search stays at the top while scrolling, so Delete is always in reach */
+body.selecting .actions { display: none; }
+body.selecting .bar { position: sticky; top: 0; z-index: 4; background: var(--bg); padding-top: max(16px, env(safe-area-inset-top)); }
+.select-tools { display: flex; gap: 6px; flex: none; }
+#list-count { min-width: 0; }
+.btn.danger:not([disabled]) { border-color: var(--bad); }
+tbody tr.selected, tbody tr.selected:hover { background: var(--accent-soft); outline: 2px solid var(--accent); outline-offset: -2px; }
+td.c-thumb { position: relative; }
+.tick { position: absolute; left: 4px; top: 4px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 15px; font-weight: 700; background: rgb(0 0 0 / 0.45); color: #fff; border: 2px solid #fff; }
+tr.selected .tick { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+#ed-title:focus { outline: none; }
+.chip { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 99px; }
+.chip.ok { background: var(--ok-soft); color: var(--ok); }
+.chip.check { background: var(--warn-soft); color: var(--warn); }
+.chip.dup { background: var(--bad-soft); color: var(--bad); }
+
+/* dvh: the height actually visible, with Safari's toolbars; vh is the fallback */
+dialog { border: 1px solid var(--line); border-radius: 14px; padding: 0; width: min(640px, calc(100vw - 24px)); max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); background: var(--surface); color: var(--text); }
+dialog::backdrop { background: rgb(0 0 0 / 0.45); }
+#ed-form { padding: 16px 16px 0; }
+.ed-head { display: flex; gap: 14px; align-items: center; margin-bottom: 8px; }
+.ed-head img { border-radius: 8px; object-fit: cover; background: var(--line); }
+.ed-head h2 { margin: 0; font-size: 18px; }
+.ed-score { margin: 2px 0 0; color: var(--muted); overflow-wrap: anywhere; }
+.issues { margin: 0 0 10px; padding: 0; list-style: none; }
+.issues li { padding: 6px 10px; border-radius: 8px; background: var(--warn-soft); color: var(--warn); margin-bottom: 4px; font-size: 14px; }
+.issues li.info { background: var(--accent-soft); color: var(--text); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px 10px; }
+.grid label { display: flex; flex-direction: column; gap: 3px; font-size: 13px; color: var(--muted); }
+/* 16px: iOS Safari zooms into any smaller input on focus. Inputs and selects share one height;
+   selects drop the platform look (iOS draws them shorter) and get a drawn chevron. */
+input, select { font: inherit; font-size: 16px; color: var(--text); background-color: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; height: 44px; width: 100%; }
+select {
+	-webkit-appearance: none; appearance: none; padding-right: 32px;
+	background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+	background-position: calc(100% - 18px) 52%, calc(100% - 13px) 52%;
+	background-size: 5px 5px; background-repeat: no-repeat;
+}
+details { margin-top: 12px; }
+summary { cursor: pointer; color: var(--muted); }
+.cands { columns: 3 140px; padding-left: 20px; margin: 8px 0 0; font-family: var(--mono); font-size: 13px; }
+.cands button { font: inherit; background: none; border: 0; color: var(--accent); cursor: pointer; padding: 2px 0; text-align: left; }
+/* the buttons stay in view while the form scrolls */
+.ed-foot { display: flex; gap: 8px; margin-top: 12px; padding: 10px 0 14px; position: sticky; bottom: 0; background: var(--surface); }
+.spacer { flex: 1; }
+
+.drop { position: fixed; inset: 12px; display: grid; place-items: center; border: 3px dashed var(--accent); border-radius: 18px; background: color-mix(in srgb, var(--bg) 88%, transparent); font-size: 20px; font-weight: 600; color: var(--accent); z-index: 10; }
+/* Icons: Lucide line icons from vendor/lucide/icons.svg, drawn in the
+   text colour. Icon-only buttons are square: 36 px in the header, 46 px in the action row. */
+.ic { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.btn.small .ic { width: 17px; height: 17px; }
+.btn.small.icon .ic { width: 20px; height: 20px; }
+.btn.copy .ic { width: 14px; height: 14px; }
+.btn.copy.find .ic { width: 16px; height: 16px; }
+.btn.icon { width: 36px; padding: 0; font-weight: 700; }
+.actions .btn.icon { width: 46px; }
+/* Wider screens: the action row on the left, the search with the sort button at the right
+   end, as a browser's separate search field; both 46 px tall */
+@media (min-width: 760px) {
+	.bar { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+	.bar > .actions, .bar > .list-bar { flex: 0 1 440px; min-width: 0; max-width: none; }
+	.bar > .search { flex: 0 1 360px; min-width: 0; max-width: none; margin-top: 0; }
+	.bar .search-box input { height: 46px; }
+	.bar .search-clear { height: 46px; }
+}
+/* a row too narrow for its words (src/ui/app.js fitRows): the marked labels give way */
+.fit.tight .lbl.give { display: none; }
+/* Sort: a square as tall as the search field next to it; tinted while not by score */
+.search-row .sort-menu { align-self: stretch; }
+.search-row .sort-menu > summary { width: 44px; min-height: 0; padding: 0; }
+.sort-menu > summary.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.sort-menu .menu-pop { min-width: 230px; gap: 0; padding: 6px; }
+.sort-menu .menu-head { margin: 4px 10px 6px; font-weight: 600; }
+.sort-menu .item { display: flex; width: 100%; align-items: center; gap: 10px; padding: 0 10px; min-height: 42px; border: 0; border-radius: 8px; background: none; color: var(--text); font: inherit; font-weight: 500; text-align: left; cursor: pointer; }
+.sort-menu .item[aria-pressed="true"] { background: var(--accent-soft); }
+@media (hover: hover) { .sort-menu .item:hover { background: var(--accent-soft); } }
+.sort-menu .item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.sort-menu .chk { width: 16px; color: var(--accent); }
+.sort-menu .dir { margin-left: auto; padding-left: 12px; color: var(--muted); font-size: 13px; font-weight: 400; white-space: nowrap; }
+
+/* Which screenshots (src/ui/help.js): two phone outlines in the page's own colours */
+.hf-pair { display: flex; justify-content: center; gap: 16px; margin: 0 auto 10px; max-width: 520px; }
+.hf-pair figure { margin: 0; flex: 1 1 0; min-width: 0; }
+.hf-pair figcaption { font-size: 13px; color: var(--muted); margin-top: 6px; text-align: left; }
+.empty .hf-pair { max-width: 340px; }
+.empty .hf-pair figcaption { text-align: center; }
+.hf { display: block; width: 100%; max-width: 220px; height: auto; margin: 0 auto; }
+.hf text { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.hf-frame { fill: var(--surface); stroke: var(--muted); stroke-width: 2; }
+.hf-screen { fill: var(--bg); }
+.hf-sky { fill: var(--accent-soft); }
+.hf-arc { fill: none; stroke: var(--muted); stroke-width: 1.5; opacity: 0.6; }
+.hf-sprite { fill: var(--muted); opacity: 0.3; }
+.hf-card { fill: var(--surface); stroke: var(--line); }
+.hf-strong { fill: var(--text); font-weight: 700; }
+.hf-text { fill: var(--text); }
+.hf-muted { fill: var(--muted); }
+.hf-pill { fill: var(--warn); opacity: 0.75; }
+.hf-pill-t { fill: var(--surface); font-weight: 700; }
+.hf-hp { fill: var(--ok); }
+.hf-type { fill: var(--muted); opacity: 0.5; }
+.hf-rule { stroke: var(--line); }
+.hf-ghost { fill: var(--line); }
+.hf-button { fill: var(--line); }
+.hf-dim { fill: var(--bg); opacity: 0.45; }
+.hf-trainer { fill: var(--muted); opacity: 0.45; }
+.hf-medal { fill: var(--warn-soft); stroke: var(--warn); }
+.hf-medal-t { fill: var(--warn); }
+.hf-bar-t { fill: var(--warn); font-weight: 600; }
+.hf-bar-bg { fill: var(--line); }
+.hf-bar { fill: var(--warn); }
+.hf-mark { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-dasharray: 5 3; }
+.hf-num { fill: var(--accent); }
+.hf-num-t { fill: var(--accent-text); font-weight: 700; }
+.hf-key { display: inline-grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; background: var(--accent); color: var(--accent-text); font-size: 11px; font-weight: 700; vertical-align: 1px; }
+.help-body { padding: 16px 16px 0; }
+.help-body h2 { margin: 0 0 6px; font-size: 18px; }
+.help-body h2:focus { outline: none; }
+.help-tips { padding-left: 20px; margin: 10px 0 0; font-size: 14px; }
+.help-tips li { margin: 4px 0; }
+.foot { margin-top: 28px; color: var(--muted); font-size: 13px; }
+.foot p { margin: 4px 0; }
+/* the legal notice link: normal size, so it is easy to see */
+.foot .imprint { margin-top: 10px; font-size: 16px; }
+
+/* Phones: rows become cards */
+.mobile-meta { display: none; font-size: 13px; color: var(--muted); }
+.nw { white-space: nowrap; }
+@media (max-width: 680px) {
+	table, thead, tbody, tr, td { display: block; border: 0; }
+	thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+	table { background: none; }
+	tbody tr {
+		display: grid; grid-template-columns: 64px 1fr auto; grid-template-areas: "t n s" "t st st";
+		gap: 4px 12px; padding: 10px 12px; margin-bottom: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+	}
+	td { padding: 0; white-space: normal; }
+	td.c-thumb { grid-area: t; }
+	td.c-thumb img { width: 64px; height: 52px; }
+	td.c-score { grid-area: s; text-align: right; }
+	td.c-name { grid-area: n; }
+	td.c-meta { display: none; }
+	td.c-status { grid-area: st; }
+	.mobile-meta { display: block; }
+}

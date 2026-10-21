@@ -1,0 +1,44 @@
+# Public tests on every push. Weekly: does PokeMiners' game data still parse, and is there a
+# newer tesseract.js? Both only report (a failed run sends GitHub's usual email); nothing is
+# updated or published.
+name: ci
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+      - name: Vendored files match SHA256SUMS
+        run: bash tools/vendor.sh --check
+      - name: Tests (synthetic data)
+        run: npm test
+
+  upstream-format:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build gm.json from the current game master and text tables (not kept)
+        run: bash tools/build-gm.sh -l en,de -o "$RUNNER_TEMP/gm.json"
+
+  vendor-outdated:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Newer tesseract.js? (update by hand with tools/vendor.sh --update, then test)
+        run: bash tools/vendor.sh --outdated

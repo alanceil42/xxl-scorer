@@ -1,0 +1,12 @@
+{
+	"name": "xxl-scorer",
+	"version": "1.0",
+	"description": "Pokémon GO showcase scorer: screenshots in, showcase points out. Runs in the browser.",
+	"license": "MIT",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"test": "node --test",
+		"serve": "python3 -m http.server 8000"
+	}
+}

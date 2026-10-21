@@ -1,0 +1,14 @@
+# Screenshots stay out of the repo
+fixtures/
+*.png
+*.jpg
+*.jpeg
+*.heic
+!docs/**/*.png
+.DS_Store
+node_modules/
+# Site-specific settings and game data of a self-hosted install
+/local/
+# Editor leftovers (vi swap files, backups)
+.*.sw?
+*~

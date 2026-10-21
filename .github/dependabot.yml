@@ -1,0 +1,8 @@
+# Keeps the actions used by CI current. The page itself has no
+# dependencies to update: tesseract.js is vendored on purpose and updated by hand.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
