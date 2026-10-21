@@ -8,6 +8,10 @@ collect under "Unreleased".
 
 ## Unreleased
 
+- Self-hosted sites: when config.json's "gm" points to another gm.json, the page loads it at
+  once; it used to keep the previous file's data for up to "gmCheckDays", shown under the new
+  name
+
 
 ## 1.0.1 - 2026-10-21
 
