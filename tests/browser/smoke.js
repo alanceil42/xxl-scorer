@@ -1,5 +1,6 @@
 // Smoke test of the page in a real browser: boot with synthetic game data, import a backup,
 // the rows, sorting, search, the editor, select and delete, at a phone's width and a desktop's.
+// Rows that can't be scored, a hostile backup, a failed import, copying without the clipboard API.
 // Fails on any Content-Security-Policy violation, any error in the console or the page, and
 // any request to somewhere other than the site itself and PokeMiners on GitHub.
 //
@@ -204,6 +205,59 @@ for (const width of [402, 1280]) {
 		}
 	});
 }
+
+// rows from outside or from an older version: shown and marked, never breaking the page
+test('a row that can\'t be scored, a hostile backup, a failed import, copying without the clipboard API', { timeout: 60_000 }, async () => {
+	const { context, page, problems } = await open(1280);
+	try {
+		await boot(page);
+		// stored as an older version or a hand-edited backup might have: types as a string
+		const bad = { ...ROWS[1], id: 'bad', reading: { ...ROWS[1].reading, types: 'ROCK' } };
+		await page.evaluate(rows => new Promise((resolve, reject) => {
+			const req = indexedDB.open('xxl-scorer', 1);
+			req.onsuccess = () => {
+				const t = req.result.transaction('rows', 'readwrite');
+				for (const r of rows) t.objectStore('rows').put(r);
+				t.oncomplete = () => { req.result.close(); resolve(); };
+				t.onerror = () => reject(t.error);
+			};
+			req.onerror = () => reject(req.error);
+		}), [ROWS[0], bad]);
+		await boot(page);
+		await page.waitForSelector('#rows tr >> nth=1');
+		assert.deepEqual((await ids(page)).sort(), ['bad', 'tm'], 'both rows listed');
+		assert.equal(await page.textContent('tr[data-id="bad"] .chip'), 'check');
+		await page.click('tr[data-id="bad"] .c-name');
+		await page.waitForSelector('#editor[open]');
+		assert.match(await page.textContent('#ed-issues'), /can't be scored/);
+		await page.click('#editor button[value="cancel"]');
+
+		// a backup naming "constructor" as the species: taken without that edit
+		const evil = { ...mon('ev', 'Fakeon', 'FAKEON', { a: 2, d: 3, s: 4 }, 22, 0.55, 7.5, '1/2/2025'), edits: { id: 'constructor' } };
+		await page.click('#backup > summary');
+		await page.setInputFiles('#import', { name: 'evil.json', mimeType: 'application/json',
+			buffer: Buffer.from(JSON.stringify({ app: 'xxl-scorer', v: 1, rows: [evil] })) });
+		await page.waitForSelector('tr[data-id="ev"]');
+		assert.match(await page.textContent('tr[data-id="ev"] .c-name'), /Fakeon/);
+		assert.equal(await page.textContent('tr[data-id="ev"] .chip'), 'ok');
+
+		// storage refusing the rows: the import says so
+		await page.evaluate(() => { IDBObjectStore.prototype.put = () => { throw new Error('disk full'); }; });
+		await page.click('#backup > summary');
+		await page.setInputFiles('#import', { name: 'backup.json', mimeType: 'application/json', buffer: Buffer.from(BACKUP) });
+		await page.waitForFunction(() => /Import failed: disk full/.test(document.querySelector('#banners').textContent));
+
+		// no Async Clipboard API: the fallback copies without a CSP violation
+		await page.evaluate(() => { navigator.clipboard.writeText = () => Promise.reject(new Error('no')); });
+		await page.click('tr[data-id="tm"] .btn.copy.find');
+		await page.waitForSelector('#toast:not([hidden])');
+		assert.match(await page.textContent('#toast'), /641|9001/);
+
+		assert.deepEqual(problems, []);
+	} finally {
+		await context.close();
+	}
+});
 
 test('the guards notice what they are there for', { timeout: 30_000 }, async () => {
 	// a request the CSP blocks

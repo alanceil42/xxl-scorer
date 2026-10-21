@@ -75,3 +75,20 @@ test('long strings dropped: names, file names, ids, thumbnails over 200 KB', () 
 	assert.equal(cleanRow({ id: 'i'.repeat(65), reading: {} }), null);
 	assert.equal(safeThumb(`data:image/jpeg;base64,${'A'.repeat(200_000)}`), undefined);
 });
+
+test('edits: a species id only in the game data\'s form, never a name every object has', () => {
+	for (const id of ['MR_MIME', 'PORYGON2', 'HO_OH']) assert.equal(cleanRow({ id: 'e', reading: {}, edits: { id } }).edits.id, id);
+	for (const id of ['constructor', '__proto__', 'toString', 'hasOwnProperty', 'testmon', 'MR MIME', ''])
+		assert.equal(cleanRow({ id: 'e', reading: {}, edits: { id } }).edits.id, undefined, JSON.stringify(id));
+});
+
+test('times after now are taken as now', () => {
+	const now = 1_800_000_000_000;
+	const r = cleanRow({ ...good, created: 1, updated: now + 1, scanned: 8e15 }, now);
+	assert.equal(r.created, 1, 'earlier times as they are');
+	assert.equal(r.updated, now);
+	assert.equal(r.scanned, now);
+	assert.equal(r.scanIdx, good.scanIdx, 'the place in the batch stays');
+	const later = cleanRow({ ...good, updated: Date.now() + 365 * 86400e3 });
+	assert.ok(later.updated <= Date.now(), 'now by default');
+});

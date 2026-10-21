@@ -104,7 +104,8 @@ export function dexIndex(gm) {
 
 /** All forms of a species as [{form, row}], base first. */
 export function formsOf(gm, id) {
-	const sp = gm.species[id];
+	// own entries only: "constructor" is no species, though every object has one
+	const sp = Object.hasOwn(gm.species, id) ? gm.species[id] : null;
 	if (!sp) return [];
 	return Object.entries(sp.f)
 		.sort(([a], [b]) => (a === '' ? -1 : b === '' ? 1 : a.localeCompare(b)))

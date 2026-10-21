@@ -1,5 +1,5 @@
 // xxl-scorer page: queue, table, editor, backup. Pure logic lives in src/core.
-import { makeContext, evaluate, formLabel, mergeTarget, mergeReadings } from '../core/evaluate.js';
+import { makeContext, evaluate, evaluateSafely, formLabel, mergeTarget, mergeReadings } from '../core/evaluate.js';
 import { makeRules } from '../core/read.js';
 import { findDex } from '../core/text.js';
 import { formatName, nameValues, DEFAULT_TEMPLATE } from '../core/nickname.js';
@@ -268,7 +268,7 @@ function takeReading(run, f, res, idx) {
 }
 
 function keyOf(row) {
-	return state.ctx ? evaluate(row.reading, state.ctx, row.edits).key : null;
+	return state.ctx ? evaluateSafely(row.reading, state.ctx, row.edits).key : null;
 }
 
 async function resolveDuplicates(replace) {
@@ -297,7 +297,8 @@ const problems = e => e.issues.filter(i => !i.info);
 function evaluated() {
 	const keys = new Map();
 	return state.rows.map(row => {
-		const e = state.ctx ? evaluate(row.reading, state.ctx, row.edits) : null;
+		// one row that can't be scored is marked to check; it must not take the list down
+		const e = state.ctx ? evaluateSafely(row.reading, state.ctx, row.edits) : null;
 		if (e && e.key) keys.set(e.key, (keys.get(e.key) || 0) + 1);
 		return { row, e };
 	}).map(x => ({ ...x, dup: x.e && x.e.key && keys.get(x.e.key) > 1 }));
@@ -512,7 +513,9 @@ async function copyText(text) {
 		return true;
 	} catch {
 		// older browsers: a hidden textarea and execCommand
-		const t = el('textarea', { style: 'position:absolute;left:-9999px', readonly: true });
+		const t = el('textarea', { readonly: true });
+		// a property, not a style attribute: the Content-Security-Policy blocks those
+		t.style.cssText = 'position:absolute;left:-9999px';
 		t.value = text;
 		document.body.append(t);
 		t.select();
@@ -555,7 +558,7 @@ function openEditor(id) {
 	const row = state.rows.find(r => r.id === id);
 	if (!row || !state.ctx) return;
 	editing = row;
-	const e = evaluate(row.reading, state.ctx, row.edits);
+	const e = evaluateSafely(row.reading, state.ctx, row.edits);
 	const r = row.reading, ed = row.edits;
 	$('#ed-thumb').src = row.thumb || '';
 	$('#ed-title').textContent = `${e.name || '?'}${e.formName ? ' ' + e.formName : ''}${e.xxl ? ' · XXL' : ''}`;
@@ -628,7 +631,7 @@ async function closeEditor(ev) {
 	const caught = $('#ed-caught').value.trim();
 	if (caught && caught !== r.caught) edits.caught = caught;
 	const a = numOrNull($('#ed-a').value, true), d = numOrNull($('#ed-d').value, true), s = numOrNull($('#ed-s').value, true);
-	const auto = evaluate(r, state.ctx, { ...edits, ivs: undefined }).ivs;
+	const auto = evaluateSafely(r, state.ctx, { ...edits, ivs: undefined }).ivs;
 	if ([a, d, s].every(x => x != null && x >= 0 && x <= 15) && !(auto && auto.a === a && auto.d === d && auto.s === s)) edits.ivs = { a, d, s };
 	const x = $('#ed-xxl').value;
 	if (x) edits.xxl = x === '1';
@@ -685,21 +688,26 @@ async function importRows(file) {
 		banner('bad', `Import failed: ${err.message}`);
 		return;
 	}
-	const byId = new Map(state.rows.map(r => [r.id, r]));
-	const byKey = new Map(state.rows.map(r => [keyOf(r), r]).filter(([k]) => k));
-	let added = 0, updated = 0, bad = 0;
-	const put = [];
-	// only known fields of the expected types: a backup file can come from anywhere
-	for (const raw of data.rows.slice(0, 50_000)) {
-		const r = cleanRow(raw);
-		if (!r) { bad++; continue; }
-		const mine = byId.get(r.id) || byKey.get(state.ctx ? evaluate(r.reading, state.ctx, r.edits).key : null);
-		if (!mine) { put.push(r); added++; }
-		else if ((r.updated || 0) > (mine.updated || 0)) { put.push({ ...r, id: mine.id }); updated++; }
+	try {
+		const byId = new Map(state.rows.map(r => [r.id, r]));
+		const byKey = new Map(state.rows.map(r => [keyOf(r), r]).filter(([k]) => k));
+		let added = 0, updated = 0, bad = 0;
+		const put = [];
+		// only known fields of the expected types: a backup file can come from anywhere
+		for (const raw of data.rows.slice(0, 50_000)) {
+			const r = cleanRow(raw);
+			if (!r) { bad++; continue; }
+			const mine = byId.get(r.id) || byKey.get(state.ctx ? evaluateSafely(r.reading, state.ctx, r.edits).key : null);
+			if (!mine) { put.push(r); added++; }
+			else if ((r.updated || 0) > (mine.updated || 0)) { put.push({ ...r, id: mine.id }); updated++; }
+		}
+		await rowStore.putMany(put);
+		state.rows = await rowStore.all();
+		banner('info', `Imported: ${added} new, ${updated} updated, ${data.rows.length - added - updated - bad} already up to date${bad ? `, ${bad} not readable` : ''}.`);
+	} catch (err) {
+		// storage full or refused, or anything else: say so rather than fail silently
+		banner('bad', `Import failed: ${err.message || err}`);
 	}
-	await rowStore.putMany(put);
-	state.rows = await rowStore.all();
-	banner('info', `Imported: ${added} new, ${updated} updated, ${data.rows.length - added - updated - bad} already up to date${bad ? `, ${bad} not readable` : ''}.`);
 	render();
 }
 
@@ -788,7 +796,7 @@ function renderSettings() {
 	} else if (i && i.error) setStatus('#gm-status', `not loaded: ${i.error}`);
 	setStatus('#store-status', `${state.rows.length} Pokémon`);
 	setStatus('#export-status', state.lastExport ? new Date(state.lastExport).toLocaleString() : 'never');
-	const sample = state.ctx && state.rows.length ? evaluate(state.rows[0].reading, state.ctx, state.rows[0].edits) : { name: 'Chansey', ivs: { a: 15, d: 14, s: 14 }, level: 20, xxl: true, score: { total: 1104.6 } };
+	const sample = state.ctx && state.rows.length ? evaluateSafely(state.rows[0].reading, state.ctx, state.rows[0].edits) : { name: 'Chansey', ivs: { a: 15, d: 14, s: 14 }, level: 20, xxl: true, score: { total: 1104.6 } };
 	const n = formatName(state.nameTemplate, nameValues(sample));
 	setStatus('#name-example', `${n.text}${n.tooLong ? ` (${n.length} characters: too long for the game)` : ''}`);
 }
