@@ -39,10 +39,12 @@ test('forms and dex lookup', () => {
 
 /**
  * The game master's odd corners: a species listed only by its forms (NORMAL instead of a base
- * entry), templates without the numbers needed, stats left out, no contest settings.
+ * entry), templates without the numbers needed, stats left out, no contest settings, and zeros
+ * where a number is needed (0 means as little as missing: no size or weight is 0).
  */
 function edgeGameMaster() {
 	const mon = (tid, p) => ({ templateId: tid, data: { pokemonSettings: { pokedexHeightM: 1.2, pokedexWeightKg: 30, type: 'POKEMON_TYPE_ROCK', stats: { baseAttack: 120, baseDefense: 110, baseStamina: 130 }, ...p } } });
+	const ext = (id, sizeSettings) => ({ templateId: `EXTENDED_V0000_POKEMON_${id}`, data: { pokemonExtendedSettings: { uniqueId: id, sizeSettings } } });
 	return [
 		mon('V9004_POKEMON_EDGEMON_NORMAL', { pokemonId: 'EDGEMON', form: 'EDGEMON_NORMAL' }),
 		mon('V9004_POKEMON_EDGEMON_COSTUME', { pokemonId: 'EDGEMON', form: 'EDGEMON_COSTUME' }),
@@ -53,6 +55,13 @@ function edgeGameMaster() {
 		mon('V9007_POKEMON_NOSTATS', { pokemonId: 'NOSTATS', stats: undefined }),
 		{ templateId: 'V9008_POKEMON_NOSETTINGS', data: {} },
 		mon('X9009_POKEMON_NOTAMON', { pokemonId: 'NOTAMON' }),
+		mon('V9010_POKEMON_ZEROMON', { pokemonId: 'ZEROMON', weightStdDev: 0 }),
+		ext('ZEROMON', { xxlUpperBound: 2.2, xlUpperBound: 0, xsLowerBound: 0 }),
+		mon('V9011_POKEMON_ZEROBOUND', { pokemonId: 'ZEROBOUND' }),
+		ext('ZEROBOUND', { xxlUpperBound: 0, xlUpperBound: 1.9 }),
+		mon('V9012_POKEMON_ZEROHEIGHT', { pokemonId: 'ZEROHEIGHT', pokedexHeightM: 0 }),
+		mon('V9013_POKEMON_ZEROWEIGHT', { pokemonId: 'ZEROWEIGHT', pokedexWeightKg: 0 }),
+		mon('V9014_POKEMON_ZEROATTACK', { pokemonId: 'ZEROATTACK', stats: { baseAttack: 0, baseDefense: 110, baseStamina: 130 } }),
 		{ templateId: 'PLAYER_LEVEL_SETTINGS', data: { playerLevel: { cpMultiplier: CPM } } },
 	];
 }
@@ -66,8 +75,16 @@ test('a species listed only by its forms: NORMAL stands in for the base, its cos
 
 test('templates without height, weight or attack are skipped; missing defence and stamina are 0', () => {
 	const gm = compactGameMaster(edgeGameMaster(), { minSpecies: 1 });
-	assert.deepEqual(Object.keys(gm.species).sort(), ['EDGEMON', 'STATLESS']);
+	assert.deepEqual(Object.keys(gm.species).sort(), ['EDGEMON', 'STATLESS', 'ZEROBOUND', 'ZEROMON'], 'a height, weight or attack of 0 too');
 	assert.deepEqual(gm.species.STATLESS.f[''].slice(4, 8), [90, 0, 0, 'ROCK']);
+});
+
+test('a 0 where a size or weight is needed counts as missing', () => {
+	const gm = compactGameMaster(edgeGameMaster(), { minSpecies: 1 });
+	const [h, w] = [1.2, 30];
+	assert.deepEqual(gm.species.ZEROMON.f[''], [h, w, w / 8, 2.2, 120, 110, 130, 'ROCK', h * 1.5, h * 0.5], 'σ, XL max and XS min of 0');
+	assert.deepEqual(gm.species.ZEROBOUND.f[''], [h, w, w / 8, h * 1.75, 120, 110, 130, 'ROCK', h * 1.5, h * 0.5],
+		'an XXL max of 0: the size settings are not used at all');
 });
 
 test('no contest settings: the known coefficients, no size showcases', () => {
