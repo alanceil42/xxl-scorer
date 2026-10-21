@@ -38,7 +38,11 @@ function newWorker(lang, onProgress) {
 			corePath: abs('vendor/tesseract/core/'),
 			langPath: abs('vendor/tessdata'),
 			gzip: true,
-			workerBlobURL: false,
+			// The worker starts from a blob: URL, so it runs under the page's own
+			// Content-Security-Policy (a worker from a file of the site would get only that
+			// file's response headers, i.e. none on GitHub Pages): the engine, too, may load
+			// only from this site
+			workerBlobURL: true,
 			logger: m => onProgress && onProgress(m),
 		});
 	})();

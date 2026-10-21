@@ -151,8 +151,10 @@ Give it a host name of its own if you can (`xxl.example.org` rather than `exampl
 browsers share stored data and logins between everything on one host name, so the list and any
 other app there could reach each other. On GitHub Pages that takes a custom domain, since all
 project pages of an account share `<account>.github.io`. The page carries its own
-Content-Security-Policy (in `index.html`); if `"gm"` points to another host, add that host to its
-`connect-src`. The nginx example adds the security headers a page can't set itself.
+Content-Security-Policy (in `index.html`), which also covers the text recognition engine; if
+`"gm"` points to another host, add that host to its `connect-src`. The nginx example sends the
+same policy as a header, with what a page can't set itself (no framing, and a few more): keep
+the two the same.
 
 Everything stays in the one directory. Your own settings and data go into `local/`, which is
 not part of the repository, so an update never touches them: replace everything else, keep

@@ -1,6 +1,7 @@
 // Smoke test of the page in a real browser: boot with synthetic game data, import a backup,
 // the rows, sorting, search, the editor, select and delete, at a phone's width and a desktop's.
 // Rows that can't be scored, a hostile backup, a failed import, copying without the clipboard API.
+// The text recognition engine reading a drawn image, under the page's CSP, loading only from the site.
 // Fails on any Content-Security-Policy violation, any error in the console or the page, and
 // any request to somewhere other than the site itself and PokeMiners on GitHub.
 //
@@ -94,7 +95,13 @@ async function open(width, opts = {}) {
 	// the event the browser fires for each CSP violation, so none goes unnoticed in the console
 	await page.addInitScript(() => addEventListener('securitypolicyviolation', e =>
 		console.error(`CSP violation: ${e.violatedDirective} blocked ${e.blockedURI}`)));
-	page.on('console', m => { if (m.type() === 'error' || /Content.Security.Policy/i.test(m.text())) problems.push(`console: ${m.text()}`); });
+	page.on('console', m => {
+		const csp = /Content.Security.Policy/i.test(m.text());
+		// the engine writes Tesseract's own diagnostics (statistics of an empty page) to stderr,
+		// which shows as console errors from its core file: not a fault of the page
+		if (!csp && m.location().url.startsWith(`${base}vendor/tesseract/core/`)) return;
+		if (m.type() === 'error' || csp) problems.push(`console: ${m.text()} @${m.location().url}`);
+	});
 	page.on('pageerror', err => problems.push(`page error: ${err.message}`));
 	page.on('request', r => {
 		const url = r.url();
@@ -259,6 +266,42 @@ test('a row that can\'t be scored, a hostile backup, a failed import, copying wi
 	}
 });
 
+// The engine (tesseract.js) reads a drawn image: it runs in a worker started from a blob: URL, so
+// the page's CSP covers it, and everything it loads comes from the site itself. No screenshot:
+// a grey card with dark bars, nothing a reading could find a Pokémon in.
+function drawnScreen() {
+	const width = 750, height = 1334, data = new Uint8ClampedArray(width * height * 4).fill(235);
+	const box = (x0, y0, w, h, v) => {
+		for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) data.fill(v, (y * width + x) * 4, (y * width + x) * 4 + 3);
+	};
+	box(60, 700, 630, 560, 250);
+	for (let i = 0; i < 6; i++) box(120, 760 + i * 70, 300 + i * 40, 24, 40);
+	return encodePng({ width, height, data });
+}
+
+test('the text recognition engine runs under the CSP and loads only from the site', { timeout: 120_000 }, async () => {
+	const { context, page, problems } = await open(1280);
+	const loaded = [];
+	page.on('request', r => loaded.push(r.url()));
+	try {
+		await boot(page);
+		const before = loaded.length;
+		await page.setInputFiles('#add', { name: 'drawn.png', mimeType: 'image/png', buffer: drawnScreen() });
+		await page.waitForFunction(() => document.querySelector('#queue').hidden && !/Starting/.test(document.querySelector('#queue').textContent), null, { timeout: 100_000 });
+		const engine = loaded.slice(before);
+		for (const f of ['vendor/tesseract/tesseract.min.js', 'vendor/tesseract/worker.min.js', 'vendor/tessdata/eng.traineddata.gz'])
+			assert.ok(engine.includes(base + f), `${f} loaded:\n${engine.join('\n')}`);
+		assert.ok(engine.some(u => u.startsWith(`${base}vendor/tesseract/core/tesseract-core-`)), 'a core file');
+		assert.deepEqual(engine.filter(u => !u.startsWith(base) && !/^(data|blob):/.test(u)), [], 'nothing from elsewhere, PokeMiners included');
+		assert.ok(page.workers().length > 0 && page.workers().every(w => w.url().startsWith('blob:')), page.workers().map(w => w.url()).join(', '));
+		// the reading went through: a row to check, or a note that nothing could be read
+		assert.match(await page.textContent('main') + await page.textContent('#banners'), /Species not read|Could not read|check/);
+		assert.deepEqual(problems, []);
+	} finally {
+		await context.close();
+	}
+});
+
 test('the guards notice what they are there for', { timeout: 30_000 }, async () => {
 	// a request the CSP blocks
 	const a = await open(1280);
@@ -269,6 +312,21 @@ test('the guards notice what they are there for', { timeout: 30_000 }, async () 
 		assert.ok(a.problems.some(p => /CSP violation: connect-src blocked https:\/\/example\.org/.test(p)), a.problems.join('\n'));
 	} finally {
 		await a.context.close();
+	}
+	// a worker started from a blob: URL, as the engine's, runs under the page's CSP
+	const w = await open(1280);
+	try {
+		await boot(w.page);
+		const got = await w.page.evaluate(() => new Promise(resolve => {
+			const src = "fetch('https://example.org/w').then(() => postMessage('fetched'), () => postMessage('refused'))";
+			const worker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+			worker.onmessage = m => resolve(m.data);
+		}));
+		assert.equal(got, 'refused');
+		await w.page.waitForTimeout(200);
+		assert.ok(!w.problems.includes('request: https://example.org/w'), 'blocked before it left');
+	} finally {
+		await w.context.close();
 	}
 	// a request elsewhere that gets past the CSP (here switched off), stopped before it leaves
 	const b = await open(1280, { bypassCSP: true });

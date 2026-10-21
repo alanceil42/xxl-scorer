@@ -8,6 +8,9 @@ collect under "Unreleased".
 
 ## Unreleased
 
+- The text recognition engine runs under the page's Content-Security-Policy too, so it can load
+  nothing but the site's own files. Self-hosters with nginx: the example now sends the whole
+  policy as a header (contrib/nginx); copy it into your configuration
 - Self-hosters publishing with the Pages workflow: it publishes only a release's tag that is on
   main, never a pre-release; to publish a release again, pick its tag under "Use workflow
   from" (the field for a tag is gone)

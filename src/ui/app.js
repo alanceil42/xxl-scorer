@@ -11,7 +11,7 @@ import { rows as rowStore, kv, newId, askPersist } from './db.js';
 import { loadGameData, importGameData, dropImportedGameData } from './gamedata.js';
 import { readFile, getWorkers, poolSize } from './ocr.js';
 import rulesEn from '../rules/en.js';
-import { phoneSvg } from './help.js';
+import { phoneElement } from './help.js';
 import { cleanRow } from '../core/backup.js';
 import { imprintLink } from '../core/imprint.js';
 
@@ -868,7 +868,7 @@ function wire() {
 		await kv.set('nameTemplate', state.nameTemplate);
 		render();
 	});
-	for (const slot of document.querySelectorAll('.hf-slot')) slot.innerHTML = phoneSvg(slot.dataset.phone);
+	for (const slot of document.querySelectorAll('.hf-slot')) slot.replaceChildren(phoneElement(slot.dataset.phone));
 	$('#help-btn').addEventListener('click', () => openHelp());
 	for (const b of document.querySelectorAll('[data-help]')) b.addEventListener('click', () => openHelp('shots'));
 	$('#mode-xxl').addEventListener('click', () => setMode('xxl'));
