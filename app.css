@@ -323,6 +323,9 @@ summary { cursor: pointer; color: var(--muted); }
 	tbody tr {
 		display: grid; grid-template-columns: 64px 1fr auto; grid-template-areas: "t n s" "t st st";
 		gap: 4px 12px; padding: 10px 12px; margin-bottom: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+		/* cards off screen are not laid out or painted: a sort or a tap in a list of hundreds
+		   stays quick on a phone. 130px stands in until a card has been drawn once (auto) */
+		content-visibility: auto; contain-intrinsic-size: auto 130px;
 	}
 	td { padding: 0; white-space: normal; }
 	td.c-thumb { grid-area: t; }

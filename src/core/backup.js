@@ -81,6 +81,8 @@ export function cleanRow(r, now = Date.now()) {
 	if (!r || typeof r !== 'object' || Array.isArray(r)) return null;
 	const id = str(r.id, 64);
 	if (!id || !r.reading || typeof r.reading !== 'object') return null;
+	// new reading and edits, complete here: the page caches evaluated rows by these objects, so
+	// they are never changed after this (src/ui/evalcache.js)
 	const out = { id, reading: pick(r.reading, READING), edits: pick(r.edits, EDITS) };
 	if (!out.reading.types) out.reading.types = [];
 	for (const k of ['created', 'updated', 'scanned']) {

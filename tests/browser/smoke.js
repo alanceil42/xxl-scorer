@@ -1,5 +1,6 @@
 // Smoke test of the page in a real browser: boot with synthetic game data, import a backup,
 // the rows, sorting, search, the editor, select and delete, at a phone's width and a desktop's.
+// Rows kept on screen from one drawing to the next show what they should after each of these.
 // Rows that can't be scored, a hostile backup, a failed import, copying without the clipboard API.
 // The text recognition engine reading a drawn image, under the page's CSP, loading only from the site.
 // Fails on any Content-Security-Policy violation, any error in the console or the page, and
@@ -23,6 +24,8 @@ import { chromium } from 'playwright-core';
 import { compactGameMaster } from '../../src/core/gm.js';
 import { compactText } from '../../src/core/text.js';
 import { makeContext, evaluate } from '../../src/core/evaluate.js';
+import { sortList } from '../../src/core/sort.js';
+import { compileSearch } from '../../src/core/search.js';
 import { levelTable, cpOf, hpOf } from '../../src/core/ivs.js';
 import { syntheticGameMaster, syntheticText, CPM } from '../synthetic.js';
 import { encodePng } from '../lib/png.js';
@@ -206,6 +209,124 @@ for (const width of [402, 1280]) {
 			assert.equal(await page.isVisible('#list-bar'), false, 'select mode ends');
 			assert.ok(await noSideScroll(page));
 
+			assert.deepEqual(problems, []);
+		} finally {
+			await context.close();
+		}
+	});
+}
+
+// ---------- rows kept from one drawing of the list to the next ----------
+
+// Twelve made-up Pokémon: three species, sizes and IVs varied, each caught on a day of its own
+const SP = [['Testmon', 'TESTMON', 1.0, 20], ['Fakeon', 'FAKEON', 0.5, 8], ['Mr. Fake', 'MR_FAKE', 1.3, 55]];
+const MANY = Array.from({ length: 12 }, (_, i) => {
+	const [species, sp, h, w] = SP[i % 3];
+	const ivs = { a: (i * 5) % 16, d: (i * 7 + 3) % 16, s: (i * 11 + 1) % 16 };
+	const size = 1.52 + (i % 4) * 0.05;	// XXL, below every species' XXL limit
+	return mon(`m${i}`, species, sp, ivs, 20 + (i % 5) * 2, Math.round(h * size * 100) / 100, Math.round(w * (size - 0.1 + (i % 3) * 0.1) * 100) / 100, `${1 + (i % 12)}/${10 + i}/2025`);
+});
+const MANY_BACKUP = JSON.stringify({ app: 'xxl-scorer', v: 1, exported: '2026-10-21T00:00:00Z', rows: MANY });
+
+/** Ids in the order src/core gives them: the rows (with edits by id), a search, a sort. */
+function expected(edits, query, sort) {
+	const list = MANY.map(row => ({ row, e: evaluate(row.reading, ctx, edits[row.id] || row.edits) }));
+	const p = compileSearch(query);
+	return sortList(p ? list.filter(x => p(x.e)) : list, sort, -1).map(x => x.row.id);
+}
+
+/** Tags every row's element; tagged() then tells which elements are still the same ones. */
+const tag = page => page.$$eval('#rows tr', trs => trs.forEach(t => { t.dataset.tag = 'kept'; }));
+const tagged = page => page.$$eval('#rows tr', trs => trs.filter(t => t.dataset.tag === 'kept').map(t => t.dataset.id));
+const pick = async (page, label) => {
+	await page.click('#sort > summary');
+	await page.click(`#sort-items button:has-text("${label}")`);
+};
+
+for (const width of [402, 1280]) {
+	test(`at ${width} px: rows kept between drawings show the right Pokémon after sort, search, select, find and save`, { timeout: 60_000 }, async () => {
+		const { context, page, problems } = await open(width);
+		try {
+			await page.addInitScript(() => { navigator.clipboard.writeText = () => Promise.resolve(); });
+			await boot(page);
+			await page.click('#backup > summary');
+			await page.setInputFiles('#import', { name: 'many.json', mimeType: 'application/json', buffer: Buffer.from(MANY_BACKUP) });
+			await page.waitForSelector('#rows tr >> nth=11');
+			const all = MANY.map(r => r.id);
+			assert.deepEqual(await ids(page), expected({}, '', { key: 'score', dir: -1 }));
+
+			// sort: the same elements, in the new order
+			await tag(page);
+			await pick(page, 'Name');
+			const byName = expected({}, '', { key: 'name', dir: 1 });
+			assert.deepEqual(await ids(page), byName);
+			assert.deepEqual((await tagged(page)).sort(), [...all].sort(), 'no row drawn again for a sort');
+			await pick(page, 'CP');
+			assert.deepEqual(await ids(page), expected({}, '', { key: 'cp', dir: -1 }));
+			await pick(page, 'Name');
+
+			// search: fewer rows, then all of them again, in order
+			await page.fill('#search', 'fakeon');
+			assert.deepEqual(await ids(page), expected({}, 'fakeon', { key: 'name', dir: 1 }));
+			await page.fill('#search', 'mr');
+			assert.deepEqual(await ids(page), expected({}, 'mr', { key: 'name', dir: 1 }));
+			await page.click('#search-clear');
+			assert.deepEqual(await ids(page), byName);
+			assert.equal((await tagged(page)).length, 12, 'and none for a search');
+
+			// select mode: marks on exactly the rows tapped, also after a search and back
+			await page.click('#select-btn');
+			const [s1, s2, s3] = [byName[1], byName[4], byName[7]];
+			for (const id of [s1, s2, s3]) await page.click(`tr[data-id="${id}"] .c-name`);
+			await page.click(`tr[data-id="${s2}"] .c-name`);	// and off again
+			const marked = () => page.$$eval('#rows tr.selected', trs => trs.map(t => t.dataset.id));
+			assert.deepEqual((await marked()).sort(), [s1, s3].sort());
+			assert.equal(await page.textContent('#select-delete'), 'Delete 2');
+			assert.deepEqual(await page.$$eval('#rows tr .tick', ts => ts.filter(t => t.textContent === '✓').length), 2);
+			// a search drops the marks on rows it hides; back to all rows, those stay unmarked
+			const name1 = MANY.find(r => r.id === s1).reading.species.toLowerCase();
+			await page.fill('#search', name1);
+			await page.click('#search-clear');
+			assert.deepEqual(await marked(), [s1]);
+			assert.equal(await page.textContent('#select-delete'), 'Delete 1');
+			await page.click('#select-done');
+			assert.deepEqual(await marked(), []);
+			assert.equal(await page.locator('#rows tr .tick').count(), 0, 'no ticks left');
+			assert.equal(await page.locator('#rows .btn.copy.find').count(), 12, 'the buttons are back');
+
+			// find, then another row's find while the first is hidden by a search: one outline
+			const species = id => MANY.find(r => r.id === id).reading.species;
+			const f1 = byName[0], f2 = byName.find(id => species(id) !== species(f1));
+			await page.click(`tr[data-id="${f1}"] .btn.copy.find`);
+			assert.equal(await page.locator(`tr[data-id="${f1}"] .btn.copy.next`).count(), 1);
+			await page.fill('#search', species(f2).toLowerCase());
+			assert.ok(!(await ids(page)).includes(f1), 'the first one hidden');
+			await page.click(`tr[data-id="${f2}"] .btn.copy.find`);
+			await page.click('#search-clear');
+			assert.deepEqual(await page.$$eval('#rows .btn.copy.next', bs => bs.map(b => b.closest('tr').dataset.id)), [f2]);
+			await page.click('#toast');
+
+			// the editor: the saved row drawn again with its new weight and moved by score;
+			// the others kept
+			await pick(page, 'Score');
+			await tag(page);
+			const ed = byName[5];
+			await page.click(`tr[data-id="${ed}"] .c-name`);
+			await page.waitForSelector('#editor[open]');
+			const w = Math.round(MANY.find(r => r.id === ed).reading.weight_kg * 1.4 * 100) / 100;
+			await page.fill('#ed-weight', String(w));
+			await page.click('#ed-save');
+			await page.waitForFunction(([id, w]) => document.querySelector(`tr[data-id="${id}"]`).textContent.includes(`${w.toFixed(2)} kg`), [ed, w]);
+			const byScore = expected({ [ed]: { weight_kg: w } }, '', { key: 'score', dir: -1 });
+			assert.deepEqual(await ids(page), byScore);
+			assert.deepEqual((await tagged(page)).sort(), all.filter(id => id !== ed).sort(), 'only the saved row drawn again');
+			const score = evaluate(MANY.find(r => r.id === ed).reading, ctx, { weight_kg: w }).score.total.toFixed(1);
+			assert.equal(await page.textContent(`tr[data-id="${ed}"] .c-score .score`), score);
+
+			// and after a reload, the same
+			await boot(page);
+			await page.waitForSelector('#rows tr >> nth=11');
+			assert.deepEqual(await ids(page), byScore);
 			assert.deepEqual(problems, []);
 		} finally {
 			await context.close();
