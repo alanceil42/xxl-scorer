@@ -9,6 +9,14 @@ collect under "Unreleased".
 ## Unreleased
 
 
+## 1.0.1 - 2026-10-21
+
+A small fix to the footer; nothing to do for self-hosters.
+
+- The legal notice link (on sites that set one) sits in the footer's text, after the version,
+  instead of on a line of its own
+
+
 ## 1.0 - 2026-10-21
 
 The first release.
