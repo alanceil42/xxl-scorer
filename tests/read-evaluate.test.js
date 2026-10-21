@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { compactGameMaster } from '../src/core/gm.js';
 import { compactText } from '../src/core/text.js';
-import { makeRules, parseWords, parseCp } from '../src/core/read.js';
+import { makeRules, parseWords, parseCp, parseCrops, parseTypes, parseName, parseYearPill, dateParts, pillAsCaught } from '../src/core/read.js';
 import { makeContext, evaluate, duplicateKey, formLabel } from '../src/core/evaluate.js';
 import { levelTable, cpOf, hpOf } from '../src/core/ivs.js';
 import { syntheticGameMaster, syntheticText, CPM } from './synthetic.js';
@@ -29,6 +29,40 @@ test('OCR words → readings', () => {
 	assert.equal(r.weight_kg, 59.26);
 	assert.equal(r.height_m, 1.84);
 	assert.equal(r.hp, 299);
+});
+
+test('OCR words: more than two type names is not the stats row; no "was caught" line', () => {
+	const r = parseWords([word('FIRE', 400), word('WATER', 500), word('GRASS', 600), word('0,980', 200), word('22.38kg', 300)], W, makeRules(en));
+	assert.deepEqual(r.types, [], 'a type chart or a move list, not the labels');
+	assert.equal(r.weight_kg, 22.38, 'a number with its unit before a bare one (a stardust count)');
+	assert.equal(r.species, null);
+	assert.equal(r.caught, null);
+});
+
+test('crop texts: nothing read, an HP of 0 or 1000+, three type names, an empty name line', () => {
+	const rules = makeRules(en);
+	assert.deepEqual(parseCrops({}, rules), { hp: null, weight_kg: null, height_m: null, badge: null });
+	assert.equal(parseCrops({ hp: '0 / 0 HP' }, rules).hp, null);
+	assert.equal(parseCrops({ hp: '1314 / 1314 HP' }, rules).hp, null, '"131 / 131 H" with the H read as a digit');
+	assert.equal(parseCrops({ height: '1.6 2m' }, rules).height_m, 1.62, 'a space inside a size');
+	assert.deepEqual(parseTypes('FIRE WATER GRASS'), []);
+	assert.deepEqual(parseTypes(null), []);
+	assert.equal(parseName(null), null);
+	assert.equal(parseName(' — '), null, 'only punctuation');
+});
+
+test('year pill and catch dates: what is not a date', () => {
+	assert.equal(parseYearPill(null), null);
+	assert.equal(parseYearPill('2015 04/19'), null, 'before the game');
+	assert.equal(parseYearPill('2100 04/19'), null);
+	assert.equal(parseYearPill('2024 00/19'), null);
+	assert.equal(parseYearPill('2024 32/01'), null);
+	assert.equal(parseYearPill('2024 4/9'), '2024 04/09', 'single digits padded');
+	assert.equal(dateParts('4/19'), null, 'two numbers');
+	assert.equal(dateParts('04/19/24'), null, 'no four-digit year');
+	assert.equal(dateParts(undefined), null);
+	assert.equal(pillAsCaught('2024 4/19'), null, 'not a pill as parseYearPill gives it');
+	assert.equal(pillAsCaught(null), null);
 });
 
 test('CP text', () => {
@@ -302,4 +336,71 @@ test('duplicates: twins caught the same day with the same sizes are told apart b
 	// the same one powered up: same IVs, other CP and HP, same key
 	const up = evaluate({ ...r({ a: 8, d: 15, s: 10 }), ...shown(row, { a: 8, d: 15, s: 10 }, 25) }, ctx);
 	assert.equal(up.key, a.key);
+});
+
+test('evaluate: a size nothing can repair is asked for, not guessed', () => {
+	const r = evaluate({ species: 'Testmon', hp: null, cp: null, height_m: 999.5, weight_kg: 20, bars: { a: 1, d: 2, s: 3 } }, ctx);
+	assert.equal(r.height_m, null);
+	assert.deepEqual(r.issues.filter(i => i.code === 'size').map(i => i.msg), ['Height read as 999.5 m, impossible for Testmon: please type it in']);
+	assert.equal(r.score, null);
+});
+
+test('evaluate: without the bars, several IV combinations fit CP/HP and the user picks', () => {
+	const { cp, hp } = shown(gm.species.TESTMON.f[''], { a: 10, d: 10, s: 10 }, 25);
+	const r = evaluate({ species: 'Testmon', hp, cp, height_m: 1.2, weight_kg: 20, bars: null }, ctx);
+	assert.equal(r.ivSource, 'cp');
+	assert.ok(r.candidates.length > 1 && r.candidates.length <= 12, `${r.candidates.length}`);
+	assert.ok(r.issues.some(i => i.code === 'ivs' && /IV combinations fit CP\/HP, pick one/.test(i.msg)));
+});
+
+test('evaluate: bars far from every IV combination CP/HP allow are flagged', () => {
+	// 0/0/15 at level 25, bars read as 15/15/15: same HP, and the bars allow two CPs at that HP,
+	// neither like the one read
+	const { cp, hp } = shown(gm.species.TESTMON.f[''], { a: 0, d: 0, s: 15 }, 25);
+	const r = evaluate({ species: 'Testmon', hp, cp, height_m: 1.2, weight_kg: 20, bars: { a: 15, d: 15, s: 15 } }, ctx);
+	assert.deepEqual(r.ivs, { a: 0, d: 0, s: 15 }, 'CP/HP decide when the bars fit nothing');
+	assert.equal(r.cp, cp);
+	assert.deepEqual(r.issues.map(i => i.code), ['bars']);
+});
+
+test('evaluate: IVs from the bars alone; a CP that fits no level at that HP is flagged', () => {
+	const ivs = { a: 10, d: 10, s: 10 };
+	const { hp } = shown(gm.species.FAKEON.f[''], ivs, 25);	// a Fakeon with these IVs has this HP at 25 and 25.5
+	const r = evaluate({ species: 'Fakeon', hp, cp: 9999, height_m: 0.5, weight_kg: 8, bars: ivs }, ctx);
+	assert.equal(r.ivSource, 'bars');
+	assert.deepEqual(r.ivs, ivs);
+	assert.equal(r.level, 25, 'the first level the bars and HP allow');
+	assert.equal(r.cp, 9999, 'two CPs possible, none like the reading: not replaced');
+	assert.equal(r.cpExpected.length, 2);
+	assert.deepEqual(r.issues.map(i => i.msg), [`CP 9999 doesn't fit; expected ${r.cpExpected.join(' or ')}`]);
+	const noHp = evaluate({ species: 'Fakeon', hp: null, cp: null, height_m: 0.5, weight_kg: 8, bars: ivs }, ctx);
+	assert.deepEqual(noHp.ivs, ivs);
+	assert.equal(noHp.level, null, 'no HP, no level');
+});
+
+test('evaluate: a missing size says why when the appraisal covers the stats row', () => {
+	const r = { species: 'Testmon', hp: null, cp: null, bars: { a: 1, d: 2, s: 3 } };
+	const msg = x => evaluate(x, ctx).issues.find(i => i.code === 'size').msg;
+	assert.match(msg({ ...r, height_m: null, weight_kg: null, covered: true }), /under the appraisal on this screen: add a screenshot without it/);
+	assert.equal(msg({ ...r, height_m: 1.2, weight_kg: null, covered: true }), 'Height or weight missing');
+	assert.equal(msg({ ...r, height_m: null, weight_kg: null }), 'Height or weight missing');
+});
+
+test('merging: type labels on both screenshots may lose one label, never change one', async () => {
+	const { canMerge } = await import('../src/core/evaluate.js');
+	const a = { species: null, caught: null, hp: 68, cp: 330, height_m: 1.6, weight_kg: 30.12, bars: null, types: ['NORMAL'] };
+	assert.ok(canMerge(a, { ...a, types: ['NORMAL', 'FLYING'] }, ctx), 'one label hidden');
+	assert.ok(canMerge({ ...a, types: ['NORMAL', 'FLYING'] }, a, ctx));
+	assert.equal(canMerge(a, { ...a, types: ['FLYING'] }, ctx), false, 'another label');
+});
+
+test('evaluate: a form the user picked is kept; one the species does not have is ignored', () => {
+	const { cp, hp } = shown(gm.species.TESTMON.f[''], { a: 10, d: 10, s: 10 }, 25);
+	const r = { species: 'Testmon', hp, cp, height_m: 1.2, weight_kg: 20, bars: { a: 10, d: 10, s: 10 } };
+	assert.equal(evaluate(r, ctx).form, '');
+	const giant = evaluate(r, ctx, { form: 'GIANT' });
+	assert.equal(giant.form, 'GIANT');
+	assert.deepEqual(giant.forms, ['', 'GIANT'], 'the others stay offered');
+	assert.ok(!giant.issues.some(i => i.code === 'form'));
+	assert.equal(evaluate(r, ctx, { form: 'ALOLA' }).form, '');
 });
