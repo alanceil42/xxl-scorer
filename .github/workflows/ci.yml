@@ -1,6 +1,6 @@
-# Public tests on every push. Weekly: does PokeMiners' game data still parse, and is there a
-# newer tesseract.js? Both only report (a failed run sends GitHub's usual email); nothing is
-# updated or published.
+# Public tests and a smoke test of the page in Chrome on every push. Weekly: does PokeMiners'
+# game data still parse, and is there a newer tesseract.js? Both only report (a failed run sends
+# GitHub's usual email); nothing is updated or published.
 name: ci
 
 on:
@@ -32,6 +32,23 @@ jobs:
         run: >-
           node --test --experimental-test-coverage --test-coverage-include='src/**'
           --test-coverage-lines=97 --test-coverage-branches=95 --test-coverage-functions=94
+
+  # The page in a real browser (tests/browser/smoke.js): fails on CSP violations, console
+  # errors and requests anywhere but the site and PokeMiners. playwright-core drives the
+  # runner's own Chrome; it downloads no browser and isn't saved to package.json. Its version
+  # is pinned here and updated by hand (Dependabot doesn't see it).
+  smoke:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+      - name: playwright-core, pinned, not saved, without install scripts
+        run: npm install --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.64.0
+      - name: Smoke test in Chrome
+        run: node --test tests/browser/smoke.js
 
   upstream-format:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
