@@ -48,7 +48,7 @@ jobs:
             printf '%s' "$SITE_CONFIG" | jq . > "$site/local/config.json"
             echo "local/config.json from SITE_CONFIG: $(jq -c 'keys' "$site/local/config.json")"
           fi
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:
           path: ${{ runner.temp }}/site
