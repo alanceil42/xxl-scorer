@@ -305,8 +305,6 @@ summary { cursor: pointer; color: var(--muted); }
 .help-tips li { margin: 4px 0; }
 .foot { margin-top: 28px; color: var(--muted); font-size: 13px; }
 .foot p { margin: 4px 0; }
-/* the legal notice link: normal size, so it is easy to see */
-.foot .imprint { margin-top: 10px; font-size: 16px; }
 
 /* Phones: rows become cards */
 .mobile-meta { display: none; font-size: 13px; color: var(--muted); }

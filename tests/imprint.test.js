@@ -38,7 +38,7 @@ test('the shipped config.json shows no link', () => {
 	assert.ok('imprintUrl' in config && 'imprintLabel' in config, 'keys documented in config.json');
 });
 
-test('the footer has the hidden link the page fills in, opening in a new tab', () => {
+test('the footer\'s text ends with the hidden link the page fills in, opening in a new tab', () => {
 	const html = readFileSync(join(root, 'index.html'), 'utf8');
-	assert.match(html, /<p class="imprint" hidden><a id="imprint" target="_blank" rel="noopener nofollow"><\/a><\/p>/);
+	assert.match(html, /<span class="imprint" hidden> <a id="imprint" target="_blank" rel="noopener nofollow"><\/a><\/span><\/p>\s*<\/footer>/);
 });
