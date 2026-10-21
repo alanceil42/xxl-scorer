@@ -57,11 +57,14 @@ now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 # --- game master ---
 jq -c --arg now "$now" --arg etag "$etag" --arg url "$GM_URL" --argjson min "$MIN_SPECIES" '
+	# 0 counts as missing, as in gm.js: no size, weight or attack is 0
+	def nz: if . == 0 then null else . end;
+
 	. as $all
 
 	# Absolute size bounds (m) per species/form, from the EXTENDED_* templates
 	| ([ $all[] | .data.pokemonExtendedSettings? // empty
-		| select(.sizeSettings.xxlUpperBound)
+		| select(.sizeSettings.xxlUpperBound | nz)
 		| { key: (.form // .uniqueId), value: .sizeSettings } ]
 		| from_entries) as $size
 
@@ -71,7 +74,7 @@ jq -c --arg now "$now" --arg etag "$etag" --arg url "$GM_URL" --argjson min "$MI
 		| select(.templateId | test("^V[0-9]{4}_POKEMON_"))
 		| .templateId as $tid
 		| .data.pokemonSettings? // empty
-		| select(.pokedexHeightM and .pokedexWeightKg and .stats.baseAttack)
+		| select((.pokedexHeightM | nz) and (.pokedexWeightKg | nz) and (.stats.baseAttack | nz))
 		| (.form // .pokemonId) as $key
 		| .pokemonId as $pid
 		| {
@@ -81,14 +84,14 @@ jq -c --arg now "$now" --arg etag "$etag" --arg url "$GM_URL" --argjson min "$MI
 			row: [
 				.pokedexHeightM,
 				.pokedexWeightKg,
-				(.weightStdDev // (.pokedexWeightKg / 8)),
+				((.weightStdDev | nz) // (.pokedexWeightKg / 8)),
 				(($size[$key] // $size[$pid]).xxlUpperBound // (.pokedexHeightM * 1.75)),
 				.stats.baseAttack,
 				(.stats.baseDefense // 0),
 				(.stats.baseStamina // 0),
 				([.type, .type2] | map(select(.) | ltrimstr("POKEMON_TYPE_")) | join("/")),
-				(($size[$key] // $size[$pid]).xlUpperBound // (.pokedexHeightM * 1.5)),
-				(($size[$key] // $size[$pid]).xsLowerBound // (.pokedexHeightM * 0.5))
+				((($size[$key] // $size[$pid]).xlUpperBound | nz) // (.pokedexHeightM * 1.5)),
+				((($size[$key] // $size[$pid]).xsLowerBound | nz) // (.pokedexHeightM * 0.5))
 			]
 		} ] as $rows
 
