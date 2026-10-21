@@ -185,7 +185,28 @@ test('a self-hosted gm.json: relative to the page, text tables included, checked
 	await assert.rejects(loadGameData({ gm: 'local/data/gm.json', lang: 'de' }), /has no text table for "de" \(build it with -l de\)/);
 });
 
+test('a self-hosted gm.json moved to another URL: fetched from there at once, not the old copy', async () => {
+	const text = { en: { names: { 9001: 'Testmon' }, caught: {}, hp: 'HP', kg: 'kg', m: 'm' } };
+	const a = `${HOST}local/data/gm.json`, b = `${HOST}data/gm.json`;
+	net = {
+		[a]: JSON.stringify({ ...compactGameMaster(bigGameMaster(1.4)), text }),
+		[b]: JSON.stringify({ ...compactGameMaster(bigGameMaster(1.5)), text }),
+	};
+	await loadGameData({ gm: 'local/data/gm.json' });
+	const r = await loadGameData({ gm: 'data/gm.json' });
+	assert.equal(r.info.source, b);
+	assert.equal(r.info.state, 'new', 'the copy from the old URL counts as none');
+	assert.equal(heightOf(r.gm), 1.5);
+	assert.deepEqual(fetched.map(f => f.url), [a, b]);
+	// the new URL unreachable: an error, not the old file's data under the new name
+	net[b] = new Error('offline');
+	await loadGameData({ gm: 'local/data/gm.json' }, { force: true });
+	await assert.rejects(loadGameData({ gm: 'data/gm.json' }), /offline/);
+});
+
 test('a self-hosted file that is not a gm.json is refused', async () => {
-	net = { [`${HOST}other.json`]: JSON.stringify({ v: 1 }) };
-	await assert.rejects(loadGameData({ gm: 'other.json' }), /not a gm\.json/);
+	const url = `${HOST}local/data/gm.json`;
+	net = { [url]: JSON.stringify({ ...compactGameMaster(bigGameMaster()), text: { en: {} } }), [`${HOST}other.json`]: JSON.stringify({ v: 1 }) };
+	await loadGameData({ gm: 'local/data/gm.json' });
+	await assert.rejects(loadGameData({ gm: 'other.json' }), /not a gm\.json/, 'also with a fresh copy of another gm.json stored');
 });

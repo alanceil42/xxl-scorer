@@ -31,7 +31,10 @@ async function fetchText(url) {
 }
 
 async function cached(key, url, compact, { force = false, offline = false, maxAge = DEFAULT_CHECK_DAYS * DAY } = {}) {
-	const c = await kv.get(key);
+	// a copy from another source (config.json's "gm" changed to another gm.json) counts as none,
+	// fresh or not: it is not what the site is set to use
+	const stored = await kv.get(key);
+	const c = stored && stored.url === url ? stored : null;
 	if (c && !force && Date.now() - c.checked < maxAge) return { ...c, state: 'fresh' };
 	if (offline) return c ? { ...c, state: 'stale' } : null;
 	try {
