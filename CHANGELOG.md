@@ -8,6 +8,11 @@ collect under "Unreleased".
 
 ## Unreleased
 
+- The list is quicker with hundreds of Pokémon, above all on phones: sorting, searching, a tap
+  in select mode and saving in the editor draw again only the rows that changed, and cards
+  off screen are left until scrolled to. Adding screenshots to a long list keeps the page
+  more responsive while they are read. The nickname template in Settings is taken once typing
+  pauses or the field is left, rather than at every keystroke
 - The text recognition engine runs under the page's Content-Security-Policy too, so it can load
   nothing but the site's own files. Self-hosters with nginx: the example now sends the whole
   policy as a header (contrib/nginx); copy it into your configuration

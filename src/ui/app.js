@@ -10,6 +10,7 @@ import { SORTS, MENU, firstDir, isDefault, sortList } from '../core/sort.js';
 import { rows as rowStore, kv, newId, askPersist } from './db.js';
 import { loadGameData, importGameData, dropImportedGameData } from './gamedata.js';
 import { readFile, getWorkers, poolSize } from './ocr.js';
+import { evaluateRow } from './evalcache.js';
 import rulesEn from '../rules/en.js';
 import { phoneElement } from './help.js';
 import { cleanRow } from '../core/backup.js';
@@ -44,7 +45,10 @@ const icon = name => {
 const state = {
 	config: { gm: 'upstream', gmCheckDays: 7, lang: 'en' },
 	ctx: null, rules: null, gmInfo: null,
-	rows: [],	// stored: {id, created, updated, scanned, scanIdx, file, reading, edits, thumb}
+	// stored: {id, created, updated, scanned, scanIdx, file, reading, edits, thumb}. A row's
+	// reading and edits are never changed in place, only replaced by new objects: evaluated
+	// rows are cached by them (evalcache.js), and a change in place would go unseen
+	rows: [],
 	sort: { key: 'score', dir: -1 },	// not stored: a visit starts by score
 	search: null,	// predicate from compileSearch, null = show all
 	shown: [],	// ids of the rows on screen, for select mode's All
@@ -63,6 +67,7 @@ const state = {
 
 const DAY = 24 * 3600 * 1000;
 const EXPORT_NAG_DAYS = 6;	// Safari may delete site data after 7 days without a visit
+const TEMPLATE_PAUSE = 400;	// ms without a keystroke before a new nickname template is taken
 
 // ---------- boot ----------
 
@@ -246,6 +251,7 @@ function takeReading(run, f, res, idx) {
 	run.read++;
 	if (reading.bars) run.withBars++;
 	const now = Date.now();
+	// reading and edits: new objects, never changed in place from here on (state.rows)
 	const row = { id: newId(), created: now, updated: now, scanned: run.started, scanIdx: idx, file: f.name, reading, edits: {}, thumb };
 	// Another screenshot of a Pokémon already here (e.g. once with the appraisal, once
 	// without the trainer in front): merge the readings.
@@ -253,7 +259,7 @@ function takeReading(run, f, res, idx) {
 	const k = mergeTarget(all.map(r => r.reading), reading, state.ctx);
 	if (k >= 0) {
 		const t = all[k];
-		t.reading = mergeReadings(t.reading, reading, state.ctx);
+		t.reading = mergeReadings(t.reading, reading, state.ctx);	// a new object
 		t.updated = now;
 		// scanned again: it belongs to this batch now, at the place of its first screenshot here
 		if (t.scanned !== run.started) { t.scanned = run.started; t.scanIdx = idx; }
@@ -268,7 +274,7 @@ function takeReading(run, f, res, idx) {
 }
 
 function keyOf(row) {
-	return state.ctx ? evaluateSafely(row.reading, state.ctx, row.edits).key : null;
+	return state.ctx ? evaluateRow(row.reading, state.ctx, row.edits).key : null;
 }
 
 async function resolveDuplicates(replace) {
@@ -298,7 +304,7 @@ function evaluated() {
 	const keys = new Map();
 	return state.rows.map(row => {
 		// one row that can't be scored is marked to check; it must not take the list down
-		const e = state.ctx ? evaluateSafely(row.reading, state.ctx, row.edits) : null;
+		const e = state.ctx ? evaluateRow(row.reading, state.ctx, row.edits) : null;
 		if (e && e.key) keys.set(e.key, (keys.get(e.key) || 0) + 1);
 		return { row, e };
 	}).map(x => ({ ...x, dup: x.e && x.e.key && keys.get(x.e.key) > 1 }));
@@ -334,8 +340,39 @@ function render() {
 		th.setAttribute('aria-sort', th.dataset.sort === key ? (dir > 0 ? 'ascending' : 'descending') : 'none');
 	}
 	renderSortMenu();
-	$('#rows').replaceChildren(...list.map(renderRow));
+	renderRows(list);
 	fitRows();
+}
+
+/**
+ * The <tr> drawn for each row, with what it was drawn from. A row whose evaluated result and
+ * state are unchanged keeps its <tr>: a sort, a search or a tap in select mode then redraws only
+ * what changed, and the browser restyles and lays out far less (seconds on a phone with a
+ * list of hundreds). Code that changes a drawn row's elements outside renderRow drops the
+ * row's entry, so it is drawn afresh next time.
+ */
+const drawn = new Map();
+
+/** Everything renderRow reads: when any of it changes, the row is drawn again. */
+const drawnFrom = ({ row, e, dup }) => [e, row.thumb, dup, state.selecting, state.selected.has(row.id), state.findNext === row.id, state.nameTemplate];
+
+function renderRows(list) {
+	const nodes = list.map(x => {
+		const from = drawnFrom(x);
+		const d = drawn.get(x.row.id);
+		if (d && d.from.every((v, i) => v === from[i])) return d.node;
+		const node = renderRow(x);
+		drawn.set(x.row.id, { from, node });
+		return node;
+	});
+	const tbody = $('#rows'), old = [...tbody.children];
+	if (old.length === nodes.length && old.every((n, i) => n.dataset.id === nodes[i].dataset.id)) {
+		// the same rows in the same order: swap only those drawn again
+		old.forEach((n, i) => { if (n !== nodes[i]) n.replaceWith(nodes[i]); });
+	} else tbody.replaceChildren(...nodes);
+	// rows deleted or replaced by an import are gone for good
+	const ids = new Set(state.rows.map(r => r.id));
+	for (const id of drawn.keys()) if (!ids.has(id)) drawn.delete(id);
 }
 
 // ---------- sort menu ----------
@@ -461,7 +498,7 @@ function nameButton(id, e) {
 		const ok = await copyText(n.text);
 		label.textContent = ok ? 'Copied' : 'Copy failed';
 		b.classList.toggle('done', ok);
-		if (ok && state.findNext === id) { state.findNext = null; b.classList.remove('next'); }
+		if (ok && state.findNext === id) { state.findNext = null; b.classList.remove('next'); drawn.delete(id); }
 		setTimeout(() => { label.textContent = n.text; b.classList.remove('done'); }, 1500);
 	});
 	b.addEventListener('keydown', ev => ev.stopPropagation());
@@ -484,6 +521,10 @@ function findButton(id, e) {
 		setTimeout(() => { b.replaceChildren(icon('scan-search')); b.classList.remove('done'); }, 1500);
 		if (ok) {
 			document.querySelectorAll('.btn.copy.next').forEach(x => x.classList.remove('next'));
+			// both rows' outlines change outside renderRow: draw them afresh next time (a row
+			// hidden by the search would otherwise come back with the old outline)
+			if (state.findNext != null) drawn.delete(state.findNext);
+			drawn.delete(id);
 			state.findNext = id;
 			if (b.nextElementSibling) b.nextElementSibling.classList.add('next');
 		}
@@ -558,7 +599,7 @@ function openEditor(id) {
 	const row = state.rows.find(r => r.id === id);
 	if (!row || !state.ctx) return;
 	editing = row;
-	const e = evaluateSafely(row.reading, state.ctx, row.edits);
+	const e = evaluateRow(row.reading, state.ctx, row.edits);
 	const r = row.reading, ed = row.edits;
 	$('#ed-thumb').src = row.thumb || '';
 	$('#ed-title').textContent = `${e.name || '?'}${e.formName ? ' ' + e.formName : ''}${e.xxl ? ' · XXL' : ''}`;
@@ -614,6 +655,7 @@ async function closeEditor(ev) {
 	}
 	if (action !== 'save') return;
 	const r = row.reading;
+	// a new object, complete before it is stored, never changed after (state.rows)
 	const edits = {};
 	const diff = (k, v, orig) => { if (v != null && v !== orig) edits[k] = v; };
 	const name = $('#ed-species').value.trim();
@@ -796,7 +838,7 @@ function renderSettings() {
 	} else if (i && i.error) setStatus('#gm-status', `not loaded: ${i.error}`);
 	setStatus('#store-status', `${state.rows.length} Pokémon`);
 	setStatus('#export-status', state.lastExport ? new Date(state.lastExport).toLocaleString() : 'never');
-	const sample = state.ctx && state.rows.length ? evaluateSafely(state.rows[0].reading, state.ctx, state.rows[0].edits) : { name: 'Chansey', ivs: { a: 15, d: 14, s: 14 }, level: 20, xxl: true, score: { total: 1104.6 } };
+	const sample = state.ctx && state.rows.length ? evaluateRow(state.rows[0].reading, state.ctx, state.rows[0].edits) : { name: 'Chansey', ivs: { a: 15, d: 14, s: 14 }, level: 20, xxl: true, score: { total: 1104.6 } };
 	const n = formatName(state.nameTemplate, nameValues(sample));
 	setStatus('#name-example', `${n.text}${n.tooLong ? ` (${n.length} characters: too long for the game)` : ''}`);
 }
@@ -863,11 +905,22 @@ function wire() {
 		const files = [...(ev.clipboardData ? ev.clipboardData.files : [])].filter(f => f.type.startsWith('image/'));
 		if (files.length) { ev.preventDefault(); addFiles(files); }
 	});
-	$('#name-tpl').addEventListener('input', async ev => {
-		state.nameTemplate = ev.target.value.trim() || DEFAULT_TEMPLATE;
+	// Every row's nickname follows the template, so a change draws the whole list again: once
+	// typing pauses, not on each keystroke. Leaving the field takes it at once.
+	let tplTimer = null;
+	const takeTemplate = async () => {
+		clearTimeout(tplTimer);
+		const t = $('#name-tpl').value.trim() || DEFAULT_TEMPLATE;
+		if (t === state.nameTemplate) return;
+		state.nameTemplate = t;
 		await kv.set('nameTemplate', state.nameTemplate);
 		render();
+	};
+	$('#name-tpl').addEventListener('input', () => {
+		clearTimeout(tplTimer);
+		tplTimer = setTimeout(takeTemplate, TEMPLATE_PAUSE);
 	});
+	$('#name-tpl').addEventListener('change', takeTemplate);
 	for (const slot of document.querySelectorAll('.hf-slot')) slot.replaceChildren(phoneElement(slot.dataset.phone));
 	$('#help-btn').addEventListener('click', () => openHelp());
 	for (const b of document.querySelectorAll('[data-help]')) b.addEventListener('click', () => openHelp('shots'));
