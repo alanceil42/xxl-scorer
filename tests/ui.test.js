@@ -9,7 +9,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { poolSize, getWorkers, getWorker } from '../src/ui/ocr.js';
 import { checkInterval, DEFAULT_CHECK_DAYS } from '../src/ui/gamedata.js';
-import { phoneSvg } from '../src/ui/help.js';
+import { phoneSvg, phoneElement } from '../src/ui/help.js';
 import { newId, askPersist } from '../src/ui/db.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -87,7 +87,7 @@ test('engines: from the site itself (vendor/), the first alone, kept for reuse, 
 		assert.equal(opts.corePath, 'https://xxl.example.org/xxl/vendor/tesseract/core/');
 		assert.equal(opts.langPath, 'https://xxl.example.org/xxl/vendor/tessdata');
 		assert.equal(opts.gzip, true);
-		assert.equal(opts.workerBlobURL, false);
+		assert.equal(opts.workerBlobURL, true, 'a blob: worker runs under the page\'s CSP');
 
 		log.length = 0;
 		assert.deepEqual((await getWorkers(2)).map(w => w.n), [1, 2], 'reused');
@@ -135,6 +135,24 @@ test('help drawing: two phones, what each screenshot gives marked, nothing fetch
 	assert.ok(!plain.includes('class="hf-bar"'), 'no bars without the appraisal');
 	assert.ok(!plain.includes('was caught'));
 	assert.equal(phoneSvg('anything else'), plain);
+});
+
+test('help drawing in the page: built element by element, the same as its markup', () => {
+	// a stand-in document that writes what it is given as markup
+	const esc = v => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+	const doc = {
+		createTextNode: text => ({ html: () => esc(text) }),
+		createElementNS: (ns, tag) => {
+			assert.equal(ns, 'http://www.w3.org/2000/svg');
+			const attrs = [], kids = [];
+			return {
+				setAttribute: (k, v) => { assert.equal(typeof v, 'string'); attrs.push(` ${k}="${esc(v)}"`); },
+				append: (...k) => kids.push(...k),
+				html: () => `<${tag}${attrs.join('')}${kids.length ? `>${kids.map(k => k.html()).join('')}</${tag}>` : '/>'}`,
+			};
+		},
+	};
+	for (const kind of ['appraisal', 'plain']) assert.equal(phoneElement(kind, doc).html(), phoneSvg(kind), kind);
 });
 
 test('row ids: random UUIDs, with a fallback where the browser has none', async () => {
