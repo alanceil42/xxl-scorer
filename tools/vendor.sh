@@ -10,7 +10,8 @@
 # Usage:
 #   tools/vendor.sh                  fetch the pinned versions into vendor/ (after a fresh clone
 #                                    the files are already committed; this rebuilds them)
-#   tools/vendor.sh --check          verify vendor/ against vendor/SHA256SUMS
+#   tools/vendor.sh --check          verify vendor/ against vendor/SHA256SUMS: every file
+#                                    listed there matches, and there are no others
 #   tools/vendor.sh --outdated       list newer versions; exit 1 if there are any (the icons
 #                                    are listed but never fail it: Lucide releases weekly)
 #   tools/vendor.sh --update         move to the newest versions within the same major version,
@@ -91,7 +92,17 @@ trap 'rm -rf "$tmp"' EXIT
 
 case "${1:-}" in
 	--check)
-		(cd "$VENDOR" && sha256 -c --quiet SHA256SUMS) && echo "vendor/ OK" >&2
+		cd "$VENDOR"
+		sha256 -c --quiet SHA256SUMS
+		# and nothing else: the site publishes all of vendor/, so a file nobody listed would go
+		# out unchecked
+		extra="$(comm -13 <(awk '{ print $2 }' SHA256SUMS | LC_ALL=C sort) \
+			<(find . -type f ! -path ./PINS ! -path ./SHA256SUMS | sed 's|^\./||' | LC_ALL=C sort))"
+		if [[ -n "$extra" ]]; then
+			printf 'Not in vendor/SHA256SUMS (remove, or vendor it with tools/vendor.sh):\n%s\n' "$extra" >&2
+			exit 1
+		fi
+		echo "vendor/ OK" >&2
 		exit
 		;;
 	--version)
@@ -147,7 +158,7 @@ case "${1:-}" in
 	"")
 		;;
 	*)
-		sed -n '2,22p' "$0" >&2
+		sed -n '2,23p' "$0" >&2
 		exit 2
 		;;
 esac

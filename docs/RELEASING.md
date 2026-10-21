@@ -86,7 +86,8 @@ maintainer:
 - `git fetch --tags` on your computer lists the tag: `git tag` → `v1.1`.
 - The footer link of the new version opens this release page.
 - Actions → **Pages**: the run for the release is green, and the public copy's footer names
-  the new version. GitHub Pages lets browsers keep files for up to 10 minutes, so a reload
+  the new version. The workflow publishes only a release's tag that is on main, and nothing
+  for a pre-release. GitHub Pages lets browsers keep files for up to 10 minutes, so a reload
   may show the old version for a while.
 
 ### 6. Update a server that runs releases
@@ -107,5 +108,5 @@ If the changelog says a file in `contrib/` changed, copy it to its place again.
   says.
 - **Published by mistake**: delete the release (its page → Delete) and the tag (Tags → the tag
   → Delete), then publish the previous release to the public copy again: Actions → Pages →
-  Run workflow, with the previous tag. Reuse the number only if nobody can have fetched it yet;
-  otherwise carry on with the next.
+  Run workflow, "Use workflow from" → Tags → the previous tag. Reuse the number only if nobody
+  can have fetched it yet; otherwise carry on with the next.
