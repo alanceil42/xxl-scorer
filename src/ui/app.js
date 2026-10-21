@@ -186,7 +186,7 @@ async function addFiles(files) {
 	// None with the appraisal: the IVs can't be read. Point to the picture of what to take.
 	if (run.read >= 2 && run.withBars === 0) {
 		banner('info', `None of these ${run.read} screenshots shows the appraisal's bars, so the IVs are unknown.`,
-			{ label: 'Which screenshots', run: openHelp });
+			{ label: 'Which screenshots', run: () => openHelp('shots') });
 	}
 	if (!state.run) {
 		state.busy = false;
@@ -793,11 +793,15 @@ function renderSettings() {
 	setStatus('#name-example', `${n.text}${n.tooLong ? ` (${n.length} characters: too long for the game)` : ''}`);
 }
 
-// ---------- which screenshots ----------
+// ---------- help: searching the list, which screenshots to take ----------
 
-function openHelp() {
-	$('#help').showModal();
-	$('#help-title').focus();
+/** The help dialog, at its top (the search terms) or, with 'shots', at which screenshots to take. */
+function openHelp(section) {
+	const d = $('#help'), h = $(section === 'shots' ? '#help-shots' : '#help-title');
+	d.showModal();
+	h.focus({ preventScroll: true });
+	// the section's heading at the dialog's top (focus alone scrolls it just into view)
+	d.scrollTop = section === 'shots' ? h.offsetTop - 12 : 0;
 }
 
 // ---------- wiring ----------
@@ -857,8 +861,8 @@ function wire() {
 		render();
 	});
 	for (const slot of document.querySelectorAll('.hf-slot')) slot.innerHTML = phoneSvg(slot.dataset.phone);
-	$('#help-btn').addEventListener('click', openHelp);
-	for (const b of document.querySelectorAll('[data-help]')) b.addEventListener('click', openHelp);
+	$('#help-btn').addEventListener('click', () => openHelp());
+	for (const b of document.querySelectorAll('[data-help]')) b.addEventListener('click', () => openHelp('shots'));
 	$('#mode-xxl').addEventListener('click', () => setMode('xxl'));
 	$('#mode-xxs').addEventListener('click', () => setMode('xxs'));
 	$('#mode-chip').addEventListener('click', () => setMode('xxl'));
