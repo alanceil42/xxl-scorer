@@ -8,6 +8,9 @@ collect under "Unreleased".
 
 ## Unreleased
 
+- Self-hosters publishing with the Pages workflow: it publishes only a release's tag that is on
+  main, never a pre-release; to publish a release again, pick its tag under "Use workflow
+  from" (the field for a tag is gone)
 - A stored Pokémon the page can't score (from an edited backup or an older version) is marked
   to check and can be corrected or deleted; it used to stop the whole list from showing
 - Backups: a species that isn't one of the game data's is dropped when importing, and times in

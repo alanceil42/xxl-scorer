@@ -1,19 +1,17 @@
-# Publishes the site to GitHub Pages for every published release.
+# Publishes the site to GitHub Pages for every published release (not for pre-releases).
 # Only the files a browser loads go up. The site's own settings come from the repository
 # variable SITE_CONFIG (the JSON of local/config.json, e.g. the imprint link); without it
-# the shipped defaults apply. Run it by hand (Actions → Pages → Run workflow) to publish a given
-# tag again, e.g. after changing SITE_CONFIG.
+# the shipped defaults apply. To publish a release again, e.g. after changing SITE_CONFIG:
+# Actions → Pages → Run workflow, and pick its tag under "Use workflow from". There is no
+# input naming what to publish: the run's own tag is what the github-pages environment checks
+# against its deployment rules, so only that may be published, and only when it is on main.
+# Actions are pinned by commit; Dependabot (.github/dependabot.yml) proposes new ones.
 name: Pages
 
 on:
   release:
     types: [published]
   workflow_dispatch:
-    inputs:
-      ref:
-        description: "Tag to publish, e.g. v1.0 (empty: the branch picked above)"
-        required: false
-        default: ""
 
 permissions:
   contents: read
@@ -24,6 +22,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: ${{ github.event_name != 'release' || !github.event.release.prerelease }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -33,9 +32,20 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.ref }}
+          fetch-depth: 0  # main's history, for the check below
+          persist-credentials: false
+      - name: A release tag, on main
+        run: |
+          if [ "$GITHUB_REF_TYPE" != tag ]; then
+            echo "::error::Run this from a release tag (Use workflow from → Tags), not from $GITHUB_REF_NAME."
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "::error::$GITHUB_REF_NAME ($(git rev-parse --short HEAD)) is not on main; only releases of main are published."
+            exit 1
+          fi
       - name: Assemble the site
         env:
           SITE_CONFIG: ${{ vars.SITE_CONFIG }}
@@ -48,9 +58,9 @@ jobs:
             printf '%s' "$SITE_CONFIG" | jq . > "$site/local/config.json"
             echo "local/config.json from SITE_CONFIG: $(jq -c 'keys' "$site/local/config.json")"
           fi
-      - uses: actions/configure-pages@v6
-      - uses: actions/upload-pages-artifact@v5
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: ${{ runner.temp }}/site
       - id: deploy
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
