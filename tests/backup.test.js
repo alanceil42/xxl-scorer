@@ -41,3 +41,37 @@ test('scan time: the place in a batch only with the batch', () => {
 	assert.equal(cleanRow({ ...good, scanIdx: 1.5 }).scanIdx, undefined);
 	assert.equal(cleanRow({ ...good, scanned: 'yesterday' }).scanned, undefined);
 });
+
+test('values left empty (null) by the page stay empty', () => {
+	const reading = { species: null, caught: null, caughtPill: null, name: null, hp: null, cp: null, weight_kg: null, height_m: null, bars: null, badge: null, lucky: null };
+	assert.deepEqual(cleanRow({ id: 'n', reading }).reading, { ...reading, types: [] });
+});
+
+test('reading details: merged count, time taken, other CP readings, fractional bars', () => {
+	const r = cleanRow({ id: 'm', reading: { merged: 3, ms: 850, covered: true, cpAlt: [1990, 'x', -4, 4790], bars: { a: 14.85, d: 12.99, s: 15 } } }).reading;
+	assert.equal(r.merged, 3);
+	assert.equal(r.ms, 850);
+	assert.equal(r.covered, true);
+	assert.deepEqual(r.cpAlt, [1990, 4790], 'only CPs');
+	assert.deepEqual(r.bars, { a: 14.85, d: 12.99, s: 15 }, 'as measured');
+	const bad = cleanRow({ id: 'm', reading: { merged: 0, ms: -1, cpAlt: Array(21).fill(100), bars: 'full', types: 'ROCK', lucky: 'yes' } }).reading;
+	assert.deepEqual(bad, { types: [] });
+	assert.equal(cleanRow({ id: 'm', reading: { cpAlt: 1990 } }).reading.cpAlt, undefined);
+});
+
+test('edits: IVs whole numbers only; strings and numbers within bounds', () => {
+	const e = cleanRow({ id: 'e', reading: {}, edits: { id: 'TESTMON', form: '', hp: 120, cp: 1900, height_m: 1.62, weight_kg: 30.12, caught: '7/28/2024', ivs: { a: 15, d: 13, s: 15 } } }).edits;
+	assert.deepEqual(e, { id: 'TESTMON', form: '', hp: 120, cp: 1900, height_m: 1.62, weight_kg: 30.12, caught: '7/28/2024', ivs: { a: 15, d: 13, s: 15 } });
+	const bad = cleanRow({ id: 'e', reading: {}, edits: { id: 'X'.repeat(61), hp: 0, height_m: 1001, ivs: { a: 14.5, d: 13, s: 15 }, inGame: Infinity } }).edits;
+	assert.deepEqual(bad, {});
+	assert.deepEqual(cleanRow({ id: 'e', reading: {}, edits: 'all' }).edits, {}, 'edits not an object');
+});
+
+test('long strings dropped: names, file names, ids, thumbnails over 200 KB', () => {
+	const r = cleanRow({ id: 'l', file: 'x'.repeat(256), reading: { species: 'S'.repeat(61), name: 'N'.repeat(60) } });
+	assert.equal(r.file, undefined);
+	assert.equal(r.reading.species, undefined);
+	assert.equal(r.reading.name, 'N'.repeat(60), 'at the limit: kept');
+	assert.equal(cleanRow({ id: 'i'.repeat(65), reading: {} }), null);
+	assert.equal(safeThumb(`data:image/jpeg;base64,${'A'.repeat(200_000)}`), undefined);
+});

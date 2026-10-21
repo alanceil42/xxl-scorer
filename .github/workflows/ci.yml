@@ -24,8 +24,14 @@ jobs:
           node-version: lts/*
       - name: Vendored files match SHA256SUMS
         run: bash tools/vendor.sh --check
-      - name: Tests (synthetic data)
-        run: npm test
+      # npm test with a coverage report of src/. It fails when coverage falls below these
+      # thresholds, set 1-2 points under the numbers measured on lts/* when they were raised:
+      # coverage shifts a little between Node versions. Raise them when tests are added.
+      # src/ui/app.js runs only in a page, so no test loads it and it is not in the report.
+      - name: Tests (synthetic data), with coverage
+        run: >-
+          node --test --experimental-test-coverage --test-coverage-include='src/**'
+          --test-coverage-lines=97 --test-coverage-branches=95 --test-coverage-functions=94
 
   upstream-format:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
