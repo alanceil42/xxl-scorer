@@ -44,7 +44,9 @@ const READING = {
 };
 
 const EDITS = {
-	id: v => str(v, 60),
+	// a species id of the game data (MR_MIME); anything else could name a property every object
+	// has ("constructor") and pass for a species
+	id: v => (typeof v === 'string' && /^[A-Z0-9_]{1,60}$/.test(v) ? v : undefined),
 	form: v => str(v, 60),
 	hp: v => num(v, 1, 9999),
 	cp: v => num(v, 1, 99999),
@@ -69,9 +71,13 @@ function pick(src, schema) {
 
 /**
  * One row of a backup file, cleaned; null when it isn't a row at all (no id, no reading).
+ * Times after `now` are taken as `now`: a row from the future would stay "not exported" and
+ * at the top of Newest for good.
+ * @param {unknown} r
+ * @param {number} [now]
  * @returns {{id: string, created?: number, updated?: number, scanned?: number, scanIdx?: number, file?: string, reading: object, edits: object, thumb?: string} | null}
  */
-export function cleanRow(r) {
+export function cleanRow(r, now = Date.now()) {
 	if (!r || typeof r !== 'object' || Array.isArray(r)) return null;
 	const id = str(r.id, 64);
 	if (!id || !r.reading || typeof r.reading !== 'object') return null;
@@ -79,7 +85,7 @@ export function cleanRow(r) {
 	if (!out.reading.types) out.reading.types = [];
 	for (const k of ['created', 'updated', 'scanned']) {
 		const t = num(r[k], 0, 8.64e15);
-		if (t !== undefined) out[k] = t;
+		if (t !== undefined) out[k] = Math.min(t, now);
 	}
 	// place in its batch; only with the batch's time it belongs to
 	if (out.scanned !== undefined && Number.isInteger(r.scanIdx) && r.scanIdx >= 0 && r.scanIdx <= 1e6) out.scanIdx = r.scanIdx;

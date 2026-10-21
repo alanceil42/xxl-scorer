@@ -35,6 +35,7 @@ test('forms and dex lookup', () => {
 	assert.deepEqual(formsOf(gm, 'TESTMON').map(f => f.form), ['', 'GIANT']);
 	assert.deepEqual(dexIndex(gm).get(9002), ['FAKEON']);
 	assert.deepEqual(formsOf(gm, 'NOSUCHMON'), [], 'a species the game data does not have');
+	for (const id of ['constructor', '__proto__', 'toString']) assert.deepEqual(formsOf(gm, id), [], `${id}: no species, though every object has one`);
 });
 
 /**

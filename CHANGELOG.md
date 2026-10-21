@@ -8,6 +8,12 @@ collect under "Unreleased".
 
 ## Unreleased
 
+- A stored Pokémon the page can't score (from an edited backup or an older version) is marked
+  to check and can be corrected or deleted; it used to stop the whole list from showing
+- Backups: a species that isn't one of the game data's is dropped when importing, and times in
+  the future count as now. An import that fails says so instead of doing nothing
+- Copying in browsers without the newer clipboard interface no longer shows the hidden text
+  field for a moment
 - All search terms are explained at the top of the help (the ? button), and the search field's
   placeholder names a few. The hint under the field is gone: shown while the field had focus,
   it pushed the list down, so on a computer the first click on a row after a search missed it

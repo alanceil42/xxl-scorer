@@ -29,6 +29,23 @@ export function duplicateKey(r) {
 }
 
 /**
+ * evaluate() for a stored row. Rows come from this device, from backups and from older
+ * versions of the page, so one may hold something evaluate() can't handle; it then gets a row
+ * marked to check, to correct in the editor or delete, instead of breaking the whole list.
+ */
+export function evaluateSafely(reading, ctx, edits = {}) {
+	try {
+		return evaluate(reading, ctx, edits);
+	} catch (err) {
+		const res = evaluate({}, ctx);
+		res.name = typeof reading?.species === 'string' ? reading.species : '';
+		res.issues.splice(0, res.issues.length,
+			{ code: 'broken', msg: `This row can't be scored (${err.message}). Correct it here or delete it.` });
+		return res;
+	}
+}
+
+/**
  * @param {object} reading  {species, caught, hp, cp, height_m, weight_kg, bars}
  * @param {ReturnType<typeof makeContext>} ctx
  * @param {object} [edits]  user overrides: {id, form, hp, cp, height_m, weight_kg, ivs, xxl, inGame}
@@ -56,7 +73,7 @@ export function evaluate(reading, ctx, edits = {}) {
 		const dex = speciesDex(reading, ctx);
 		if (dex != null) id = (ctx.dex.get(dex) || [])[0] || null;
 	}
-	if (!id || !gm.species[id]) {
+	if (!id || !Object.hasOwn(gm.species, id)) {
 		issues.push({ code: 'species', msg: reading.species ? `Species "${reading.species}" not recognised` : 'Species not read' });
 		return res;
 	}
