@@ -22,9 +22,20 @@
 // is 26), so a folder thinned out to the interesting screenshots keeps its numbering.
 // A row may leave out species, cp, ivs, xxl or xxs; files are always compared. The rows may
 // come in any order. "dir" may be a subfolder ("diversity/team_blue").
+//
+// Recorded readings keep a fixtures folder small: screenshots that only matter for merging
+// can be moved elsewhere once their readings are recorded. "recorded": "recorded.json" in
+// expected.json names a file
+//   { "commit": "…", "readings": { "dump/Library - 5 of 45.png": { reading }, … } }
+// with paths relative to the fixtures folder. A screenshot that is in the folder is always
+// read afresh; its recorded reading is used only when the image is missing, both for the
+// single fixtures and in batches (where it keeps its place in the numbering). Recorded
+// readings don't follow later changes to reading: they test evaluating and merging only.
+// XXL_RECORD=/path/to/recorded.json writes the readings of every screenshot read in the run
+// into that file (added to what it holds), before images are moved out.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { compactGameMaster, GM_URL } from '../src/core/gm.js';
@@ -64,15 +75,31 @@ test('screenshots read and score as expected', { skip, timeout: 3_600_000 }, asy
 	const worker = await Tesseract.createWorker('eng', 1, { langPath: tessdata, gzip: true, cacheMethod: 'none' });
 	// the crops as the page hands them over: raw pixels
 	const engine = tesseractEngine(worker, pam);
-	const { fixtures, batches = [] } = JSON.parse(readFileSync(join(dir, 'expected.json'), 'utf8'));
+	const { fixtures, batches = [], recorded: recFile } = JSON.parse(readFileSync(join(dir, 'expected.json'), 'utf8'));
+	const recorded = recFile ? JSON.parse(readFileSync(join(dir, recFile), 'utf8')).readings : {};
+	const record = process.env.XXL_RECORD;
+	const fresh = {};	// readings made in this run, for XXL_RECORD
+	let used = 0;	// recorded readings used
+	// rel: path relative to the fixtures folder, with /
+	async function readOne(rel) {
+		const p = join(dir, ...rel.split('/'));
+		if (!existsSync(p)) {
+			assert.ok(Object.hasOwn(recorded, rel), `${rel}: neither the image nor a recorded reading`);
+			used++;
+			return recorded[rel];
+		}
+		const buf = readFileSync(p);
+		const r = await readScreenshot(decodePng(buf), buf, engine, rules);
+		const { ms, ...keep } = r;
+		fresh[rel] = keep;
+		return r;
+	}
 	try {
 		for (const f of fixtures) {
 			await t.test(f.file, async () => {
-				const buf = readFileSync(join(dir, f.file));
-				const img = decodePng(buf);
-				const r = await readScreenshot(img, buf, engine, rules);
+				const r = await readOne(f.file);
 				const tr = f.truth;
-				t.diagnostic(`${f.file}: ${r.ms} ms ${JSON.stringify({ ...r, ms: undefined })}`);
+				t.diagnostic(`${f.file}: ${r.ms == null ? 'recorded' : r.ms + ' ms'} ${JSON.stringify({ ...r, ms: undefined })}`);
 				assert.equal(findDex(r.species, ctx.names), findDex(tr.species, ctx.names), 'species');
 				if (tr.caught) assert.equal(r.caught, tr.caught, 'catch date');
 				// compare what the page uses: readings after size repair and CP correction
@@ -91,13 +118,17 @@ test('screenshots read and score as expected', { skip, timeout: 3_600_000 }, asy
 		}
 		for (const b of batches) {
 			await t.test(`batch ${b.dir}`, async () => {
-				const names = readdirSync(join(dir, b.dir)).filter(n => /\.(png|jpe?g)$/i.test(n))
-					.sort((x, y) => x.localeCompare(y, 'en', { numeric: true }));
+				// the images in the folder plus the recorded ones moved out of it, in one numbering
+				const prefix = b.dir + '/';
+				const names = [...new Set([
+					...readdirSync(join(dir, b.dir)).filter(n => /\.(png|jpe?g)$/i.test(n)),
+					...Object.keys(recorded).filter(k => k.startsWith(prefix)).map(k => k.slice(prefix.length))
+						.filter(n => !n.includes('/')),
+				])].sort((x, y) => x.localeCompare(y, 'en', { numeric: true }));
 				const rows = [];	// { reading, files }, as the page's addFiles builds them
 				const numOf = (n, i) => (b.numbers === 'name' ? Number(n.match(/\d+/)[0]) : i + 1);
 				for (let i = 0; i < names.length; i++) {
-					const buf = readFileSync(join(dir, b.dir, names[i]));
-					const r = await readScreenshot(decodePng(buf), buf, engine, rules);
+					const r = await readOne(prefix + names[i]);
 					const no = numOf(names[i], i);
 					const k = mergeTarget(rows.map(x => x.reading), r, ctx);
 					if (k >= 0) {
@@ -122,7 +153,14 @@ test('screenshots read and score as expected', { skip, timeout: 3_600_000 }, asy
 				}
 			});
 		}
+		if (used) t.diagnostic(`${used} recorded readings used for screenshots not in the folder`);
 	} finally {
 		await worker.terminate();
+		if (record) {
+			const old = existsSync(record) ? JSON.parse(readFileSync(record, 'utf8')) : {};
+			const readings = { ...old.readings, ...fresh };
+			writeFileSync(record, JSON.stringify({ ...old, readings }, null, '\t') + '\n');
+			t.diagnostic(`${Object.keys(fresh).length} readings written to ${record}`);
+		}
 	}
 });
