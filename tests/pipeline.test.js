@@ -109,14 +109,14 @@ test('tesseractEngine: the words of the screenshot with their boxes, a line from
 	assert.deepEqual(await e.words('page'), [
 		{ text: 'This', bbox: box(0) }, { text: 'Testmon', bbox: box(20) }, { text: '60', bbox: box(40) }, { text: 'HP', bbox: box(60) },
 	], 'all blocks, paragraphs and lines, in reading order');
-	assert.deepEqual(calls[0], ['set', { tessedit_pageseg_mode: '11', tessedit_char_whitelist: '' }], 'sparse text, no whitelist left over');
+	assert.deepEqual(calls[0], ['set', { tessedit_pageseg_mode: '11', tessedit_char_whitelist: '', tessedit_do_invert: '0' }], 'sparse text, no whitelist left over, no inverted try');
 	assert.deepEqual(calls[1].slice(1), ['page', {}, { text: true, blocks: true }], 'the original image, with word boxes');
 	assert.deepEqual(await e.words('blank'), [], 'nothing recognised');
 
 	calls.length = 0;
 	const px = { width: 3, height: 2, data: new Uint8ClampedArray(24) };
 	assert.equal(await e.line(px, '0123'), '3x2\n');
-	assert.deepEqual(calls[0], ['set', { tessedit_pageseg_mode: '7', tessedit_char_whitelist: '0123' }], 'single line by default');
+	assert.deepEqual(calls[0], ['set', { tessedit_pageseg_mode: '7', tessedit_char_whitelist: '0123', tessedit_do_invert: '1' }], 'single line by default, inverted tries back on');
 	assert.deepEqual(calls[1][1], { width: 3, height: 2 }, 'the encoded crop, not the raw pixels');
 	await e.line(px, '0123456789/', '6');
 	assert.equal(calls[2][1].tessedit_pageseg_mode, '6');

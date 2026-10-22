@@ -12,6 +12,9 @@ collect under "Unreleased".
   the branch and the commit, linking to it. git fills these in when it packs the files
   (`git archive`, as the public copy and a tarball of a commit are made); a plain git checkout
   keeps showing the last release's number
+- Reading the whole screenshot no longer has the text recognition try each unsure line a
+  second time inverted (for light text on dark), which the card doesn't have: about 5-10 %
+  quicker per screenshot
 
 
 ## 1.1 - 2026-10-22
