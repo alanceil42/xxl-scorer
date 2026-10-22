@@ -8,6 +8,28 @@ collect under "Unreleased".
 
 ## Unreleased
 
+
+## 1.2 - 2026-10-22
+
+Screenshots are read sooner, with the same readings, and the footer says which version is
+running. Nothing to do for self-hosters; returning visitors download the text recognition's
+language model (about 3 MB) once more.
+
+- Screenshots are read sooner: the text recognition starts while the page is idle and while
+  the file picker is open, each screenshot is decoded while the one before is being read, and
+  the close-ups go to the engine as plain pixels rather than as PNG images. In Chrome, Edge and
+  other Chromium browsers decoding and the work on the pixels leave the page's main thread
+  altogether, so more of the computer's cores are put to use. After a batch, a note says how
+  many screenshots were read and how long it took. Readings are the same as before
+- Reading the whole screenshot no longer has the text recognition try each unsure line a
+  second time inverted (for light text on dark), which the card doesn't have: about 5-10 %
+  quicker per screenshot
+- Long lists are quicker again: species names are looked up once per name rather than for
+  every row each time screenshots come in, and in a window just too narrow for the table,
+  sorting 1000 Pokémon takes about a third less time
+- The text recognition's language model is stored under a name of the site's own, which
+  includes the model's version: a newer model reaches returning visitors, and the copy stored
+  under the old name is deleted
 - The footer names what is running: the version when the files are exactly a release, otherwise
   the branch and the commit, linking to it. git fills these in when it packs the files
   (`git archive`, as the public copy and a tarball of a commit are made); a plain git checkout
@@ -19,21 +41,6 @@ collect under "Unreleased".
 - Game data whose "was caught" line repeats a placeholder, has more of them than the line's
   own, or is over 200 characters long no longer freezes the page: that variant of the line is
   left out. The game's own texts are not affected
-- Screenshots are read sooner: the text recognition starts while the page is idle and while
-  the file picker is open, each screenshot is decoded while the one before is being read, and
-  the close-ups go to the engine as plain pixels rather than as PNG images. In Chrome, Edge and
-  other Chromium browsers decoding and the work on the pixels leave the page's main thread
-  altogether, so more of the computer's cores are put to use. After a batch, a note says how
-  many screenshots were read and how long it took. Readings are the same as before
-- The text recognition's language model is stored under a name of the site's own, which
-  includes the model's version: a newer model reaches returning visitors, and the copy stored
-  under the old name is deleted
-- Reading the whole screenshot no longer has the text recognition try each unsure line a
-  second time inverted (for light text on dark), which the card doesn't have: about 5-10 %
-  quicker per screenshot
-- Long lists are quicker again: species names are looked up once per name rather than for
-  every row each time screenshots come in, and in a window just too narrow for the table,
-  sorting 1000 Pokémon takes about a third less time
 
 
 ## 1.1 - 2026-10-22
