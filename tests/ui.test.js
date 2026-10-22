@@ -11,6 +11,8 @@ import { poolSize, getWorkers, getWorker, startWorkers, warmUp, readerFor, MODEL
 import { makeRules } from '../src/core/read.js';
 import { compactText } from '../src/core/text.js';
 import { syntheticText } from './synthetic.js';
+import { decode } from '../src/ui/decode.js';
+import { encodePng } from './lib/png.js';
 import { checkInterval, DEFAULT_CHECK_DAYS } from '../src/ui/gamedata.js';
 import { phoneSvg, phoneElement } from '../src/ui/help.js';
 import { newId, askPersist } from '../src/ui/db.js';
@@ -170,7 +172,10 @@ test('the model cached under tesseract.js\'s own key is deleted; its database ne
 const rules = makeRules(compactText(syntheticText('en')));
 const W = 300, H = 650;
 
-/** Stand-ins for decoding: each file is a {name} whose pixels are a white screen of W × H. */
+/** A stand-in file: its first bytes are no PNG or JPEG header, so it is decoded to be measured. */
+const shot = name => ({ name, slice: () => new Blob(['not an image header']) });
+
+/** Stand-ins for decoding: each file is a shot() whose pixels are a white screen of W × H. */
 function decoding(log) {
 	const canvas = () => {
 		let bmp = null;
@@ -223,9 +228,10 @@ test('reader on the page: the next screenshot decoded while the engine reads; cr
 		const w = engineLog(log);
 		const reader = readerFor(w);
 		assert.equal(readerFor(w), reader, 'one reader per engine, kept with it');
-		const fb = { name: 'b' };
-		const a = await reader.read({ name: 'a' }, fb, rules);
-		assert.deepEqual(log.slice(0, 3), ['decode a', 'decode b', 'words a'], 'b decoded before the engine starts on a');
+		const fb = shot('b');
+		const a = await reader.read(shot('a'), fb, rules);
+		assert.equal(log[0], 'decode a');
+		assert.ok(log.indexOf('decode b') > 0 && log.indexOf('decode b') < log.findIndex(l => l.startsWith('line ')), `b decoded while the engine reads a: ${log}`);
 		assert.ok(log.filter(l => l.startsWith('line ')).length >= 2, 'the crops (CP and name: nothing else on a white screen)');
 		assert.deepEqual(a.size, [W, H]);
 		assert.equal(a.thumb, 'data:image/jpeg;q=0.72;112x90', 'the sprite\'s thumbnail, as a JPEG');
@@ -234,8 +240,8 @@ test('reader on the page: the next screenshot decoded while the engine reads; cr
 		await reader.read(fb, null, rules);
 		assert.deepEqual(log.slice(0, 1), ['words b'], 'b not decoded again');
 		log.length = 0;
-		await assert.rejects(reader.read({ name: 'wide' }, null, rules), /landscape/);
-		await assert.rejects(reader.read({ name: 'huge' }, null, rules), /too large/);
+		await assert.rejects(reader.read(shot('wide'), null, rules), /landscape/);
+		await assert.rejects(reader.read(shot('huge'), null, rules), /too large/);
 		assert.deepEqual(log, ['decode wide', 'decode huge', 'closed'], 'refused before the engine is asked');
 	});
 });
@@ -262,7 +268,11 @@ test('reader in a worker of its own (Chromium): the same readings, the engine as
 		}
 		postMessage(m) {
 			this.sent.push(Object.keys(m)[0]);
-			setTimeout(() => globalThis.onmessage({ data: structuredClone(m) }));
+			// the rest cloned; a browser clones a File whole, Node's clone would drop its name
+			const c = structuredClone({ ...m, file: undefined, next: m.next && { ...m.next, file: undefined } });
+			if (m.file) c.file = m.file;
+			if (m.next) c.next.file = m.next.file;
+			setTimeout(() => globalThis.onmessage({ data: c }));
 		}
 	}
 	const blobs = [];
@@ -280,9 +290,10 @@ test('reader in a worker of its own (Chromium): the same readings, the engine as
 	await withGlobals(globals, async () => {
 		const reader = readerFor(engineLog(log));
 		assert.match(await blobs[0].text(), /^import\("https:\/\/xxl\.example\.org\/xxl\/src\/ui\/reader\.js"\)/, 'a module from the site, started from a blob: URL');
-		const fb = { name: 'b' };
-		const a = await reader.read({ name: 'a' }, fb, rules);
-		assert.deepEqual(log.slice(0, 3), ['decode a', 'decode b', 'words a']);
+		const fb = shot('b');
+		const a = await reader.read(shot('a'), fb, rules);
+		assert.equal(log[0], 'decode a');
+		assert.ok(log.indexOf('decode b') > 0 && log.indexOf('decode b') < log.findIndex(l => l.startsWith('line ')), `b decoded while the engine reads a: ${log}`);
 		assert.ok(log.filter(l => l.startsWith('line ')).length >= 2, 'the crops (CP and name: nothing else on a white screen)');
 		assert.equal(a.thumb, 'data:image/jpeg;q=0.72;112x90', 'the same thumbnail, from an OffscreenCanvas');
 		assert.deepEqual(a.size, [W, H]);
@@ -290,11 +301,30 @@ test('reader in a worker of its own (Chromium): the same readings, the engine as
 		const b = await reader.read(fb, null, rules);
 		assert.deepEqual(log.slice(0, 1), ['words b'], 'decoded ahead in the worker, not again');
 		assert.deepEqual({ ...b.reading, ms: 0 }, { ...a.reading, ms: 0 });
-		await assert.rejects(reader.read({ name: 'huge' }, null, rules), /too large/);
+		await assert.rejects(reader.read(shot('huge'), null, rules), /too large/);
 		assert.equal(worker.sent.filter(k => k === 'rules').length, 1, 'the rules sent once');
 		// an engine call that fails reaches the read
 		const failing = readerFor({ async setParameters() {}, async recognize() { throw new Error('engine gone'); } });
-		await assert.rejects(failing.read({ name: 'c' }, null, rules), /engine gone/);
+		await assert.rejects(failing.read(shot('c'), null, rules), /engine gone/);
+	});
+});
+
+test('a screenshot over 40 megapixels refused by its header, before it is decoded', async () => {
+	const decoded = [];
+	const file = buf => ({ slice: (a, b) => ({ arrayBuffer: async () => Uint8Array.from(buf.subarray(a, b)).buffer }) });
+	const png = (w, h) => {
+		const b = Buffer.from(encodePng({ width: 1, height: 1, data: new Uint8ClampedArray(4) }));
+		b.writeUInt32BE(w, 16); b.writeUInt32BE(h, 20);
+		return b;
+	};
+	const createImageBitmap = async f => { decoded.push(f); return { width: 8000, height: 6000, close() {} }; };
+	await withGlobals({ createImageBitmap }, async () => {
+		await assert.rejects(decode(file(png(8000, 6000))), /too large/);
+		assert.equal(decoded.length, 0, 'nothing decoded');
+		// a header that says less, or none that can be read: checked once decoded, as before
+		await assert.rejects(decode(file(png(100, 100))), /too large/);
+		await assert.rejects(decode(file(Buffer.from('GIF89a'))), /too large/);
+		assert.equal(decoded.length, 2);
 	});
 });
 
@@ -401,10 +431,10 @@ test('reader worker that doesn\'t start or stops: reads waiting fail, the next o
 	await withGlobals(globals, async () => {
 		Worker.mode = 'start';
 		const a = readerFor(engineLog(log));
-		assert.deepEqual((await a.read({ name: 'a' }, null, rules)).size, [W, H], 'on the page');
+		assert.deepEqual((await a.read(shot('a'), null, rules)).size, [W, H], 'on the page');
 		Worker.mode = 'stop';
 		const b = readerFor(engineLog(log));
-		await assert.rejects(b.read({ name: 'b' }, null, rules), /the reader worker stopped/);
-		assert.deepEqual((await b.read({ name: 'c' }, null, rules)).size, [W, H], 'the next one on the page');
+		await assert.rejects(b.read(shot('b'), null, rules), /the reader worker stopped/);
+		assert.deepEqual((await b.read(shot('c'), null, rules)).size, [W, H], 'the next one on the page');
 	});
 });

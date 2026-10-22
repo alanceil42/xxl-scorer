@@ -1,7 +1,11 @@
 // A screenshot's pixels and thumbnail, on the page or in a worker of its own (reader.js): the
 // same steps with an HTML canvas on the page and an OffscreenCanvas in a worker.
 import { readScreenshot } from '../core/pipeline.js';
-import { REGIONS, boxOf, crop, downscale } from '../core/image.js';
+import { REGIONS, boxOf, crop, downscale, imageSize } from '../core/image.js';
+
+// a phone screenshot is 1-4 megapixels; refuse what would only exhaust the tab's memory
+const MAX_PIXELS = 40e6;
+const TOO_LARGE = 'image too large for a screenshot';
 
 /** A canvas of w × h on the page. */
 export function pageCanvas(w, h) {
@@ -19,9 +23,12 @@ export const workerCanvas = (w, h) => new OffscreenCanvas(w, h);
  * @param {(w: number, h: number) => any} canvas  pageCanvas or workerCanvas
  */
 export async function decode(file, canvas) {
+	// PNG and JPEG by the size in their header, before anything is decoded; other kinds (and a
+	// JPEG whose metadata runs past the first 256 KB) once decoded
+	const size = imageSize(new Uint8Array(await file.slice(0, 1 << 18).arrayBuffer()));
+	if (size && size.width * size.height > MAX_PIXELS) throw new Error(TOO_LARGE);
 	const bmp = await createImageBitmap(file);
-	// a phone screenshot is 1-4 megapixels; refuse what would only exhaust the tab's memory
-	if (bmp.width * bmp.height > 40e6) { bmp.close && bmp.close(); throw new Error('image too large for a screenshot'); }
+	if (bmp.width * bmp.height > MAX_PIXELS) { bmp.close && bmp.close(); throw new Error(TOO_LARGE); }
 	const c = canvas(bmp.width, bmp.height);
 	const ctx = c.getContext('2d', { willReadFrequently: true });
 	ctx.drawImage(bmp, 0, 0);

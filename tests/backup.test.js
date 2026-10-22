@@ -21,6 +21,17 @@ test('thumbnails: embedded images only, no URLs', () => {
 	assert.equal(cleanRow({ ...good, thumb: '//tracker.example/x.gif' }).thumb, undefined);
 });
 
+test('thumbnails: JPEG bytes only, whatever the label says', () => {
+	assert.equal(safeThumb('data:image/jpeg;base64,/9j/4AAQSkZJRg=='), 'data:image/jpeg;base64,/9j/4AAQSkZJRg==');
+	// the browser decodes what the bytes are: a GIF, BMP or PNG under a JPEG label too
+	for (const b64 of ['R0lGODlhAQABAAAAACw=', 'Qk0eAAAAAAAAABoAAAA=', 'iVBORw0KGgo=', 'AAAA']) {
+		assert.equal(safeThumb(`data:image/jpeg;base64,${b64}`), undefined, b64);
+	}
+	// the page has stored JPEG only from the start
+	assert.equal(safeThumb('data:image/png;base64,iVBORw0KGgo='), undefined);
+	assert.equal(safeThumb('data:image/webp;base64,UklGRg=='), undefined);
+});
+
 test('unknown fields dropped, wrong types dropped, not-a-row refused', () => {
 	const r = cleanRow({ ...good, evil: 1, reading: { ...good.reading, hp: '61', types: ['GHOST', '<b>', 'X'], __proto__x: 1, extra: {} }, edits: { ivs: { a: 16, d: 0, s: 0 }, cp: -5 } });
 	assert.equal(r.evil, undefined);

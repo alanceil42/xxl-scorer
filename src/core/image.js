@@ -340,3 +340,29 @@ export function downscale(img, maxSide) {
 	}
 	return { width: w, height: h, data: out };
 }
+
+/**
+ * Width and height from a PNG's or JPEG's header, without decoding it; null for anything else,
+ * or when the bytes end before the size (a JPEG's comes after its metadata segments).
+ * @param {Uint8Array} b  the file's first bytes
+ * @returns {{width: number, height: number} | null}
+ */
+export function imageSize(b) {
+	const u16 = i => (b[i] << 8) | b[i + 1];
+	const u32 = i => ((b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3]) >>> 0;
+	// PNG: the signature, then IHDR first
+	if (b.length >= 24 && u32(0) === 0x89504e47 && u32(4) === 0x0d0a1a0a && u32(12) === 0x49484452) return { width: u32(16), height: u32(20) };
+	if (b.length < 4 || b[0] !== 0xff || b[1] !== 0xd8) return null;
+	// JPEG: segment by segment to the frame header (SOF0-SOF15, but C4, C8 and CC are other
+	// segments); an embedded thumbnail sits inside its segment and is skipped with it
+	for (let i = 2; i + 9 <= b.length;) {
+		if (b[i] !== 0xff) return null;
+		const m = b[i + 1];
+		if (m === 0xff) { i++; continue; }	// fill byte
+		if (m === 0xd8 || m === 0x01 || (m >= 0xd0 && m <= 0xd7)) { i += 2; continue; }	// no length
+		if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) return { width: u16(i + 7), height: u16(i + 5) };
+		if (m === 0xd9 || m === 0xda) return null;	// image end, or its data before any frame
+		i += 2 + u16(i + 2);
+	}
+	return null;
+}
