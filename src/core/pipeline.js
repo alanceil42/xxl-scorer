@@ -13,7 +13,10 @@ export function tesseractEngine(worker, encode) {
 	return {
 		/** @param input  the original image, or pixels (encoded first) */
 		async words(input) {
-			await worker.setParameters({ tessedit_pageseg_mode: '11', tessedit_char_whitelist: '' });
+			// Experiment: no inverted second try for the whole screenshot. Tesseract reads a line
+			// again inverted when it is unsure (light text on dark); the info card is dark on
+			// light, and the white text over the photo (CP) is read from its own crop.
+			await worker.setParameters({ tessedit_pageseg_mode: '11', tessedit_char_whitelist: '', tessedit_do_invert: '0' });
 			const { data } = await worker.recognize(input && input.data ? await encode(input) : input, {}, { text: true, blocks: true });
 			const out = [];
 			for (const b of data.blocks || []) {
@@ -22,7 +25,7 @@ export function tesseractEngine(worker, encode) {
 			return out;
 		},
 		async line(img, whitelist, psm = '7') {
-			await worker.setParameters({ tessedit_pageseg_mode: psm, tessedit_char_whitelist: whitelist });
+			await worker.setParameters({ tessedit_pageseg_mode: psm, tessedit_char_whitelist: whitelist, tessedit_do_invert: '1' });
 			const { data } = await worker.recognize(await encode(img));
 			return data.text;
 		},

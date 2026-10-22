@@ -28,6 +28,9 @@ collect under "Unreleased".
 - The text recognition's language model is stored under a name of the site's own, which
   includes the model's version: a newer model reaches returning visitors, and the copy stored
   under the old name is deleted
+- Reading the whole screenshot no longer has the text recognition try each unsure line a
+  second time inverted (for light text on dark), which the card doesn't have: about 5-10 %
+  quicker per screenshot
 - The whole screenshot is read at 750 pixels wide, scaled down from larger screens first, so
   the text recognition's time and memory no longer grow with the screen's resolution
 
