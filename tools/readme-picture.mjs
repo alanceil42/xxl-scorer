@@ -28,6 +28,7 @@ import { compactGameMaster, GM_URL, ROW } from '../src/core/gm.js';
 import { compactText, textUrl } from '../src/core/text.js';
 import { makeContext, evaluate } from '../src/core/evaluate.js';
 import { levelTable, cpOf, hpOf } from '../src/core/ivs.js';
+import { score } from '../src/core/score.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const HEIGHT = 760;	// CSS px: the header and three and a half rows
@@ -50,29 +51,39 @@ const levels = levelTable(gm.cpm);
 
 const ctx = makeContext(gm, text);
 
-// species, IVs, level, where the height sits between the XL and the XXL bound,
-// weight against (height ratio)² × average weight, catch date
+// species, IVs, level, the score aimed at, weight against (height ratio)² × average weight,
+// catch date. Scores as a real box of XXLs has them: about 940-1150, few above 1100 (the
+// maintainer's 280: Meowscarada 1144.7, Yanma 1098.7, Buizel 1030.1, Klink 940.9). Where a
+// species can land depends on its XXL bound K (h̄ × 1.55, 1.75 or 2.00): an XXL of a 1.55
+// species scores 1130 or more, so none here; the lowest scores come from 2.00 species.
 const LIST = [
-	['DRAGONITE', [15, 14, 15], 40, 0.93, 1.06, '7/12/2023'],
-	['SNORLAX', [12, 15, 13], 33, 0.88, 0.97, '3/2/2025'],
-	['URSALUNA', [14, 12, 15], 30, 0.79, 1.12, '11/23/2024'],
-	['PIKACHU', [10, 13, 11], 25, 0.86, 1.09, '8/9/2026'],
-	['WOOPER', [15, 15, 14], 22, 0.84, 1.02, '5/30/2026'],
-	['GYARADOS', [13, 11, 12], 35, 0.71, 0.94, '9/14/2022'],
-	['LAPRAS', [9, 14, 15], 28, 0.66, 1.0, '6/1/2024'],
+	['DRAGONITE', [15, 14, 15], 40, 1139, 1.05, '7/12/2023'],
+	['PIKACHU', [10, 13, 11], 25, 1098, 1.04, '8/9/2026'],
+	['LAPRAS', [9, 14, 15], 28, 1071, 1.0, '6/1/2024'],
+	['WOOPER', [15, 15, 14], 22, 1046, 0.95, '5/30/2026'],
+	['SNORLAX', [10, 12, 9], 33, 1031, 0.9, '3/2/2025'],
+	['GYARADOS', [13, 11, 12], 35, 1002, 0.94, '9/14/2022'],
+	['MAGIKARP', [6, 11, 9], 20, 941, 0.88, '4/18/2025'],
 ];
 const r2 = x => Math.round(x * 100) / 100;
-const rows = LIST.map(([sp, [a, d, s], level, f, wf, caught], i) => {
+const rows = LIST.map(([sp, [a, d, s], level, aim, wf, caught], i) => {
 	const row = gm.species[sp].f[''];
 	const species = text.names[String(gm.species[sp].dex)];	// as the game shows it
 	const m = levels.find(x => x.level === level).m;
-	const height_m = r2(row[ROW.XL_MAX] + f * (row[ROW.XXL_MAX] - row[ROW.XL_MAX]));
-	const weight_kg = r2(row[ROW.W] * (height_m / row[ROW.H]) ** 2 * wf);
+	// the XXL height (as the game shows it, to the centimetre) whose score comes closest to the aim
+	let best;
+	for (let h = r2(row[ROW.XL_MAX] + 0.01); h <= row[ROW.XXL_MAX]; h = r2(h + 0.01)) {
+		const w = r2(row[ROW.W] * (h / row[ROW.H]) ** 2 * wf);
+		const total = score(row, gm.coef, h, w, a + d + s, true).total;
+		if (!best || Math.abs(total - aim) < Math.abs(best.total - aim)) best = { h, w, total };
+	}
+	const { h: height_m, w: weight_kg } = best;
 	const types = row[ROW.TYPES].split('/');
 	const reading = { species, caught, cp: cpOf(row, a, d, s, m), hp: hpOf(row, s, m), height_m, weight_kg,
 		bars: { a, d, s }, badge: 'XXL', types };
 	const e = evaluate(reading, ctx);
 	if (e.id !== sp || !e.score || !e.xxl || e.issues.length) throw new Error(`${species} isn't a clean XXL row of ${sp}: ${e.issues.map(x => x.msg)}`);
+	console.log(`${species.padEnd(10)} ${e.score.total.toFixed(1)} ±${e.score.band.toFixed(1)}  ${height_m} m  ${weight_kg} kg  CP ${e.cp}`);
 	return { id: `readme-${i}`, created: 1e12 + i, updated: 1e12 + i, scanned: 1e12, scanIdx: i,
 		file: `${i}.png`, edits: {}, reading, type: types[0] };
 });
