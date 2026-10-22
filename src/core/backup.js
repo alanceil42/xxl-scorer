@@ -40,7 +40,6 @@ const READING = {
 	types: v => (Array.isArray(v) ? v.filter(t => TYPES.includes(t)).slice(0, 2) : undefined),
 	bars: nullable(v => ivs(v, false)),
 	badge: nullable(v => (['XXL', 'XL', 'XS', 'XXS'].includes(v) ? v : undefined)),
-	slid: bool,
 	lucky: nullable(bool),
 	covered: bool,
 	merged: v => num(v, 1, 1000),

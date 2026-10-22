@@ -1,7 +1,7 @@
 // A screenshot's pixels and thumbnail, on the page or in a worker of its own (reader.js): the
 // same steps with an HTML canvas on the page and an OffscreenCanvas in a worker.
 import { readScreenshot } from '../core/pipeline.js';
-import { REGIONS, boxOf, crop, downscale, imageSize } from '../core/image.js';
+import { REGIONS, boxOf, crop, downscale, imageSize, columnOf } from '../core/image.js';
 
 // a phone screenshot is 1-4 megapixels; refuse what would only exhaust the tab's memory
 const MAX_PIXELS = 40e6;
@@ -39,7 +39,8 @@ export async function decode(file, canvas) {
 
 /** Sprite crop only: no info-line text is ever stored. A JPEG, as a data: URL. */
 export async function thumbnail(img, canvas) {
-	const small = downscale(crop(img, boxOf(img, REGIONS.sprite)), 112);
+	const col = columnOf(img);
+	const small = downscale(crop(col, boxOf(col, REGIONS.sprite)), 112);
 	const c = canvas(small.width, small.height);
 	c.getContext('2d').putImageData(new ImageData(small.data, small.width, small.height), 0, 0);
 	if (c.toDataURL) return c.toDataURL('image/jpeg', 0.72);

@@ -163,7 +163,7 @@ async function addFiles(files) {
 	const run = state.run = {
 		started: Date.now(),	// the batch's scan time, on every row it touches
 		files: files.slice(), results: [], next: 0, taken: 0, workers: [], loops: [],
-		added: [], merged: new Set(), mergedCount: 0, skipped: [], read: 0, withBars: 0,
+		added: [], merged: new Set(), mergedCount: 0, read: 0, withBars: 0,
 		rules: RULES[state.config.lang] || rulesEn,
 	};
 	state.busy = true;
@@ -193,7 +193,7 @@ async function addFiles(files) {
 	// From here on, new files start a new run; it must see this run's rows, so they go into
 	// the list before anything is awaited.
 	state.run = null;
-	const { added, merged, mergedCount, skipped } = run;
+	const { added, merged, mergedCount } = run;
 	if (added.length) state.rows.push(...added);
 	if (added.length || merged.size) {
 		await rowStore.putMany([...added, ...merged]);
@@ -206,9 +206,6 @@ async function addFiles(files) {
 	}
 	if (run.taken) banner('info', `${run.taken} screenshot${run.taken > 1 ? 's' : ''} read in ${duration(Date.now() - run.started)}.`);
 	if (mergedCount) banner('info', `${mergedCount} screenshot${mergedCount > 1 ? 's' : ''} merged into Pokémon already in the list.`);
-	if (skipped.length) {
-		banner('info', `Skipped, taken while swiping between two Pokémon: ${skipped.join(', ')}.`);
-	}
 	// None with the appraisal: the IVs can't be read. Point to the picture of what to take.
 	if (run.read >= 2 && run.withBars === 0) {
 		banner('info', `None of these ${run.read} screenshots shows the appraisal's bars, so the IVs are unknown.`,
@@ -277,8 +274,6 @@ function takeReading(run, f, res, idx) {
 	const { added, merged } = run;
 	if (res.error) { state.errors.push(`${f.name}: ${res.error.message || res.error}`); return; }
 	const { reading, thumb } = res;
-	// taken mid-swipe, between two Pokémon: half of each, nothing to trust
-	if (reading.slid) { run.skipped.push(f.name); return; }
 	run.read++;
 	if (reading.bars) run.withBars++;
 	const now = Date.now();

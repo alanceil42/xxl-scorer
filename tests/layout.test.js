@@ -3,7 +3,7 @@
 // No game art: the images are drawn here, the game data is synthetic.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { REGIONS, boxOf, findHpBar, isSlid, isLucky, yearPillText, cpDigits, dropEdgeBlobs, HP_BAR_X0 } from '../src/core/image.js';
+import { REGIONS, boxOf, findHpBar, isLucky, cardColumn, columnOf, yearPillText, cpDigits, dropEdgeBlobs, HP_BAR_X0 } from '../src/core/image.js';
 import { parseName, parseYearPill, dateParts, dateRelation, pillAsCaught, parseCrops, makeRules } from '../src/core/read.js';
 import { compactGameMaster } from '../src/core/gm.js';
 import { compactText, nameIndex, findDexByName } from '../src/core/text.js';
@@ -34,23 +34,36 @@ test('regions are in units of the width: the same place on a 16:9 and a 19.5:9 s
 		const bar = findHpBar(img);
 		assert.ok(bar && Math.abs(bar.y / W - 0.986) < 0.01, `${W}: ${JSON.stringify(bar)}`);
 		assert.equal(isLucky(bar, W), false);
-		assert.equal(isSlid(bar, W, false), false);
 	}
 });
 
-test('HP bar: teal under the Mystic appraisal tint; lucky; shortened by the medallion vs slid', () => {
+test('HP bar: teal under the Mystic appraisal tint; lucky', () => {
 	const W = 750, H = 1334;
 	const { img, rect } = canvas(W, H, [136, 178, 196]);	// blue-tinted card
 	rect(Math.round(W * HP_BAR_X0), Math.round(W * 1.03), Math.round(W * 0.49), 8, [90, 179, 172]);
 	const bar = findHpBar(img);
 	assert.ok(bar, 'teal bar on a blue card');
 	assert.equal(isLucky(bar, W), true, 'pushed down by LUCKY POKÉMON');
-	// the medallion covers the left part: not slid when the bars are there, slid without them
-	const covered = { y: bar.y, x0: Math.round(W * 0.43), x1: Math.round(W * 0.742) };
-	assert.equal(isSlid(covered, W, true), false);
-	assert.equal(isSlid(covered, W, false), true);
-	// beyond where the bar can reach: slid either way
-	assert.equal(isSlid({ y: bar.y, x0: Math.round(W * 0.35), x1: Math.round(W * 0.84) }, W, true), true);
+});
+
+test('card column: the whole width on a phone, a centred 9:16 column on a wider screen', () => {
+	for (const [W, H] of [[750, 1334], [1206, 2622], [1080, 2400], [640, 1136]]) {
+		assert.deepEqual(cardColumn(W, H), { x: 0, w: W }, `${W} × ${H}`);
+		const img = { width: W, height: H, data: new Uint8ClampedArray(0) };
+		assert.equal(columnOf(img), img, 'a phone screenshot is used as it is');
+	}
+	// iPad (A16): the HP bar measured at 0.300-0.699 of the width, row 1299
+	assert.deepEqual(cardColumn(1640, 2360), { x: 156, w: 1328 });
+	const W = 1640, H = 2360, c = cardColumn(W, H);
+	const { img, rect } = canvas(W, H);
+	rect(492, 1294, 654, 10, [140, 225, 178]);
+	const col = columnOf(img);
+	assert.equal(col.width, 1328);
+	assert.equal(col.height, H);
+	const bar = findHpBar(col);
+	assert.ok(bar, 'found in the column');
+	assert.ok(Math.abs(bar.y / c.w - 0.978) < 0.005, `bar at ${bar.y / c.w} column widths`);
+	assert.ok(Math.abs(bar.x0 / c.w - HP_BAR_X0) < 0.01 && Math.abs((bar.x1 + 1) / c.w - 0.742) < 0.01, JSON.stringify(bar));
 });
 
 test('year pill: found by colour, white text kept; none on a plain card', () => {

@@ -60,7 +60,8 @@ src/core/pipeline.js (readScreenshot), src/ui/ocr.js (the workers).
   from files the site serves itself: about a second per screenshot, several in parallel.
 - The game lays out its card from the screen's width, so every region is located in units of
   the width (the CP 0.13–0.19 widths from the top, the HP bar at 0.98, …): 19.5:9 and 16:9
-  screens read alike.
+  screens read alike. A wider screen, such as an iPad's, gets a 16:9 phone's layout as tall as
+  the screen, centred; the card is read in that column.
 - The whole screenshot gives the species and catch date ("This … was caught on …", matched
   with the game's own texts); close-ups of single regions give HP, weight, height, types and
   the size badge.

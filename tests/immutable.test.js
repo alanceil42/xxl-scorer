@@ -42,13 +42,13 @@ const ivs = { a: 15, d: 13, s: 15 };
 /** The two screenshots of one Pokémon, as the page reads them: with the appraisal, and without. */
 const withBars = () => ({
 	species: 'Testmon', caught: '7/28/2024', caughtPill: '2024 07/28', name: 'XX1144¹⁰⁰⓯㉑', ...shown(tm, ivs, 20),
-	cpAlt: [19007], height_m: 1.7, weight_kg: null, types: ['NORMAL'], bars: { a: 14.9, d: 13.1, s: 15 }, badge: 'XXL', lucky: false, slid: false,
+	cpAlt: [19007], height_m: 1.7, weight_kg: null, types: ['NORMAL'], bars: { a: 14.9, d: 13.1, s: 15 }, badge: 'XXL', lucky: false,
 });
 const without = () => ({
 	species: null, caught: null, caughtPill: '2024 07/28', name: 'XX1144¹⁰⁰⓯㉑', ...shown(tm, ivs, 20),
-	height_m: 1.7, weight_kg: 30, types: ['NORMAL'], bars: null, badge: 'XXL', lucky: false, slid: false,
+	height_m: 1.7, weight_kg: 30, types: ['NORMAL'], bars: null, badge: 'XXL', lucky: false,
 });
-const other = () => ({ species: 'Fakeon', caught: '6/20/2026', hp: 60, cp: 300, height_m: 0.6, weight_kg: 9, types: ['WATER'], bars: null, slid: false });
+const other = () => ({ species: 'Fakeon', caught: '6/20/2026', hp: 60, cp: 300, height_m: 0.6, weight_kg: 9, types: ['WATER'], bars: null });
 
 test('evaluating, merging, sorting, searching and naming leave readings, edits and results as they were', () => {
 	const a = deepFreeze(withBars()), b = deepFreeze(without()), c = deepFreeze(other());
