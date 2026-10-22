@@ -5,7 +5,7 @@
 // From the page: {rules} the reading rules (read.js makeRules), once; {read: key, file, next?:
 // {key, file}} read a screenshot, and decode `next` meanwhile, while the engine works;
 // {answer: id, value | error} an engine call's result. To the page: {ready}, {ask: id, words:
-// key, image?} or {ask: id, line, whitelist, psm} for the engine, {done: key, result | error}.
+// key} or {ask: id, line, whitelist, psm} for the engine, {done: key, result | error}.
 import { decode, readImage, workerCanvas } from './decode.js';
 import { pam } from '../core/image.js';
 
@@ -35,12 +35,11 @@ async function read({ read: key, file, next }) {
 		decoded.delete(key);
 		if (next) start(next.key, next.file);
 		const engine = {
-			// the screenshot's file, which the page holds; pixels (a scaled copy) as a PAM file
-			words(source) {
-				if (!source || !source.data) return ask({ words: key });
-				const b = pam(source);
-				return ask({ words: key, image: b }, [b.buffer]);
+			// the whole screenshot: the page reads its own copy of the file
+			words() {
+				return ask({ words: key });
 			},
+			// a crop, as a PAM file
 			line(px, whitelist, psm) {
 				const b = pam(px);
 				return ask({ line: b, whitelist, psm }, [b.buffer]);

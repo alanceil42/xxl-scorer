@@ -177,7 +177,7 @@ function workerReader(worker) {
 			else if (m.failed) w.onerror(m);
 			else if (m.ask) {
 				try {
-					const value = m.words ? await engine.words(m.image || files.get(m.words)) : await engine.line(m.line, m.whitelist, m.psm);
+					const value = m.words ? await engine.words(files.get(m.words)) : await engine.line(m.line, m.whitelist, m.psm);
 					w.postMessage({ answer: m.ask, value });
 				} catch (err) {
 					w.postMessage({ answer: m.ask, error: String(err && err.message || err) });

@@ -12,7 +12,7 @@ import { parseWords, parseCp, parseCrops, parseTypes, parseName, parseYearPill }
 export function tesseractEngine(worker, encode) {
 	return {
 		async words(input) {
-			// Experiment: no inverted second try for the whole screenshot. Tesseract reads a line
+			// No inverted second try for the whole screenshot. Tesseract reads a line
 			// again inverted when it is unsure (light text on dark); the info card is dark on
 			// light, and the white text over the photo (CP) is read from its own crop.
 			await worker.setParameters({ tessedit_pageseg_mode: '11', tessedit_char_whitelist: '', tessedit_do_invert: '0' });
