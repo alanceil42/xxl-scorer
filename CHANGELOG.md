@@ -8,9 +8,14 @@ collect under "Unreleased".
 
 ## Unreleased
 
+
+## 1.3 - 2026-10-22
+
 - iPad screenshots are read: the game lays out the card there as on a 16:9 phone, centred on
   the wider screen, and the page now reads it in that column. Before, most iPad screenshots
-  were skipped as if taken mid-swipe, and height and weight stayed empty
+  were skipped as if taken mid-swipe, and height and weight stayed empty. Other screens wider
+  than a 16:9 phone (tablets, unfolded foldables) are read the same way; only the iPad is
+  tested so far
 - Screenshots taken mid-swipe, between two Pokémon, are no longer looked for and skipped: the
   check misjudged screenshots of other screen shapes, and such a screenshot is rare
 - Fewer banners to dismiss after adding screenshots: none for screenshots merged into Pokémon

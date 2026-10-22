@@ -110,10 +110,10 @@ and weight to two decimals.
 game run them: the same score, the lowest wins. That is an assumption until such a showcase
 happens.
 
-Tested so far with English game text and iPhone screenshots (19.5:9 and 16:9 screens) from
-players of all three teams. If a screenshot is read wrong,
-please open an issue ("A screenshot isn't read correctly"); the template explains how to hide
-the catch location first.
+Tested so far with English game text, iPhone screenshots (19.5:9 and 16:9 screens) from
+players of all three teams, and iPad screenshots. Android phones, other tablets and foldables
+are untested. If a screenshot is read wrong, please open an issue ("A screenshot isn't read
+correctly"); the template explains how to hide the catch location first.
 
 ## Where the game data comes from
 
