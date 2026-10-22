@@ -93,7 +93,15 @@ trap 'rm -rf "$tmp"' EXIT
 case "${1:-}" in
 	--check)
 		cd "$VENDOR"
-		sha256 -c --quiet SHA256SUMS
+		# --strict: a line that isn't a checksum fails instead of being skipped with a warning
+		sha256 -c --quiet --strict SHA256SUMS
+		# Regular files only: the site's upload replaces a symbolic link by what it points to,
+		# which could be any file of the machine, and find -type f below doesn't see links
+		odd="$(find . ! -type f ! -type d)"
+		if [[ -n "$odd" ]]; then
+			printf 'Not a regular file (links and the like are not allowed in vendor/):\n%s\n' "$odd" >&2
+			exit 1
+		fi
 		# and nothing else: the site publishes all of vendor/, so a file nobody listed would go
 		# out unchecked
 		extra="$(comm -13 <(awk '{ print $2 }' SHA256SUMS | LC_ALL=C sort) \

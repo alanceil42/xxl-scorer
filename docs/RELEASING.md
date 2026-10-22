@@ -45,12 +45,23 @@ On the release branch, in your checkout:
 
     git fetch origin && git switch claude/release-1.1   # the PR's branch
     npm test && bash tools/vendor.sh --check
-    npm install --no-save tesseract.js@$(tools/vendor.sh --version tesseract.js)
+    npm install --no-save --ignore-scripts \
+        tesseract.js@$(tools/vendor.sh --version tesseract.js) \
+        tesseract.js-core@$(tools/vendor.sh --version tesseract.js-core)
     XXL_FIXTURES=/path/to/my/screenshots npm test        # real screenshots, a few minutes
 
-Then `npm run serve`, open <http://localhost:8000/> in Safari (and on the phone, over the
-network), add a few screenshots, look at the list, export a backup. A footer that names the new
-version means the right files are served.
+The engine for Node at exactly the vendored versions, and without install scripts: npm would
+run them as you, on the computer that holds the screenshots.
+
+Then `npm run serve`, open <http://localhost:8000/> in Safari, add a few screenshots, look at
+the list, export a backup. A footer that names the new version means the right files are served.
+
+For the phone, serve a copy of the release's files, not the checkout: `npm run serve` answers
+this computer only, and a server open to the network would hand out everything in the folder,
+`.git`, `local/` and any screenshots in it included.
+
+    site="$(mktemp -d)" && git archive HEAD | tar -x -C "$site"
+    python3 -m http.server 8001 --directory "$site"   # on the phone: http://<this computer>:8001/
 
 ### 3. Merge
 

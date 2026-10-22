@@ -21,8 +21,12 @@ test('the nginx header is the page\'s policy plus frame-ancestors', () => {
 	assert.deepEqual([...header], [...meta]);
 });
 
-test('the engine\'s worker may start from a blob: URL, and loads like the page', () => {
-	assert.equal(meta.get('worker-src'), "'self' blob:");
+test('the engine\'s worker may start from a blob: URL only, and loads like the page', () => {
+	// not 'self': a worker started from a file of the site takes its policy from that file's
+	// headers (none on GitHub Pages), and the engine's worker file loads whatever core a message
+	// names
+	assert.equal(meta.get('worker-src'), 'blob:');
+	assert.equal(meta.get('img-src'), "'self' data:", 'thumbnails are embedded, nothing needs blob: images');
 	assert.equal(meta.get('script-src'), "'self' 'wasm-unsafe-eval'", 'no inline scripts, no eval');
 	assert.equal(meta.get('connect-src'), "'self' https://raw.githubusercontent.com/PokeMiners/");
 	assert.match(read('src/ui/ocr.js'), /workerBlobURL: true,/);

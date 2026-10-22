@@ -42,10 +42,18 @@ jobs:
             echo "::error::Run this from a release tag (Use workflow from → Tags), not from $GITHUB_REF_NAME."
             exit 1
           fi
-          if ! git merge-base --is-ancestor HEAD origin/main; then
+          # Spelled out in full: a tag named "origin/main" would win over the remote branch.
+          # On main's first-parent line, i.e. a state main was in: every commit of a merged pull
+          # request is an ancestor of main, but only the merge was reviewed as a whole.
+          head="$(git rev-parse HEAD)"
+          # (grep reads it all: with -q it would stop early, and pipefail would count rev-list's
+          # broken pipe as a failure)
+          if ! git rev-list --first-parent refs/remotes/origin/main | grep -x "$head" > /dev/null; then
             echo "::error::$GITHUB_REF_NAME ($(git rev-parse --short HEAD)) is not on main; only releases of main are published."
             exit 1
           fi
+      - name: Vendored files match SHA256SUMS
+        run: bash tools/vendor.sh --check
       - name: Assemble the site
         env:
           SITE_CONFIG: ${{ vars.SITE_CONFIG }}
@@ -53,6 +61,13 @@ jobs:
           site="$RUNNER_TEMP/site"
           mkdir -p "$site"
           cp -R index.html app.css icon.svg config.json src vendor "$site/"
+          # The upload replaces a symbolic link by what it points to, which could be any file of
+          # the runner: only regular files and directories go up.
+          odd="$(find "$site" ! -type f ! -type d)"
+          if [ -n "$odd" ]; then
+            echo "::error::Not a regular file or directory: $odd"
+            exit 1
+          fi
           if [ -n "$SITE_CONFIG" ]; then
             mkdir -p "$site/local"
             printf '%s' "$SITE_CONFIG" | jq . > "$site/local/config.json"

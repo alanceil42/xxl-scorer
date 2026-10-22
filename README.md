@@ -52,7 +52,8 @@ won't run JavaScript modules from `file://`.
 - `python3 -m http.server` listens on your whole network, so a phone on the same Wi-Fi can open
   `http://<your computer's IP>:8000/`. Over plain http to another device, **Paste** doesn't work
   (browsers allow clipboard access only on https or localhost); use Add screenshots instead.
-  Add `--bind 127.0.0.1` to keep it to your computer.
+  It hands out every file in the folder, so keep nothing private there, or add
+  `--bind 127.0.0.1` to keep it to your computer.
 - To keep it running for good, see [Hosting](#hosting).
 
 ## Using it
@@ -176,7 +177,7 @@ them.
 ## Development
 
 ```sh
-npm run serve           # python3 -m http.server 8000, then open http://localhost:8000/
+npm run serve           # python3 -m http.server on 127.0.0.1:8000: http://localhost:8000/
 npm test                # public tests, made-up game data, no network
 tools/vendor.sh --check # vendored engine files match vendor/SHA256SUMS
 ```
@@ -200,7 +201,10 @@ No dependencies and no build: plain JavaScript modules.
 **Tests with real screenshots** stay local, because screenshots show where Pokémon were caught:
 
 ```sh
-npm install --no-save tesseract.js@$(tools/vendor.sh --version tesseract.js)   # Node build, same version
+# the Node build, at the vendored versions; no install scripts, which run as you
+npm install --no-save --ignore-scripts \
+	tesseract.js@$(tools/vendor.sh --version tesseract.js) \
+	tesseract.js-core@$(tools/vendor.sh --version tesseract.js-core)
 XXL_FIXTURES=/path/to/my/screenshots npm test
 ```
 

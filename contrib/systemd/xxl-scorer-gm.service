@@ -32,6 +32,10 @@ ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectControlGroups=yes
 TimeoutStartSec=15min
+# jq holds the whole game master in memory (~20 MB of JSON today; curl accepts up to 200 MB): a
+# bigger or hostile file stops this job, not the rest of the server
+MemoryMax=1G
+TasksMax=32
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 CapabilityBoundingSet=
 AmbientCapabilities=

@@ -8,13 +8,15 @@
 	<meta name="darkreader-lock">
 	<!-- What the page may load: its own files, and the game data from PokeMiners on GitHub,
 	     nothing else on raw.githubusercontent.com. The text recognition engine's worker starts
-	     from a blob: URL (worker-src), so this policy covers it too. A self-hosted gm.json on
+	     from a blob: URL (worker-src), so this policy covers it too; no worker may start from a
+	     file of the site, which on a host without headers would run under no policy at all.
+	     Images: the site's own and the embedded thumbnails (data:). A self-hosted gm.json on
 	     another host needs that host in connect-src. Hosts that can send headers should send
 	     this policy plus frame-ancestors (contrib/nginx; keep the two the same); without it the
 	     page refuses to run in a frame (src/ui/app.js). -->
 	<!-- no Referer to GitHub when fetching the game data: it would name this site's URL -->
 	<meta name="referrer" content="no-referrer">
-	<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; connect-src 'self' https://raw.githubusercontent.com/PokeMiners/; img-src 'self' data: blob:; style-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src blob:; connect-src 'self' https://raw.githubusercontent.com/PokeMiners/; img-src 'self' data:; style-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
 	<meta name="description" content="Score Pokémon GO screenshots for size showcases, any day of the week. Runs in your browser.">
 	<title>xxl-scorer</title>
 	<link rel="icon" href="icon.svg" type="image/svg+xml">
