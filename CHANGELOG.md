@@ -28,6 +28,9 @@ collect under "Unreleased".
 - The text recognition's language model is stored under a name of the site's own, which
   includes the model's version: a newer model reaches returning visitors, and the copy stored
   under the old name is deleted
+- Reading the whole screenshot no longer has the text recognition try each unsure line a
+  second time inverted (for light text on dark), which the card doesn't have: about 5-10 %
+  quicker per screenshot
 - Long lists are quicker again: species names are looked up once per name rather than for
   every row each time screenshots come in, and in a window just too narrow for the table,
   sorting 1000 Pokémon takes about a third less time
