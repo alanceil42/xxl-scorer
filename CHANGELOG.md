@@ -12,6 +12,9 @@ collect under "Unreleased".
   the branch and the commit, linking to it. git fills these in when it packs the files
   (`git archive`, as the public copy and a tarball of a commit are made); a plain git checkout
   keeps showing the last release's number
+- Long lists are quicker again: species names are looked up once per name rather than for
+  every row each time screenshots come in, and in a window just too narrow for the table,
+  sorting 1000 Pokémon takes about a third less time
 
 
 ## 1.1 - 2026-10-22

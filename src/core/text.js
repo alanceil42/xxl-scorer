@@ -110,7 +110,10 @@ export function levenshtein(a, b) {
 	return prev[n];
 }
 
-/** Map of normalised name → Pokédex number, plus the list for fuzzy search. */
+/**
+ * Map of normalised name → Pokédex number, plus the list for fuzzy search. Never changed once
+ * built: findDex and findDexByName remember their answers per index.
+ */
 export function nameIndex(text) {
 	const exact = new Map();
 	for (const [dex, name] of Object.entries(text.names)) exact.set(normalizeName(name), Number(dex));
@@ -125,6 +128,28 @@ export function findDex(name, index) {
 	const n = normalizeName(name);
 	if (!n) return null;
 	if (index.exact.has(n)) return index.exact.get(n);
+	return remembered(index, 'fuzzy', n, fuzzyDex);
+}
+
+/**
+ * Answers per index and normalised name. Merging asks for the same names again and again
+ * (every row's species and name, for every screenshot that comes in); a name that isn't exact
+ * costs a comparison with every species' name. At most LIMIT names each, then it starts over.
+ */
+const memo = new WeakMap();
+const LIMIT = 20000;
+function remembered(index, kind, n, f) {
+	let m = memo.get(index);
+	if (!m) memo.set(index, m = { fuzzy: new Map(), byName: new Map() });
+	const known = m[kind];
+	if (known.has(n)) return known.get(n);
+	if (known.size >= LIMIT) known.clear();
+	const v = f(n, index);
+	known.set(n, v);
+	return v;
+}
+
+function fuzzyDex(n, index) {
 	const maxD = n.length < 5 ? 1 : 2;
 	let best = null, bestD = Infinity, tie = false;
 	for (const [k, dex] of index.list) {
@@ -146,6 +171,10 @@ export function findDexByName(name, index) {
 	if (n.length < 3) return null;
 	if (index.exact.has(n)) return index.exact.get(n);
 	if (n.length < 6) return null;
+	return remembered(index, 'byName', n, oneOffDex);
+}
+
+function oneOffDex(n, index) {
 	let best = null, n1 = 0;
 	for (const [k, dex] of index.list) {
 		if (Math.abs(k.length - n.length) > 1) continue;

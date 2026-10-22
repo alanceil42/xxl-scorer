@@ -78,6 +78,29 @@ test('species names: short names allow one slip, a slip that fits several is uns
 	assert.equal(normalizeName(undefined), '');
 });
 
+test('species names: answers remembered per index are the answers a fresh index gives', () => {
+	const idx = nameIndex(en);
+	// exact, slips, ties, nicknames, garbage: each asked twice of one index, once of a new one
+	const names = [];
+	for (const base of ['Testmon', 'Fakeon', 'Mr. Fake', 'Filler7mon', 'Filler42mon', 'XX961', 'Ono', 'Xxl', '']) {
+		names.push(base, base.slice(1), base + 'n', base.replace(/e/g, 'c'), base.toUpperCase(), `${base}${base}`);
+	}
+	for (let k = 0; k < 2; k++) {
+		for (const n of names) {
+			assert.equal(findDex(n, idx), findDex(n, nameIndex(en)), `findDex ${n}`);
+			assert.equal(findDexByName(n, idx), findDexByName(n, nameIndex(en)), `findDexByName ${n}`);
+		}
+	}
+	// another game language: its own answers, not the first index's
+	const other = nameIndex({ ...en, names: { 9001: 'Probemon' } });
+	assert.equal(findDex('Probemom', other), 9001);
+	assert.equal(findDex('Probemom', idx), null);
+	// a great many different names: still the right answers past the memory's limit
+	for (let i = 0; i < 20050; i++) findDex(`nickname number ${i}`, idx);
+	assert.equal(findDex('Testmom', idx), 9001);
+	assert.equal(findDexByName('Fillcr42mon', idx), 42);
+});
+
 test('name line: one character off counts only from 6 letters, and only for one name', () => {
 	const idx = nameIndex(en);
 	assert.equal(findDexByName('Fakon', idx), null, 'one slip in a 5-letter name: a nickname');
