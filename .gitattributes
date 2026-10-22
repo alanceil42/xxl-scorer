@@ -1,0 +1,2 @@
+# git archive fills in the $Format:…$ placeholders of these files (the footer names the build).
+src/build.js export-subst
