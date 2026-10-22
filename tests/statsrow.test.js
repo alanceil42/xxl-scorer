@@ -18,7 +18,7 @@ function canvas(W, H, rgb = [250, 250, 250]) {
 	return { img: { width: W, height: H, data }, rect };
 }
 
-test('HP bar: found under the name, also when hurt; a shifted card is a mid-swipe screenshot', () => {
+test('HP bar: found under the name, also when hurt', () => {
 	const W = 600, H = 1300;
 	const { img, rect } = canvas(W, H);
 	rect(Math.round(W * HP_BAR_X0), 590, 300, 8, [140, 225, 178]);	// green bar
@@ -34,10 +34,6 @@ test('HP bar: found under the name, also when hurt; a shifted card is a mid-swip
 	assert.equal(findHpBar(hurt.img), null, 'a red run must cross the middle');
 	hurt.rect(Math.round(W * HP_BAR_X0), 590, 200, 8, [235, 70, 60]);
 	assert.ok(findHpBar(hurt.img), 'red, two thirds');
-
-	const slid = canvas(W, H);
-	slid.rect(Math.round(W * 0.47), 590, 300, 8, [140, 225, 178]);
-	assert.ok(Math.abs(findHpBar(slid.img).x0 / W - HP_BAR_X0) > 0.03);
 
 	assert.equal(findHpBar(canvas(W, H).img), null, 'no bar');
 	const big = canvas(W, H);

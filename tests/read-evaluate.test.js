@@ -290,7 +290,6 @@ test('merging: what rules a pair out', async () => {
 	assert.ok(canMerge(named, other, ctx));
 	assert.equal(canMerge(named, { ...other, types: ['WATER'] }, ctx), false, 'a type the species does not have');
 	assert.ok(canMerge(named, { ...other, types: ['NORMAL', 'FLYING'] }, ctx), 'the types of another form (Giant)');
-	assert.equal(canMerge(named, { ...other, slid: true }, ctx), false, 'taken mid-swipe');
 	assert.equal(canMerge(named, { ...other, weight_kg: 30.13 }, ctx), false, 'weight a digit off');
 	assert.ok(canMerge(named, { ...other, weight_kg: 0.12 }, ctx), 'leading characters hidden ("0.12" of 30.12)');
 	assert.ok(canMerge(named, { ...other, height_m: 1.62 }, ctx), 'height a digit off: let off');

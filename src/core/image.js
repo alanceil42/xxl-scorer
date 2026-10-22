@@ -2,11 +2,11 @@
 // Pure: used in the browser (canvas ImageData) and in Node tests (decoded PNG).
 
 /**
- * Regions in units of the screenshot's width. The game lays out the top of the screen
- * (CP, sprite, info card down to the stats row) from the width: the HP bar sits at 0.98 W on a
- * 750 × 1334 iPhone 8 and on a 1206 × 2622 iPhone 17 Pro alike. What sits at the bottom (the
- * appraisal, the "was caught" line) is laid out from the bottom edge, so on a shorter screen it
- * covers more of the card.
+ * Regions in units of the card column's width (cardColumn; on a phone, the screenshot's width).
+ * The game lays out the top of the screen (CP, sprite, info card down to the stats row) from that
+ * width: the HP bar sits at 0.98 W on a 750 × 1334 iPhone 8 and on a 1206 × 2622 iPhone 17 Pro
+ * alike. What sits at the bottom (the appraisal, the "was caught" line) is laid out from the
+ * bottom edge, so on a shorter screen it covers more of the card.
  */
 export const REGIONS = Object.freeze({
 	cp: { x: 0.30, y: 0.10, w: 0.40, h: 0.11 },
@@ -19,11 +19,31 @@ export const REGIONS = Object.freeze({
 });
 
 /**
+ * The column the game lays the card out in. A phone screen is 9:16 or taller, and the game sizes
+ * everything by its width. A wider screen (an iPad's 1640 × 2360) gets the layout of a 9:16 phone
+ * as tall as the screen, centred: the card's contents, CP and sprite sit in that column, and only
+ * backgrounds and the "was caught" line reach beyond it. Measured on an iPad: the HP bar's ends at
+ * 0.300 and 0.699 of the screen's width are 0.25 and 0.74 of the column's, as on the iPhones.
+ * @returns {{x: number, w: number}}  left edge and width in px; the whole width on a phone
+ */
+export function cardColumn(width, height) {
+	const w = Math.round(height * 9 / 16);
+	// 16:9 screens are a pixel or so off it (an iPhone SE's 640 × 1136): the whole width
+	if (width <= w * 1.02) return { x: 0, w: width };
+	return { x: Math.floor((width - w) / 2), w };
+}
+
+/** The screenshot cut to its card column (cardColumn); the screenshot itself on a phone. */
+export function columnOf(img) {
+	const c = cardColumn(img.width, img.height);
+	return c.w === img.width ? img : crop(img, { x: c.x, y: 0, w: c.w, h: img.height });
+}
+
+/**
  * The HP bar under the name: a thin horizontal bar, green (yellow or red when hurt), centred on
  * the info card. Everything in the stats row sits at a fixed distance below it, whatever lines
  * come between name and bar ("LUCKY POKÉMON" pushes the bar down), so it anchors the crops of
- * statsBoxes. Its left end also tells a screenshot taken mid-swipe, between two Pokémon: the
- * card is shifted sideways.
+ * statsBoxes.
  * @returns {{y: number, x0: number, x1: number} | null}  y = centre row, x0/x1 = ends of the fill
  */
 export function findHpBar(img) {
@@ -67,22 +87,9 @@ function scanBar(img, fill, accept) {
 	return { y: Math.round((band.y0 + band.y1) / 2), x0: band.x0, x1: band.x1 - 1 };
 }
 
-/** Ends of the full HP bar on an unshifted card, as fractions of the width. */
+/** Ends of the full HP bar, as fractions of the column's width (drawn test screens use them). */
 export const HP_BAR_X0 = 0.249;
 export const HP_BAR_X1 = 0.742;
-
-/**
- * A screenshot taken mid-swipe, between two Pokémon: the card is shifted sideways, so the HP bar
- * is too. The bar can also be shortened, from the left by the appraisal's star medallion and from
- * the right by the trainer (on 16:9 screens, where the appraisal reaches up to the bar), or from
- * the right when the Pokémon is hurt. So: an end beyond where the bar can reach, or, when nothing
- * can cover it (no appraisal), a left end away from its place.
- */
-export function isSlid(bar, width, appraisal) {
-	const x0 = bar.x0 / width, x1 = bar.x1 / width;
-	if (x0 < HP_BAR_X0 - 0.03 || x1 > HP_BAR_X1 + 0.03) return true;
-	return !appraisal && x0 > HP_BAR_X0 + 0.03;
-}
 
 /** "LUCKY POKÉMON" under the name pushes the HP bar down, from 0.98 W to 1.03 W. */
 export const isLucky = (bar, width) => bar.y / width > 1.005;

@@ -14,8 +14,12 @@ export function readBars(img) {
 /**
  * readBars with the bars' rows: {ivs, y: [atk, def, hp] centre rows in px}. The appraisal is laid
  * out from the bottom edge, so where the bars are tells how much of the card it covers.
+ * @param {number} [U]  what the bars' sizes scale with: the card column's width (cardColumn in
+ *        image.js). The panel is laid out from the screen's left edge (its bars start 0.12 column
+ *        widths from it on iPhones and on an iPad alike), left of the column on an iPad, so the
+ *        whole screenshot is searched.
  */
-export function findBars(img) {
+export function findBars(img, U = img.width) {
 	const { width: W, height: H, data } = img;
 	const xmax = Math.floor(W * 0.62);
 	const minC = (x, y) => { const i = (y * W + x) * 4; return Math.min(data[i], data[i + 1], data[i + 2]); };
@@ -32,7 +36,7 @@ export function findBars(img) {
 			if (minC(x, y) < 240) {
 				const s = x;
 				while (x < xmax && minC(x, y) < 240) x++;
-				if (x - s >= W * 0.05) runs.push([s, x - 1]);
+				if (x - s >= U * 0.05) runs.push([s, x - 1]);
 			}
 			x++;
 		}
@@ -41,16 +45,16 @@ export function findBars(img) {
 			const seg = runs.slice(i, i + 3);
 			const L = seg.map(r => r[1] - r[0] + 1);
 			const g1 = seg[1][0] - seg[0][1], g2 = seg[2][0] - seg[1][1];
-			if (L.every(l => l >= W * 0.07 && l <= W * 0.16) && Math.max(...L) - Math.min(...L) <= W * 0.02 &&
-				g1 >= 2 && g1 <= W * 0.02 && g2 >= 2 && g2 <= W * 0.02) hit = seg;
+			if (L.every(l => l >= U * 0.07 && l <= U * 0.16) && Math.max(...L) - Math.min(...L) <= U * 0.02 &&
+				g1 >= 2 && g1 <= U * 0.02 && g2 >= 2 && g2 <= U * 0.02) hit = seg;
 		}
 		if (hit) band.push({ y, seg: hit });
 		else {
-			if (band.length >= W * 0.008) bands.push(band);
+			if (band.length >= U * 0.008) bands.push(band);
 			band = [];
 		}
 	}
-	if (band.length >= W * 0.008) bands.push(band);
+	if (band.length >= U * 0.008) bands.push(band);
 	if (bands.length < 3) return null;
 	const three = bands.slice(-3);
 	const vals = three.map(b => {

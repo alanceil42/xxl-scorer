@@ -6,7 +6,7 @@ import { cleanRow, safeThumb } from '../src/core/backup.js';
 const good = {
 	id: 'a1', created: 1, updated: 2, scanned: 2, scanIdx: 4, file: 'IMG_1.PNG', thumb: 'data:image/jpeg;base64,/9j/AAAA',
 	reading: { species: 'Gastly', caught: '7/26/2024', hp: 61, cp: 372, cpAlt: [777], weight_kg: 0.17, height_m: 2.13,
-		types: ['GHOST', 'POISON'], bars: { a: 7, d: 5, s: 11 }, badge: 'XXL', slid: false, lucky: false, name: 'XX961', caughtPill: '2024 07/26' },
+		types: ['GHOST', 'POISON'], bars: { a: 7, d: 5, s: 11 }, badge: 'XXL', lucky: false, name: 'XX961', caughtPill: '2024 07/26' },
 	edits: { ivs: { a: 7, d: 5, s: 11 }, inGame: 961, xxl: true },
 };
 

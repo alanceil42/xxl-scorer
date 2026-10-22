@@ -432,7 +432,10 @@ for (const where of ['worker', 'page']) {
 			assert.ok(page.workers().length > 0 && page.workers().every(w => w.url().startsWith('blob:')), page.workers().map(w => w.url()).join(', '));
 			// the reading went through: a row to check, or a note that nothing could be read
 			assert.match(await page.textContent('main') + await page.textContent('#banners'), /Species not read|Could not read|check/);
-			assert.match(await page.textContent('#banners'), /1 screenshot read in \d+\.\d s\./);
+			// how long it took: a line under the footer, not a banner to dismiss
+			assert.match(await page.textContent('#stats'), /^1 screenshot read in \d+\.\d s\.$/);
+			assert.equal(await page.isVisible('#stats'), true);
+			assert.doesNotMatch(await page.textContent('#banners'), /read in|merged into|swiping/);
 			const rows = await storedRows(page);
 			assert.equal(rows.length, 1);
 			readBoth[where] = { reading: { ...rows[0].reading, ms: 0 }, thumb: rows[0].thumb };

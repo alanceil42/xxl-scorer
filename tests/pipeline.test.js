@@ -24,7 +24,7 @@ function canvas(W, H, rgb = [250, 250, 250]) {
 
 /**
  * A screenshot 600 px wide, drawn: the CP over a dark photo (three white digits unless cp is
- * false), the HP bar ('plain' at 0.98 W, 'lucky' at 1.03 W, 'slid' shifted right, or none), the
+ * false), the HP bar ('plain' at 0.98 W, 'lucky' at 1.03 W, or none), the
  * catch year pill, and the appraisal's three bars starting at row `bars`.
  */
 function screen({ H = 1300, cp = true, bar = 'plain', pill = false, bars = null } = {}) {
@@ -32,7 +32,7 @@ function screen({ H = 1300, cp = true, bar = 'plain', pill = false, bars = null 
 	rect(180, 60, 240, 66, [40, 60, 90]);
 	if (cp) for (const x of [230, 260, 290]) rect(x, 75, 20, 40, [255, 255, 255]);
 	if (bar) {
-		const x0 = Math.round(W * (bar === 'slid' ? 0.47 : HP_BAR_X0));
+		const x0 = Math.round(W * HP_BAR_X0);
 		rect(x0, Math.round(W * (bar === 'lucky' ? 1.03 : 0.98)), Math.round(W * 0.49), 8, [140, 225, 178]);
 	}
 	if (pill) {
@@ -150,7 +150,7 @@ test('a plain card: crop readings of the exact shape replace the whole-screensho
 	});
 	assert.deepEqual(await read(screen(), engine), {
 		species: 'Testmon', caught: '6/20/2026', hp: 60, weight_kg: 22.38, height_m: 0.79, types: ['DARK', 'NORMAL'],
-		cp: 217, cpAlt: [2174], bars: null, slid: false, name: 'Testmon', caughtPill: null, lucky: false, badge: 'XXL',
+		cp: 217, cpAlt: [2174], bars: null, name: 'Testmon', caughtPill: null, lucky: false, badge: 'XXL',
 	});
 	assert.equal(engine.calls[0].source, 'the file', 'the whole screenshot is read from the original');
 	assert.equal(engine.count('cpDigits'), 2, 'the digits alone, at two thresholds');
@@ -221,19 +221,32 @@ test('16:9 with the appraisal: the stats row is covered, only HP is read there',
 	assert.equal((await read(screen({ H: 1067, bars: 700 }), unread)).hp, 21, 'HP crop unreadable: the whole screenshot\'s HP stays');
 });
 
-test('taken mid-swipe: the shifted card is not read any further', async () => {
-	const engine = fakeEngine(caughtLine(), { cp: ['CP217'] });
-	const r = await read(screen({ bar: 'slid', pill: true }), engine);
-	assert.equal(r.slid, true);
-	assert.equal(r.name, undefined);
-	assert.equal(r.cp, 217, 'read before the card was checked');
-	assert.deepEqual(engine.calls.map(c => c.kind), ['words', 'cp', 'cpDigits', 'cpDigits']);
+test('a screen wider than 9:16 (iPad): the card read in its centred column, as on a phone', async () => {
+	// the phone screen of the tests, 600 px wide, as the column of a screen 300 px wider on
+	// either side; 1067 px tall, so the column is 9:16 and the appraisal covers the stats row
+	const phone = screen({ H: 1067, bars: 760, pill: true });
+	const pad = 300, wide = canvas(W + 2 * pad, phone.height, [30, 90, 140]);
+	for (let y = 0; y < phone.height; y++) {
+		wide.img.data.set(phone.data.subarray(y * W * 4, (y + 1) * W * 4), (y * (W + 2 * pad) + pad) * 4);
+	}
+	// the whole screenshot's words where they are on each screen; "kg" and "m" by position
+	const words = dx => [...caughtLine().map(w => ({ ...w, bbox: { ...w.bbox, x0: w.bbox.x0 + dx, x1: w.bbox.x1 + dx } })),
+		word('22.38kg', 100 + dx), word('0.79m', 500 + dx), word('DARK', 300 + dx)];
+	const lines = () => ({ cp: ['CP217'], name: ['Testmon'], pill: ['2024 04/19'], hp: ['60 / 60 HP'] });
+	const onPhone = await read(phone, fakeEngine(words(0), lines()));
+	const engine = fakeEngine(words(pad), lines());
+	const onWide = await read(wide.img, engine);
+	assert.deepEqual(onWide, onPhone);
+	assert.equal(onWide.hp, 60);
+	assert.equal(onWide.caughtPill, '2024 04/19', 'the pill at the column\'s right edge');
+	assert.deepEqual(onWide.bars, { a: 15, d: 7, s: 10 });
+	assert.equal(onWide.covered, true, 'the appraisal reaches up into the stats row, as on a 16:9 phone');
+	assert.equal(engine.calls.find(c => c.kind === 'cp').img.width, Math.round(W * 0.40), 'CP cut from the column');
 });
 
 test('no HP bar found: name and year pill read, nothing positioned from the bar', async () => {
 	const engine = fakeEngine([...caughtLine(), word('60', 300), word('/', 300), word('60', 300), word('HP', 300)], { name: ['Testmon'], pill: ['2024 04/19'] });
 	const r = await read(screen({ bar: null, pill: true }), engine);
-	assert.equal(r.slid, false);
 	assert.equal(r.name, 'Testmon');
 	assert.equal(r.caughtPill, '2024 04/19');
 	assert.equal(r.hp, 60);

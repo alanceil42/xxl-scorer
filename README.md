@@ -75,10 +75,9 @@ won't run JavaScript modules from `file://`.
    Click a row to check or correct anything; every value can be edited. To remove many at
    once, press **Select** (the checklist button), tap the rows, then **Delete**. Several
    screenshots of the same Pokémon (say, one with the appraisal and one without the trainer in
-   front, or a quick swipe through the storage) merge into one row; one caught mid-swipe,
-   between two Pokémon, is skipped. The button with the name (XX1063¹⁸⓿㉚: score, IV %, attack
-   IV, level) copies it, ready to paste as the nickname in the game; change the pattern in
-   Settings (the gear: "Name to copy"). The magnifier in a frame before it copies a search
+   front, or a quick swipe through the storage) merge into one row. The button with the name
+   (XX1063¹⁸⓿㉚: score, IV %, attack IV, level) copies it, ready to paste as the nickname in the
+   game; change the pattern in Settings (the gear: "Name to copy"). The magnifier in a frame before it copies a search
    that finds this one Pokémon in the game's storage (`641&xxl&cp1900&hp121&4attack&…`):
    paste it into the game's search, open the Pokémon, then paste the name. If the search also
    fits another Pokémon in your list, the note at the bottom says so.

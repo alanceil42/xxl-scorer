@@ -404,8 +404,7 @@ function fitsBars(named, other, ctx) {
 
 /**
  * How strongly two readings look like screenshots of the same Pokémon: null when they
- * can't be (something contradicts, or one was taken mid-swipe), else a score that ranks the
- * candidates in mergeTarget.
+ * can't be (something contradicts), else a score that ranks the candidates in mergeTarget.
  *
  * Contradictions, where both have the value: HP, catch date, species; weight or height that
  * differ beyond a misread or hidden characters (sizeRelation); type labels that don't fit the
@@ -422,7 +421,6 @@ function fitsBars(named, other, ctx) {
  *   species, or the other fits that species at that CP.
  */
 export function matchScore(a, b, ctx) {
-	if (a.slid || b.slid) return null;
 	const A = infoOf(a, ctx), B = infoOf(b, ctx);
 	if (a.hp != null && b.hp != null && a.hp !== b.hp) return null;
 	if (a.lucky != null && b.lucky != null && a.lucky !== b.lucky) return null;

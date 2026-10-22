@@ -1,6 +1,6 @@
 // One screenshot → readings. Shared by the browser (src/ui/ocr.js) and the local tests.
 import { findBars } from './bars.js';
-import { REGIONS, boxOf, crop, thresholdWhiteText, thresholdDarkText, badgeText, findHpBar, statsBoxes, dropEdgeBlobs, cpDigits, isSlid, isLucky, yearPillText } from './image.js';
+import { REGIONS, boxOf, crop, thresholdWhiteText, thresholdDarkText, badgeText, findHpBar, statsBoxes, dropEdgeBlobs, cpDigits, isLucky, yearPillText, cardColumn, columnOf } from './image.js';
 import { parseWords, parseCp, parseCrops, parseTypes, parseName, parseYearPill } from './read.js';
 
 /**
@@ -39,15 +39,21 @@ export function tesseractEngine(worker, encode) {
  */
 export async function readScreenshot(img, source, engine, rules) {
 	const t0 = Date.now();
-	const words = await engine.words(source);
-	const readings = parseWords(words, img.width, rules);
-	await readCp(img, engine, readings);
-	const bars = findBars(img);
+	// The card is read in its column (an iPad's is narrower than the screen), the whole
+	// screenshot as it is: the "was caught" line runs wider than the column there.
+	const { x, w } = cardColumn(img.width, img.height);
+	const col = columnOf(img);
+	const words = (await engine.words(source)).map(wd => (x ? { ...wd, bbox: shift(wd.bbox, -x) } : wd));
+	const readings = parseWords(words, w, rules);
+	await readCp(col, engine, readings);
+	const bars = findBars(img, w);
 	readings.bars = bars ? bars.ivs : null;
-	await readCard(img, engine, rules, readings, bars);
+	await readCard(col, engine, rules, readings, bars);
 	readings.ms = Date.now() - t0;
 	return readings;
 }
+
+const shift = (b, dx) => ({ ...b, x0: b.x0 + dx, x1: b.x1 + dx });
 
 /**
  * CP: white digits over the photo, so whatever bright is behind them gets in the way (bokeh, a
@@ -75,15 +81,12 @@ async function readCp(img, engine, readings) {
  * about one weight in five on appraisal screenshots (the darkened card) and reads "1kg" or
  * "2.51m" badly; the crops don't. Each crop reading replaces the whole-screenshot one only when
  * it has the exact expected shape.
- * Also: the XXL/XL/XS/XXS badge above the height, "LUCKY POKÉMON" (`lucky`), and whether the
- * card is shifted sideways (a screenshot taken while swiping between two Pokémon: `slid`).
+ * Also: the XXL/XL/XS/XXS badge above the height and "LUCKY POKÉMON" (`lucky`).
  * On a 16:9 screen the appraisal covers the stats row (`covered`): then only HP is read there.
  */
 async function readCard(img, engine, rules, readings, bars) {
 	const W = img.width;
 	const bar = findHpBar(img);
-	readings.slid = !!bar && isSlid(bar, W, !!bars);
-	if (readings.slid) return;
 	// the name: the species when the Pokémon has no nickname (resolved against the game's names
 	// later, evaluate.js); a nickname is kept as read, for comparing screenshots
 	readings.name = parseName(await engine.line(crop(img, boxOf(img, REGIONS.name)), ''));

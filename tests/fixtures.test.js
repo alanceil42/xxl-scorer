@@ -16,13 +16,12 @@
 // expected.json may also list batches: a folder of screenshots added in one go, as when swiping
 // through the storage, and the Pokémon they should puzzle into:
 //   "batches": [{ "dir": "dump", "rows": [{ "files": [1, 24, 25], "species": "Geodude",
-//                 "cp": 967, "ivs": [8, 0, 15], "xxl": true }, …], "skip": [7] }]
+//                 "cp": 967, "ivs": [8, 0, 15], "xxl": true }, …] }]
 // Files are numbered in name order (natural sort, so "2 of 45" before "10 of 45"), from 1;
 // with "numbers": "name", by the first number in their name instead ("Library - 26 of 566.png"
 // is 26), so a folder thinned out to the interesting screenshots keeps its numbering.
-// "skip": screenshots the page must leave out (taken mid-swipe). A row may leave out species,
-// cp, ivs, xxl or xxs; files are always compared. The rows may come in any order. "dir" may
-// be a subfolder ("diversity/team_blue").
+// A row may leave out species, cp, ivs, xxl or xxs; files are always compared. The rows may
+// come in any order. "dir" may be a subfolder ("diversity/team_blue").
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
@@ -95,13 +94,11 @@ test('screenshots read and score as expected', { skip, timeout: 3_600_000 }, asy
 				const names = readdirSync(join(dir, b.dir)).filter(n => /\.(png|jpe?g)$/i.test(n))
 					.sort((x, y) => x.localeCompare(y, 'en', { numeric: true }));
 				const rows = [];	// { reading, files }, as the page's addFiles builds them
-				const skipped = [];
 				const numOf = (n, i) => (b.numbers === 'name' ? Number(n.match(/\d+/)[0]) : i + 1);
 				for (let i = 0; i < names.length; i++) {
 					const buf = readFileSync(join(dir, b.dir, names[i]));
 					const r = await readScreenshot(decodePng(buf), buf, engine, rules);
 					const no = numOf(names[i], i);
-					if (r.slid) { skipped.push(no); continue; }
 					const k = mergeTarget(rows.map(x => x.reading), r, ctx);
 					if (k >= 0) {
 						rows[k].reading = mergeReadings(rows[k].reading, r, ctx);
@@ -113,7 +110,7 @@ test('screenshots read and score as expected', { skip, timeout: 3_600_000 }, asy
 					return { files: x.files, species: e.name, cp: e.cp, ivs: e.ivs && [e.ivs.a, e.ivs.d, e.ivs.s], xxl: e.xxl, xxs: e.xxs };
 				});
 				for (const g of got) t.diagnostic(JSON.stringify(g));
-				assert.deepEqual(skipped, b.skip || [], 'skipped (mid-swipe)');
+				assert.equal(b.skip, undefined, 'nothing is skipped any more: list each screenshot in a row');
 				const keyOf = files => files.slice().sort((x, y) => x - y).join('+');
 				const byFiles = new Map(got.map(g => [keyOf(g.files), g]));
 				const missing = b.rows.filter(w => !byFiles.has(keyOf(w.files))).map(w => keyOf(w.files));
