@@ -40,6 +40,18 @@ export function compactText(i18n) {
 const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
+ * A template from the game data that is safe to turn into a pattern: each placeholder once and
+ * one of the line's own, and not overly long. Repeated or extra placeholders become lazy groups
+ * that can take the matching minutes on one line of text (four of them: over two minutes).
+ * The game's own are 24-53 characters long, each placeholder once (14 languages, 2026-10).
+ */
+function plainTemplate(tpl, roles) {
+	if (tpl.length > 200) return false;
+	const seen = (tpl.match(/\{\d+\}/g) || []).map(p => Number(p.slice(1, -1)));
+	return new Set(seen).size === seen.length && seen.every(n => n < roles.length);
+}
+
+/**
  * Patterns for the info line, most specific first.
  * Each: {re, roles}; re's capture groups follow roles (species, date, place).
  */
@@ -47,7 +59,7 @@ export function caughtPatterns(text) {
 	const out = [];
 	for (const [key, roles] of Object.entries(CAUGHT)) {
 		const tpl = text.caught[key];
-		if (!tpl) continue;
+		if (!tpl || !plainTemplate(tpl, roles)) continue;
 		// Cut at the place placeholder: nothing after it is needed and places run into other text.
 		const placeIdx = roles.indexOf('place');
 		let t = tpl;
