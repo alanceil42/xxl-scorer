@@ -40,5 +40,6 @@ test('the shipped config.json shows no link', () => {
 
 test('the footer\'s text ends with the hidden link the page fills in, opening in a new tab', () => {
 	const html = readFileSync(join(root, 'index.html'), 'utf8');
-	assert.match(html, /<span class="imprint" hidden> <a id="imprint" target="_blank" rel="noopener nofollow"><\/a><\/span><\/p>\s*<\/footer>/);
+	// only the line with the last batch's numbers below it, empty until a batch ran
+	assert.match(html, /<span class="imprint" hidden> <a id="imprint" target="_blank" rel="noopener nofollow"><\/a><\/span><\/p>\s*<p id="stats" hidden><\/p>\s*<\/footer>/);
 });

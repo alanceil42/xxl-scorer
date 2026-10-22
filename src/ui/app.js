@@ -112,6 +112,13 @@ function showImprint() {
 	a.parentElement.hidden = false;
 }
 
+/** The last batch's numbers, a line under the footer; gone on reload. */
+function showStats(text) {
+	const p = $('#stats');
+	p.textContent = text;
+	p.hidden = false;
+}
+
 /** The footer's version: the release, or branch and commit, when git archive filled them in. */
 async function showBuild() {
 	try {
@@ -163,7 +170,7 @@ async function addFiles(files) {
 	const run = state.run = {
 		started: Date.now(),	// the batch's scan time, on every row it touches
 		files: files.slice(), results: [], next: 0, taken: 0, workers: [], loops: [],
-		added: [], merged: new Set(), mergedCount: 0, read: 0, withBars: 0,
+		added: [], merged: new Set(), read: 0, withBars: 0,
 		rules: RULES[state.config.lang] || rulesEn,
 	};
 	state.busy = true;
@@ -193,7 +200,7 @@ async function addFiles(files) {
 	// From here on, new files start a new run; it must see this run's rows, so they go into
 	// the list before anything is awaited.
 	state.run = null;
-	const { added, merged, mergedCount } = run;
+	const { added, merged } = run;
 	if (added.length) state.rows.push(...added);
 	if (added.length || merged.size) {
 		await rowStore.putMany([...added, ...merged]);
@@ -204,8 +211,8 @@ async function addFiles(files) {
 	if (added.length || merged.size || state.pendingDup.some(d => d.row.scanned === run.started)) {
 		state.sort = { key: 'newest', dir: SORTS.newest.first };
 	}
-	if (run.taken) banner('info', `${run.taken} screenshot${run.taken > 1 ? 's' : ''} read in ${duration(Date.now() - run.started)}.`);
-	if (mergedCount) banner('info', `${mergedCount} screenshot${mergedCount > 1 ? 's' : ''} merged into Pokémon already in the list.`);
+	// How long it took: for whoever wonders about speed, so in the footer, not a banner to dismiss
+	if (run.taken) showStats(`${run.taken} screenshot${run.taken > 1 ? 's' : ''} read in ${duration(Date.now() - run.started)}.`);
 	// None with the appraisal: the IVs can't be read. Point to the picture of what to take.
 	if (run.read >= 2 && run.withBars === 0) {
 		banner('info', `None of these ${run.read} screenshots shows the appraisal's bars, so the IVs are unknown.`,
@@ -290,7 +297,6 @@ function takeReading(run, f, res, idx) {
 		// scanned again: it belongs to this batch now, at the place of its first screenshot here
 		if (t.scanned !== run.started) { t.scanned = run.started; t.scanIdx = idx; }
 		if (!added.includes(t)) merged.add(t);
-		run.mergedCount++;
 		return;
 	}
 	const ev = evaluate(reading, state.ctx, row.edits);
