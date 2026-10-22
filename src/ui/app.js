@@ -379,7 +379,8 @@ function render() {
 	}
 	renderSortMenu();
 	renderRows(list);
-	fitRows();
+	// with a ResizeObserver, measured only when a size changed (wire)
+	if (!window.ResizeObserver) fitRows();
 }
 
 /**
@@ -910,10 +911,15 @@ function wire() {
 		if (ev.key !== 'Escape') return;
 		for (const m of ['#backup', '#sort']) if ($(m).open) { $(m).open = false; $(`${m} > summary`).focus(); }
 	});
-	// the rows' own width follows the screen's; hiding a label doesn't change it, so no loop
+	// Measured again when a row's width changes (it follows the screen's; hiding a label doesn't
+	// change it, so no loop) or what is in it does: the table with a longer name or a count with
+	// another digit. Not at every render: each row measured is a layout of the whole list.
 	if (window.ResizeObserver) {
 		const ro = new ResizeObserver(fitRows);
-		for (const r of document.querySelectorAll('.fit')) ro.observe(r);
+		for (const r of document.querySelectorAll('.fit')) {
+			ro.observe(r);
+			for (const c of r.children) ro.observe(c);
+		}
 	} else addEventListener('resize', fitRows);
 	$('#paste').addEventListener('click', pasteFromClipboard);
 	$('#select-btn').addEventListener('click', () => setSelecting(true));

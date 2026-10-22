@@ -31,6 +31,9 @@ collect under "Unreleased".
 - Reading the whole screenshot no longer has the text recognition try each unsure line a
   second time inverted (for light text on dark), which the card doesn't have: about 5-10 %
   quicker per screenshot
+- Long lists are quicker again: species names are looked up once per name rather than for
+  every row each time screenshots come in, and in a window just too narrow for the table,
+  sorting 1000 Pokémon takes about a third less time
 
 
 ## 1.1 - 2026-10-22
