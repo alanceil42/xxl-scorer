@@ -9,7 +9,7 @@ import { MODES } from '../core/score.js';
 import { SORTS, MENU, firstDir, isDefault, sortList } from '../core/sort.js';
 import { rows as rowStore, kv, newId, askPersist } from './db.js';
 import { loadGameData, importGameData, dropImportedGameData } from './gamedata.js';
-import { readFile, getWorkers, poolSize } from './ocr.js';
+import { readerFor, startWorkers, poolSize, warmUp } from './ocr.js';
 import { evaluateRow } from './evalcache.js';
 import rulesEn from '../rules/en.js';
 import { phoneElement } from './help.js';
@@ -94,7 +94,13 @@ async function boot() {
 	showImprint();
 	showBuild();
 	await loadData(false);
+	// One engine started once the page has nothing else to do, so that the first screenshot
+	// doesn't wait for the download and start-up; the others when the file picker opens (wire)
+	const idle = window.requestIdleCallback || (f => setTimeout(f, 1000));
+	idle(() => warmUp(1, tesseractLang()), { timeout: 5000 });
 }
+
+const tesseractLang = () => (RULES[state.config.lang] || rulesEn).tesseract;
 
 /** The footer's legal notice link, when the site's settings name one. */
 function showImprint() {
@@ -198,6 +204,7 @@ async function addFiles(files) {
 	if (added.length || merged.size || state.pendingDup.some(d => d.row.scanned === run.started)) {
 		state.sort = { key: 'newest', dir: SORTS.newest.first };
 	}
+	if (run.taken) banner('info', `${run.taken} screenshot${run.taken > 1 ? 's' : ''} read in ${duration(Date.now() - run.started)}.`);
 	if (mergedCount) banner('info', `${mergedCount} screenshot${mergedCount > 1 ? 's' : ''} merged into Pokémon already in the list.`);
 	if (skipped.length) {
 		banner('info', `Skipped, taken while swiping between two Pokémon: ${skipped.join(', ')}.`);
@@ -221,24 +228,34 @@ async function addFiles(files) {
 async function addWorkers(run, restart = false) {
 	const want = Math.min(poolSize(state.config.ocrWorkers), run.workers.length + run.files.length - run.next);
 	if (!restart && want <= run.workers.length) return;
-	const ws = await getWorkers(Math.max(want, 1), run.rules.tesseract);
-	for (const w of ws) {
+	// each engine reads as soon as it is ready, the one started while the page was idle first
+	const ws = await startWorkers(Math.max(want, 1), run.rules.tesseract);
+	await Promise.allSettled(ws.map(p => p.then(w => {
 		const fresh = !run.workers.includes(w);
 		if (fresh) run.workers.push(w);
 		if (fresh || restart) run.loops.push(readLoop(run, w));
-	}
-	run.show();
+		run.show();
+	})));
 }
 
+/**
+ * One engine's loop: the next file waiting, until none is left. It also takes the file after
+ * that, to be decoded while the engine reads this one; not near the end, where another engine
+ * may be free first.
+ */
 async function readLoop(run, w) {
-	while (run.next < run.files.length) {
-		const i = run.next++;
+	const reader = readerFor(w);
+	const take = () => (run.next < run.files.length ? run.next++ : null);
+	let i = take();
+	while (i != null) {
+		const next = run.files.length - run.next > run.workers.length ? take() : null;
 		try {
-			run.results[i] = await readFile(run.files[i], state.rules, run.rules.tesseract, w);
+			run.results[i] = await reader.read(run.files[i], next == null ? null : run.files[next], state.rules);
 		} catch (err) {
 			run.results[i] = { error: err };
 		}
 		drainRun(run);
+		i = next ?? take();
 	}
 }
 
@@ -285,6 +302,13 @@ function takeReading(run, f, res, idx) {
 	const existing = ev.key && state.rows.concat(added).find(r => keyOf(r) === ev.key);
 	if (existing) state.pendingDup.push({ row, existing });
 	else added.push(row);
+}
+
+/** 4.2 s, 38 s, 1 min 12 s */
+function duration(ms) {
+	if (ms < 9950) return `${(ms / 1000).toFixed(1)} s`;
+	const s = Math.round(ms / 1000);
+	return s < 60 ? `${s} s` : `${Math.floor(s / 60)} min ${s % 60} s`;
 }
 
 function keyOf(row) {
@@ -873,6 +897,9 @@ function openHelp(section) {
 
 function wire() {
 	$('#add').addEventListener('change', ev => { addFiles(ev.target.files); ev.target.value = ''; });
+	// all engines started while the picker is open: choosing takes a while, starting them too
+	const warmAll = () => warmUp(poolSize(state.config.ocrWorkers), tesseractLang());
+	$('#add').addEventListener('click', warmAll);
 	$('#import').addEventListener('change', ev => { const f = ev.target.files[0]; ev.target.value = ''; if (f) importRows(f); });
 	$('#export').addEventListener('click', () => { $('#backup').open = false; exportRows(); });
 	$('#import').addEventListener('click', () => { $('#backup').open = false; });
@@ -976,7 +1003,7 @@ function wire() {
 	// drag and drop anywhere on the page
 	let depth = 0;
 	const drop = $('#drop');
-	addEventListener('dragenter', ev => { if ([...ev.dataTransfer.types].includes('Files')) { depth++; drop.hidden = false; } });
+	addEventListener('dragenter', ev => { if ([...ev.dataTransfer.types].includes('Files')) { depth++; drop.hidden = false; warmAll(); } });
 	addEventListener('dragleave', () => { if (--depth <= 0) { depth = 0; drop.hidden = true; } });
 	addEventListener('dragover', ev => ev.preventDefault());
 	addEventListener('drop', ev => {
