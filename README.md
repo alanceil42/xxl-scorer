@@ -1,8 +1,11 @@
 # xxl-scorer
 
-<img src="docs/screenshot.png" width="46%" align="right" alt="xxl-scorer on a phone, before any
-screenshots are added: the Add screenshots button and two drawn phones showing which screenshots
-to take">
+<picture>
+<source media="(prefers-color-scheme: dark)" srcset="docs/list-dark.png">
+<img src="docs/list.png" width="46%" align="right" alt="xxl-scorer on a phone: a list of XXL
+Pokémon sorted by showcase score, each row with the score and its ± range, CP, types, IVs,
+height, weight and a button to copy a nickname such as XX1231⁹⁸⓯㊵ (made-up Pokémon)">
+</picture>
 
 Score your Pokémon GO screenshots for **size showcases** ("biggest" PokéStop showcases), any day
 of the week, not only on the days the game shows the score. Drop in a batch of screenshots, get a
@@ -63,7 +66,7 @@ won't run JavaScript modules from `file://`.
    second one. On a 16:9 phone (iPhone 8, SE) the appraisal always covers them: take every
    Pokémon with and without it. Do this for every Pokémon you want to compare; swiping through
    the storage and screenshotting each one twice is fine, the screenshots are put together again
-   (step 3). The **?** button shows a drawing of the two.
+   (step 3). The **?** button shows a [drawing of the two](docs/help.png).
 2. Open xxl-scorer and press **Add screenshots** (or drop the files onto the page). Pick as many
    as you like. A screenshot taken with "Copy & Delete" goes in with **Paste** (the clipboard
    button next to it). On a Mac, the file dialog usually lists the Photos library in its
@@ -116,7 +119,7 @@ the catch location first.
 ## Where the game data comes from
 
 The repository contains **no game data, game texts, game images or screenshots from the game**
-(the picture at the top shows only xxl-scorer's own drawings). Species data (sizes,
+(the pictures here show only xxl-scorer's own drawings and made-up Pokémon). Species data (sizes,
 base stats, level multipliers) and the game's texts (names, the "was caught" line) are fetched
 by your browser from [PokeMiners](https://github.com/PokeMiners)' public repositories on GitHub
 and kept on your device. This means your browser contacts GitHub (as any web page would that
@@ -196,6 +199,7 @@ No dependencies and no build: plain JavaScript modules.
   the same major version. Updates are never automatic: after one, run the tests below and try
   the page.
 - `tools/build-gm.sh` the game data compaction in bash + jq, kept identical to the JS by a test
+- `tools/readme-picture.mjs` draws the pictures in this README (instructions inside)
 - `docs/HOW-IT-WORKS.md` the core: the score formula, the IVs, reading and merging screenshots
 - `CHANGELOG.md` what changed in each release; `docs/RELEASING.md` how a release is made
 
