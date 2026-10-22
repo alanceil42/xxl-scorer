@@ -1,6 +1,6 @@
 // One screenshot → readings. Shared by the browser (src/ui/ocr.js) and the local tests.
 import { findBars } from './bars.js';
-import { REGIONS, boxOf, crop, thresholdWhiteText, thresholdDarkText, badgeText, findHpBar, statsBoxes, dropEdgeBlobs, cpDigits, isSlid, isLucky, yearPillText } from './image.js';
+import { REGIONS, boxOf, crop, downscale, thresholdWhiteText, thresholdDarkText, badgeText, findHpBar, statsBoxes, dropEdgeBlobs, cpDigits, isSlid, isLucky, yearPillText } from './image.js';
 import { parseWords, parseCp, parseCrops, parseTypes, parseName, parseYearPill } from './read.js';
 
 /**
@@ -11,9 +11,10 @@ import { parseWords, parseCp, parseCrops, parseTypes, parseName, parseYearPill }
  */
 export function tesseractEngine(worker, encode) {
 	return {
+		/** @param input  the original image, or pixels (encoded first) */
 		async words(input) {
 			await worker.setParameters({ tessedit_pageseg_mode: '11', tessedit_char_whitelist: '' });
-			const { data } = await worker.recognize(input, {}, { text: true, blocks: true });
+			const { data } = await worker.recognize(input && input.data ? await encode(input) : input, {}, { text: true, blocks: true });
 			const out = [];
 			for (const b of data.blocks || []) {
 				for (const p of b.paragraphs) for (const l of p.lines) for (const w of l.words) out.push({ text: w.text, bbox: w.bbox });
@@ -36,7 +37,7 @@ export function tesseractEngine(worker, encode) {
  */
 export async function readScreenshot(img, source, engine, rules) {
 	const t0 = Date.now();
-	const words = await engine.words(source);
+	const words = await readWords(img, source, engine);
 	const readings = parseWords(words, img.width, rules);
 	await readCp(img, engine, readings);
 	const bars = findBars(img);
@@ -44,6 +45,25 @@ export async function readScreenshot(img, source, engine, rules) {
 	await readCard(img, engine, rules, readings, bars);
 	readings.ms = Date.now() - t0;
 	return readings;
+}
+
+/**
+ * Width the whole screenshot is read at (experiment). The game lays out the card from the
+ * width, so text has the same size relative to it on every screen; at 750 px (an iPhone 8's
+ * own width) the "was caught" line is about 25 px high. Wider screenshots are scaled down
+ * first, so the engine's time and memory no longer grow with the screen's resolution; the
+ * words' boxes are scaled back. Narrower ones are read as they are.
+ */
+export const WORDS_WIDTH = 750;
+
+async function readWords(img, source, engine) {
+	if (img.width <= WORDS_WIDTH) return engine.words(source);
+	const small = downscale(img, Math.round(img.height * WORDS_WIDTH / img.width));
+	const fx = img.width / small.width, fy = img.height / small.height;
+	return (await engine.words(small)).map(w => ({
+		text: w.text,
+		bbox: { x0: w.bbox.x0 * fx, y0: w.bbox.y0 * fy, x1: w.bbox.x1 * fx, y1: w.bbox.y1 * fy },
+	}));
 }
 
 /**

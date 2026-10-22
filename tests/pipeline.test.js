@@ -4,7 +4,7 @@
 // the local screenshot tests (fixtures.test.js) run. No game art: the images are drawn here.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { tesseractEngine, readScreenshot } from '../src/core/pipeline.js';
+import { tesseractEngine, readScreenshot, WORDS_WIDTH } from '../src/core/pipeline.js';
 import { HP_BAR_X0 } from '../src/core/image.js';
 import { makeRules } from '../src/core/read.js';
 import { compactText } from '../src/core/text.js';
@@ -120,6 +120,38 @@ test('tesseractEngine: the words of the screenshot with their boxes, a line from
 	assert.deepEqual(calls[1][1], { width: 3, height: 2 }, 'the encoded crop, not the raw pixels');
 	await e.line(px, '0123456789/', '6');
 	assert.equal(calls[2][1].tessedit_pageseg_mode, '6');
+});
+
+test('a screenshot wider than WORDS_WIDTH: read whole at that width, the words\' boxes scaled back', async () => {
+	assert.equal(WORDS_WIDTH, 750);
+	const big = { width: 1500, height: 3000, data: new Uint8ClampedArray(1500 * 3000 * 4).fill(250) };
+	let got = null;
+	const engine = fakeEngine([]);
+	engine.words = async input => {
+		got = input;
+		// "60 / 60 HP" in the middle, the weight left and the height right, at the small size
+		return [word('60', 375), word('/', 375), word('60', 375), word('HP', 375), word('22.38kg', 100), word('0.79m', 650)];
+	};
+	const r = await read(big, engine);
+	assert.deepEqual([got.width, got.height], [750, 1500], 'the pixels, scaled down to 750 px');
+	assert.equal(got.data[0], 250);
+	assert.equal(r.hp, 60);
+	assert.equal(r.weight_kg, 22.38, 'left of 0.4 W, once scaled back');
+	assert.equal(r.height_m, 0.79, 'right of 0.6 W');
+
+	// up to 750 px wide: the original, as before
+	const small = fakeEngine([]);
+	await read(screen(), small);
+	assert.equal(small.calls[0].source, 'the file');
+});
+
+test('tesseractEngine: pixels for the whole screenshot are encoded first', async () => {
+	const seen = [];
+	const worker = { async setParameters() {}, async recognize(input) { seen.push(input); return { data: { blocks: [] } }; } };
+	const e = tesseractEngine(worker, async img => `encoded ${img.width}x${img.height}`);
+	await e.words({ width: 2, height: 3, data: new Uint8ClampedArray(24) });
+	await e.words('a file');
+	assert.deepEqual(seen, ['encoded 2x3', 'a file']);
 });
 
 test('a plain card: crop readings of the exact shape replace the whole-screenshot ones', async () => {

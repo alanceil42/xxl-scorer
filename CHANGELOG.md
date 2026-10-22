@@ -12,6 +12,8 @@ collect under "Unreleased".
   the branch and the commit, linking to it. git fills these in when it packs the files
   (`git archive`, as the public copy and a tarball of a commit are made); a plain git checkout
   keeps showing the last release's number
+- The whole screenshot is read at 750 pixels wide, scaled down from larger screens first, so
+  the text recognition's time and memory no longer grow with the screen's resolution
 
 
 ## 1.1 - 2026-10-22
