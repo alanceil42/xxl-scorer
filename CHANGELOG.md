@@ -21,6 +21,9 @@ collect under "Unreleased".
   from" (the field for a tag is gone)
 - A stored Pokémon the page can't score (from an edited backup or an older version) is marked
   to check and can be corrected or deleted; it used to stop the whole list from showing
+- A backup with sizes a heavy species can't have no longer holds up the page: putting back
+  hidden digits used to try every hundredth up to the species' heaviest, a third of a million
+  tries per row, on every visit. The values it finds are the same
 - Backups: a species that isn't one of the game data's is dropped when importing, and times in
   the future count as now. An import that fails says so instead of doing nothing
 - Copying in browsers without the newer clipboard interface no longer shows the hidden text

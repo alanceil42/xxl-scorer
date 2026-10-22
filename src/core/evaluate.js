@@ -269,19 +269,48 @@ const shown = v => v.toFixed(2).replace(/\.?0+$/, '');
 
 /**
  * Values in [lo, hi] that the game could have displayed with the read text at its end, i.e. the
- * value before leading characters were hidden: "6" → 0.6, 0.96, 1.06, 1.6, …; "62" → 0.62, 1.62.
+ * value before leading characters were hidden: "6" → 0.6, 0.96, 1.06, 1.6, …; "62" → 0.62, 1.62;
+ * and, for a reading without a point, the ones that lost it: "211" → 2.11. In ascending order.
+ *
+ * Built from the read text instead of trying every hundredth in the range: for a species of a
+ * tonne that was a third of a million tries per form, and a backup full of such rows froze the
+ * page on every visit. tests/restore-digits.test.js holds the old loop and checks that both give
+ * the same values.
  */
-function restoreDigits(x, lo, hi) {
+export function restoreDigits(x, lo, hi) {
 	const s = shown(x);
-	const bare = s.includes('.') ? null : s;	// no point read: it may be the point that got lost
-	const out = [];
-	for (let c = Math.max(1, Math.ceil(lo * 100)); c <= Math.floor(hi * 100); c++) {
-		const d = shown(c / 100);
-		if (d === s) continue;
-		if (d.endsWith(s) || (bare && d.replace('.', '') === bare)) out.push(c / 100);	// "211" → 2.11
+	const cLo = Math.max(1, Math.ceil(lo * 100)), cHi = Math.floor(hi * 100);	// in hundredths
+	if (!(cLo <= cHi) || !Number.isFinite(cHi)) return [];
+	const found = new Set();
+	const take = c => { if (c >= cLo && c <= cHi && shownOf(c) !== s) found.add(c); };
+	// A shown value is its whole part, then "." and the hundredths without trailing zeros, if
+	// any. Per hundredths part: the read text has to end with it, and the whole part with the
+	// rest of the read text, or the whole read text lies within the hundredths part.
+	for (let f = 0; f < 100; f++) {
+		const tail = f ? `.${String(f).padStart(2, '0').replace(/0$/, '')}` : '';
+		let head;	// what the whole part has to end with; '' = any whole part
+		if (tail.endsWith(s)) head = '';
+		else if (s.endsWith(tail) && /^\d+$/.test(s.slice(0, s.length - tail.length))) head = s.slice(0, s.length - tail.length);
+		else continue;
+		const step = head ? 10 ** head.length : 1;
+		const first = head ? Number(head) : 0;
+		for (let w = Math.max(first, first + step * Math.ceil((Math.floor(cLo / 100) - first) / step)); w * 100 + f <= cHi; w += step) {
+			if (String(w).endsWith(head)) take(w * 100 + f);
+		}
 	}
-	return out;
+	// no point read: it may be the point that got lost, one or two digits from the end
+	if (/^\d+$/.test(s)) {
+		for (const k of [1, 2]) {
+			if (s.length <= k) continue;
+			const c = Number(s.slice(0, -k)) * 100 + Number(s.slice(-k).padEnd(2, '0'));
+			if (shownOf(c).replace('.', '') === s) take(c);
+		}
+	}
+	return [...found].sort((a, b) => a - b).map(c => c / 100);
 }
+
+/** shown() of a value given in hundredths. */
+const shownOf = c => shown(c / 100);
 
 // ---------- several screenshots of one Pokémon ----------
 
