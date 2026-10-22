@@ -1,11 +1,10 @@
 // Draws the README's pictures: the real page at a phone's width (iPhone 17 Pro, 402 CSS px).
 //   docs/list.png, docs/list-dark.png   the list, filled with made-up XXL Pokémon
 //   docs/help.png                       the empty list with its drawing of which screenshots
-// No game art, no screenshots and no species names: the rows are invented values for real
-// species, shown under invented names (the page's copy of the game texts is changed for them),
-// and each thumbnail is drawn here the way the help draws its phones (backdrop, arc, a blob
-// standing in for the Pokémon, tinted by its type). Stats, sizes and the score formula are the
-// real game data's, so CP, HP and scores are ones a Pokémon of that species could have.
+// No game art and no screenshots: the rows are invented values for real species, and each
+// thumbnail is drawn here the way the help draws its phones (backdrop, arc, a blob standing in
+// for the Pokémon, tinted by its type). Stats, sizes and the score formula are the real game
+// data's, so CP, HP and scores are ones a Pokémon of that species could have.
 //
 //   npm install --no-save --ignore-scripts playwright-core@<version in .github/workflows/ci.yml>
 //   node tools/readme-picture.mjs                                # Google Chrome installed
@@ -26,7 +25,7 @@ import { join, dirname, extname, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
 import { compactGameMaster, GM_URL, ROW } from '../src/core/gm.js';
-import { compactText, textUrl, levenshtein, normalizeName } from '../src/core/text.js';
+import { compactText, textUrl } from '../src/core/text.js';
 import { makeContext, evaluate } from '../src/core/evaluate.js';
 import { levelTable, cpOf, hpOf } from '../src/core/ivs.js';
 
@@ -49,28 +48,23 @@ const gm = compactGameMaster(await load('latest.json', GM_URL));
 const text = compactText(await load('i18n_english.json', textUrl('en')));
 const levels = levelTable(gm.cpm);
 
-// species, the name shown for it, IVs, level, where the height sits between the XL and the XXL
-// bound, weight against (height ratio)² × average weight, catch date. The names are made up:
-// close enough to guess, at least two letters from any real one.
-const LIST = [
-	['DRAGONITE', 'Drakonyte', [15, 14, 15], 40, 0.93, 1.06, '7/12/2023'],
-	['SNORLAX', 'Snoozlax', [12, 15, 13], 33, 0.88, 0.97, '3/2/2025'],
-	['URSALUNA', 'Ursamoon', [14, 12, 15], 30, 0.79, 1.12, '11/23/2024'],
-	['PIKACHU', 'Pikazu', [10, 13, 11], 25, 0.86, 1.09, '8/9/2026'],
-	['WOOPER', 'Wuppel', [15, 15, 14], 22, 0.84, 1.02, '5/30/2026'],
-	['GYARADOS', 'Gyradon', [13, 11, 12], 35, 0.71, 0.94, '9/14/2022'],
-	['LAPRAS', 'Lapriss', [9, 14, 15], 28, 0.66, 1.0, '6/1/2024'],
-];
-for (const [sp, name] of LIST) {
-	const real = Object.values(text.names);
-	const near = real.find(n => levenshtein(normalizeName(n), normalizeName(name)) < 2);
-	if (near) throw new Error(`${name} is too close to the real ${near}`);
-	text.names[String(gm.species[sp].dex)] = name;
-}
 const ctx = makeContext(gm, text);
+
+// species, IVs, level, where the height sits between the XL and the XXL bound,
+// weight against (height ratio)² × average weight, catch date
+const LIST = [
+	['DRAGONITE', [15, 14, 15], 40, 0.93, 1.06, '7/12/2023'],
+	['SNORLAX', [12, 15, 13], 33, 0.88, 0.97, '3/2/2025'],
+	['URSALUNA', [14, 12, 15], 30, 0.79, 1.12, '11/23/2024'],
+	['PIKACHU', [10, 13, 11], 25, 0.86, 1.09, '8/9/2026'],
+	['WOOPER', [15, 15, 14], 22, 0.84, 1.02, '5/30/2026'],
+	['GYARADOS', [13, 11, 12], 35, 0.71, 0.94, '9/14/2022'],
+	['LAPRAS', [9, 14, 15], 28, 0.66, 1.0, '6/1/2024'],
+];
 const r2 = x => Math.round(x * 100) / 100;
-const rows = LIST.map(([sp, species, [a, d, s], level, f, wf, caught], i) => {
+const rows = LIST.map(([sp, [a, d, s], level, f, wf, caught], i) => {
 	const row = gm.species[sp].f[''];
+	const species = text.names[String(gm.species[sp].dex)];	// as the game shows it
 	const m = levels.find(x => x.level === level).m;
 	const height_m = r2(row[ROW.XL_MAX] + f * (row[ROW.XXL_MAX] - row[ROW.XL_MAX]));
 	const weight_kg = r2(row[ROW.W] * (height_m / row[ROW.H]) ** 2 * wf);
