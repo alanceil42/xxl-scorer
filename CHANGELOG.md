@@ -8,24 +8,20 @@ collect under "Unreleased".
 
 ## Unreleased
 
+
+## 1.1 - 2026-10-22
+
+Quicker with long lists, and harder to upset with an edited backup. Nothing stops working;
+self-hosters with nginx or the weekly game data job should copy contrib/ again (see below).
+
 - The list is quicker with hundreds of Pokémon, above all on phones: sorting, searching, a tap
   in select mode and saving in the editor draw again only the rows that changed, and cards
   off screen are left until scrolled to. Adding screenshots to a long list keeps the page
   more responsive while they are read. The nickname template in Settings is taken once typing
   pauses or the field is left, rather than at every keystroke
-- The text recognition engine runs under the page's Content-Security-Policy too, so it can load
-  nothing but the site's own files. Self-hosters with nginx: the example now sends the whole
-  policy as a header (contrib/nginx); copy it into your configuration
-- Self-hosters with nginx: the policy is narrower (the engine's worker may start from a blob:
-  URL only, images may be the site's own or embedded), dot files are refused in every folder,
-  not only at the top, and the weekly game data job may use 1 GB of memory at most. Copy
-  contrib/nginx and contrib/systemd into your configuration again
-- Self-hosters publishing with the Pages workflow: it publishes only a release's tag that is on
-  main, never a pre-release; to publish a release again, pick its tag under "Use workflow
-  from" (the field for a tag is gone). It refuses a site holding symbolic links and checks the
-  vendored files itself
-- `npm run serve` answers only this computer; `tools/vendor.sh --check` refuses symbolic links
-- A nickname placeholder such as `{constructor}` stays as typed, like any other unknown one
+- All search terms are explained at the top of the help (the ? button), and the search field's
+  placeholder names a few. The hint under the field is gone: shown while the field had focus,
+  it pushed the list down, so on a computer the first click on a row after a search missed it
 - A stored Pokémon the page can't score (from an edited backup or an older version) is marked
   to check and can be corrected or deleted; it used to stop the whole list from showing
 - A backup with sizes a heavy species can't have no longer holds up the page: putting back
@@ -33,14 +29,23 @@ collect under "Unreleased".
   tries per row, on every visit. The values it finds are the same
 - Backups: a species that isn't one of the game data's is dropped when importing, and times in
   the future count as now. An import that fails says so instead of doing nothing
+- The text recognition engine runs under the page's Content-Security-Policy too, so it can load
+  nothing but the site's own files; no worker may start from a file of the site
 - Copying in browsers without the newer clipboard interface no longer shows the hidden text
   field for a moment
-- All search terms are explained at the top of the help (the ? button), and the search field's
-  placeholder names a few. The hint under the field is gone: shown while the field had focus,
-  it pushed the list down, so on a computer the first click on a row after a search missed it
+- A nickname placeholder such as `{constructor}` stays as typed, like any other unknown one
 - Self-hosted sites: when config.json's "gm" points to another gm.json, the page loads it at
   once; it used to keep the previous file's data for up to "gmCheckDays", shown under the new
   name
+- Self-hosters with nginx: the example sends the page's whole policy as a header and refuses
+  dot files in every folder, not only at the top; the weekly game data job may use 1 GB of
+  memory at most. Copy contrib/nginx and contrib/systemd into your configuration again
+- Self-hosters publishing with the Pages workflow: it publishes only a release's tag that is on
+  main's own line of commits, never a pre-release; to publish a release again, pick its tag
+  under "Use workflow from" (the field for a tag is gone). It refuses a site holding symbolic
+  links and checks the vendored files itself
+- Development: `npm run serve` answers only this computer; `tools/vendor.sh --check` refuses
+  symbolic links
 
 
 ## 1.0.1 - 2026-10-21
