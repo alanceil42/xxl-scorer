@@ -1,6 +1,9 @@
 // Local screenshot tests. Skipped unless XXL_FIXTURES is set.
 //
-//   npm install --no-save tesseract.js@$(tools/vendor.sh --version tesseract.js)   # Node build, same version
+//   # the Node build, at the vendored versions; no install scripts, which run as you
+//   npm install --no-save --ignore-scripts \
+//       tesseract.js@$(tools/vendor.sh --version tesseract.js) \
+//       tesseract.js-core@$(tools/vendor.sh --version tesseract.js-core)
 //   tools/vendor.sh                              # once; provides vendor/tessdata
 //   XXL_FIXTURES=/path/to/fixtures npm test
 //
@@ -51,7 +54,7 @@ else if (!existsSync(join(tessdata, 'eng.traineddata.gz'))) skip = 'run tools/ve
 test('screenshots read and score as expected', { skip, timeout: 3_600_000 }, async t => {
 	let Tesseract;
 	try { Tesseract = await import('tesseract.js'); } catch {
-		t.skip('npm install --no-save tesseract.js@$(tools/vendor.sh --version tesseract.js)');
+		t.skip('npm install --no-save --ignore-scripts tesseract.js@$(tools/vendor.sh --version tesseract.js) tesseract.js-core@$(tools/vendor.sh --version tesseract.js-core)');
 		return;
 	}
 	const gm = compactGameMaster(await load('latest.json', GM_URL));

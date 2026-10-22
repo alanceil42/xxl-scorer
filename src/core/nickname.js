@@ -54,7 +54,8 @@ export function nameValues(e) {
 export function formatName(template, values) {
 	const missing = [];
 	const text = String(template || DEFAULT_TEMPLATE).replace(/\{(\w+)(?::(sup|circ|dcirc))?\}/g, (all, key, style) => {
-		if (!(key in values)) return all;
+		// own keys only: "{constructor}" names no value, though every object has one
+		if (!Object.hasOwn(values, key)) return all;
 		const v = values[key];
 		const label = key === 'xxl' || key === 'xxs' || key === 'size';	// may be empty
 		if (v == null || v === '') {

@@ -446,6 +446,17 @@ test('the guards notice what they are there for', { timeout: 30_000 }, async () 
 		assert.equal(got, 'refused');
 		await w.page.waitForTimeout(200);
 		assert.ok(!w.problems.includes('request: https://example.org/w'), 'blocked before it left');
+		// but none from a file of the site: it would take its policy from that file's headers,
+		// none on GitHub Pages, and the engine's worker file loads whatever core a message names
+		const fromFile = await w.page.evaluate(() => new Promise(resolve => {
+			try {
+				const worker = new Worker('vendor/tesseract/worker.min.js');
+				worker.onerror = () => resolve('refused');
+				setTimeout(() => resolve('started'), 2000);
+			} catch { resolve('refused'); }
+		}));
+		assert.equal(fromFile, 'refused');
+		assert.ok(w.problems.some(p => /CSP violation: worker-src blocked .*worker\.min\.js/.test(p)), w.problems.join('\n'));
 	} finally {
 		await w.context.close();
 	}

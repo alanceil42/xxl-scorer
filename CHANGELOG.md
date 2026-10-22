@@ -16,9 +16,16 @@ collect under "Unreleased".
 - The text recognition engine runs under the page's Content-Security-Policy too, so it can load
   nothing but the site's own files. Self-hosters with nginx: the example now sends the whole
   policy as a header (contrib/nginx); copy it into your configuration
+- Self-hosters with nginx: the policy is narrower (the engine's worker may start from a blob:
+  URL only, images may be the site's own or embedded), dot files are refused in every folder,
+  not only at the top, and the weekly game data job may use 1 GB of memory at most. Copy
+  contrib/nginx and contrib/systemd into your configuration again
 - Self-hosters publishing with the Pages workflow: it publishes only a release's tag that is on
   main, never a pre-release; to publish a release again, pick its tag under "Use workflow
-  from" (the field for a tag is gone)
+  from" (the field for a tag is gone). It refuses a site holding symbolic links and checks the
+  vendored files itself
+- `npm run serve` answers only this computer; `tools/vendor.sh --check` refuses symbolic links
+- A nickname placeholder such as `{constructor}` stays as typed, like any other unknown one
 - A stored Pokémon the page can't score (from an edited backup or an older version) is marked
   to check and can be corrected or deleted; it used to stop the whole list from showing
 - Backups: a species that isn't one of the game data's is dropped when importing, and times in

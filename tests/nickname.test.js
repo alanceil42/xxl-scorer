@@ -55,3 +55,13 @@ test('size placeholders may be empty', async () => {
 	assert.equal(r.text, '512');
 	assert.deepEqual(r.missing, []);
 });
+
+test('a placeholder every object has is no placeholder', async () => {
+	const { formatName, nameValues } = await import('../src/core/nickname.js');
+	const values = nameValues({ ivs: null, score: null, level: null, name: 'Testmon' });
+	for (const k of ['constructor', '__proto__', 'toString', 'hasOwnProperty']) {
+		const r = formatName(`{${k}}{name}`, values);
+		assert.equal(r.text, `{${k}}Testmon`, k);
+		assert.deepEqual(r.missing, [], k);
+	}
+});
