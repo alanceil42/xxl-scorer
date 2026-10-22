@@ -1,6 +1,6 @@
 // Browser side of reading a screenshot: decode, tesseract.js worker, thumbnail.
 import { tesseractEngine, readScreenshot } from '../core/pipeline.js';
-import { REGIONS, boxOf, crop, downscale } from '../core/image.js';
+import { REGIONS, boxOf, crop, downscale, imageSize } from '../core/image.js';
 
 const abs = p => new URL(p, document.baseURI).href;
 let workerP = null;
@@ -74,10 +74,17 @@ function toCanvas(img) {
 	return c;
 }
 
+// a phone screenshot is 1-4 megapixels; refuse what would only exhaust the tab's memory
+const MAX_PIXELS = 40e6;
+const TOO_LARGE = 'image too large for a screenshot';
+
 async function decode(file) {
+	// PNG and JPEG by the size in their header, before anything is decoded; other kinds (and a
+	// JPEG whose metadata runs past the first 256 KB) once decoded
+	const size = imageSize(new Uint8Array(await file.slice(0, 1 << 18).arrayBuffer()));
+	if (size && size.width * size.height > MAX_PIXELS) throw new Error(TOO_LARGE);
 	const bmp = await createImageBitmap(file);
-	// a phone screenshot is 1-4 megapixels; refuse what would only exhaust the tab's memory
-	if (bmp.width * bmp.height > 40e6) { bmp.close && bmp.close(); throw new Error('image too large for a screenshot'); }
+	if (bmp.width * bmp.height > MAX_PIXELS) { bmp.close && bmp.close(); throw new Error(TOO_LARGE); }
 	const c = document.createElement('canvas');
 	c.width = bmp.width;
 	c.height = bmp.height;
