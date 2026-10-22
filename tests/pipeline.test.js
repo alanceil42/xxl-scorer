@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { tesseractEngine, readScreenshot, WORDS_WIDTH } from '../src/core/pipeline.js';
-import { HP_BAR_X0 } from '../src/core/image.js';
+import { HP_BAR_X0, pam } from '../src/core/image.js';
 import { makeRules } from '../src/core/read.js';
 import { compactText } from '../src/core/text.js';
 import { syntheticText } from './synthetic.js';
@@ -152,6 +152,20 @@ test('tesseractEngine: pixels for the whole screenshot are encoded first', async
 	await e.words({ width: 2, height: 3, data: new Uint8ClampedArray(24) });
 	await e.words('a file');
 	assert.deepEqual(seen, ['encoded 2x3', 'a file']);
+});
+
+test('pam: the crop\'s pixels as they are, after a header the engine can\'t take for an orientation', () => {
+	const px = { width: 3, height: 2, data: Uint8ClampedArray.from({ length: 24 }, (_, i) => i * 10) };
+	const b = pam(px);
+	assert.ok(b instanceof Uint8Array);
+	const end = new TextDecoder().decode(b).indexOf('ENDHDR\n') + 7;
+	const head = new TextDecoder().decode(b.subarray(0, end));
+	assert.match(head, /^P7\n# -+\nWIDTH 3\nHEIGHT 2\nDEPTH 4\nMAXVAL 255\nTUPLTYPE RGB_ALPHA\nENDHDR\n$/);
+	assert.deepEqual([...b.subarray(end)], [...px.data], 'RGBA, row by row, nothing changed');
+	// tesseract.js looks for an EXIF orientation tag ("1 18 0 3 0 0 0 1 0 n") in the first 500
+	// bytes of what it is given: here they are header text only, never pixels
+	assert.ok(end > 500);
+	assert.ok([...b.subarray(0, 500)].every(c => c === 10 || (c >= 32 && c < 127)));
 });
 
 test('a plain card: crop readings of the exact shape replace the whole-screenshot ones', async () => {

@@ -33,7 +33,8 @@ import { compactText, textUrl, findDex } from '../src/core/text.js';
 import { makeRules } from '../src/core/read.js';
 import { makeContext, evaluate, mergeTarget, mergeReadings } from '../src/core/evaluate.js';
 import { tesseractEngine, readScreenshot } from '../src/core/pipeline.js';
-import { decodePng, encodePng } from './lib/png.js';
+import { pam } from '../src/core/image.js';
+import { decodePng } from './lib/png.js';
 
 const dir = process.env.XXL_FIXTURES;
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -62,7 +63,8 @@ test('screenshots read and score as expected', { skip, timeout: 3_600_000 }, asy
 	const ctx = makeContext(gm, text);
 	const rules = makeRules(text);
 	const worker = await Tesseract.createWorker('eng', 1, { langPath: tessdata, gzip: true, cacheMethod: 'none' });
-	const engine = tesseractEngine(worker, async img => encodePng(img));
+	// the crops as the page hands them over: raw pixels
+	const engine = tesseractEngine(worker, pam);
 	const { fixtures, batches = [] } = JSON.parse(readFileSync(join(dir, 'expected.json'), 'utf8'));
 	try {
 		for (const f of fixtures) {

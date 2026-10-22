@@ -7,7 +7,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { poolSize, getWorkers, getWorker, readFile } from '../src/ui/ocr.js';
+import { poolSize, getWorkers, getWorker, startWorkers, warmUp, readerFor, MODEL, dropOldModel } from '../src/ui/ocr.js';
+import { makeRules } from '../src/core/read.js';
+import { compactText } from '../src/core/text.js';
+import { syntheticText } from './synthetic.js';
+import { decode } from '../src/ui/decode.js';
 import { encodePng } from './lib/png.js';
 import { checkInterval, DEFAULT_CHECK_DAYS } from '../src/ui/gamedata.js';
 import { phoneSvg, phoneElement } from '../src/ui/help.js';
@@ -89,6 +93,7 @@ test('engines: from the site itself (vendor/), the first alone, kept for reuse, 
 		assert.equal(opts.langPath, 'https://xxl.example.org/xxl/vendor/tessdata');
 		assert.equal(opts.gzip, true);
 		assert.equal(opts.workerBlobURL, true, 'a blob: worker runs under the page\'s CSP');
+		assert.equal(opts.cachePath, `xxl-scorer /xxl/ ${MODEL}`, 'the model cached under the site\'s path and its version');
 
 		log.length = 0;
 		assert.deepEqual((await getWorkers(2)).map(w => w.n), [1, 2], 'reused');
@@ -100,6 +105,207 @@ test('engines: from the site itself (vendor/), the first alone, kept for reuse, 
 		fail = 1;
 		assert.deepEqual((await getWorkers(5)).map(w => w.n), [1, 2, 3, 5]);
 		assert.deepEqual((await getWorkers(5)).map(w => w.n), [1, 2, 3, 5, 6]);
+
+		// started ahead (warmUp): quietly, a failure only shows when an engine is needed
+		log.length = 0;
+		warmUp(6);
+		await new Promise(r => setTimeout(r, 0));
+		assert.deepEqual(log, ['start 7', 'end 7']);
+		fail = 1;
+		warmUp(8);
+		await new Promise(r => setTimeout(r, 0));
+		assert.deepEqual((await getWorkers(8)).map(w => w.n), [1, 2, 3, 5, 6, 7, 9, 10]);
+
+		// each engine's own promise, to put the ready ones to work while the others start
+		const ps = await startWorkers(10);
+		assert.ok(ps.length === 10 && ps.every(p => p instanceof Promise));
+		assert.equal(await ps[0], ws[0]);
+		assert.deepEqual((await Promise.all(ps)).map(w => w.n).slice(-2), [11, 12]);
+	});
+});
+
+test('the model\'s cache key: its file\'s SHA-256, as vendor/SHA256SUMS lists it', () => {
+	const sums = readFileSync(join(root, 'vendor/SHA256SUMS'), 'utf8');
+	const [, file, hash] = MODEL.match(/^(\S+) ([0-9a-f]{16})$/);
+	assert.ok(sums.split('\n').some(l => l.startsWith(hash) && l.endsWith(`  tessdata/${file}`)), `${MODEL}: update it with the model`);
+});
+
+test('the model cached under tesseract.js\'s own key is deleted; its database never created', async () => {
+	const log = [];
+	const idb = exists => ({
+		open(name) {
+			log.push(`open ${name}`);
+			const req = {};
+			setTimeout(() => {
+				if (!exists) {
+					req.transaction = { abort: () => log.push('abort') };
+					req.onupgradeneeded();
+					req.onerror({ preventDefault: () => log.push('handled') });
+					return;
+				}
+				req.result = {
+					objectStoreNames: { contains: s => s === 'keyval' },
+					transaction: (s, mode) => ({ objectStore: () => ({ delete: k => log.push(`delete ${s} ${mode} ${k}`) }) }),
+					close: () => log.push('close'),
+				};
+				req.onsuccess();
+			});
+			return req;
+		},
+	});
+	await withGlobals({ indexedDB: idb(true) }, async () => {
+		dropOldModel();
+		await new Promise(r => setTimeout(r, 5));
+	});
+	assert.deepEqual(log, ['open keyval-store', 'delete keyval readwrite ./eng.traineddata', 'close']);
+	log.length = 0;
+	await withGlobals({ indexedDB: idb(false) }, async () => {
+		dropOldModel();
+		await new Promise(r => setTimeout(r, 5));
+	});
+	assert.deepEqual(log, ['open keyval-store', 'abort', 'handled']);
+	await withGlobals({ indexedDB: undefined }, () => dropOldModel());
+});
+
+// ---------- readers: a screenshot decoded, its crops handed to the engine ----------
+
+const rules = makeRules(compactText(syntheticText('en')));
+const W = 300, H = 650;
+
+/** A stand-in file: its first bytes are no PNG or JPEG header, so it is decoded to be measured. */
+const shot = name => ({ name, slice: () => new Blob(['not an image header']) });
+
+/** Stand-ins for decoding: each file is a shot() whose pixels are a white screen of W × H. */
+function decoding(log) {
+	const canvas = () => {
+		let bmp = null;
+		const c = {
+			getContext: () => ({
+				drawImage: b => { bmp = b; },
+				getImageData: (x, y, w, h) => ({ width: w, height: h, data: new Uint8ClampedArray(w * h * 4).fill(255) }),
+				putImageData: img => { c.put = img; },
+			}),
+			toDataURL: (type, q) => `data:${type};q=${q};${c.put.width}x${c.put.height}`,
+			convertToBlob: async ({ type, quality }) => ({ type, text: `${type};q=${quality};${c.put.width}x${c.put.height}` }),
+			get bmp() { return bmp; },
+		};
+		return c;
+	};
+	return {
+		createImageBitmap: async file => {
+			log.push(`decode ${file.name}`);
+			await null;
+			if (file.name === 'huge') return { width: 8000, height: 6000, close() { log.push('closed'); } };
+			return { width: file.name === 'wide' ? H : W, height: file.name === 'wide' ? W : H, close() {} };
+		},
+		ImageData: class { constructor(data, width, height) { Object.assign(this, { data, width, height }); } },
+		canvas,
+	};
+}
+
+/** A tesseract.js stand-in: the whole screenshot reads as nothing, every crop as nothing. */
+function engineLog(log) {
+	return {
+		async setParameters() {},
+		async recognize(input) {
+			if (input instanceof Uint8Array) {
+				const head = new TextDecoder().decode(input.subarray(0, 600));
+				log.push(`line ${head.match(/WIDTH (\d+)/)[1]}x${head.match(/HEIGHT (\d+)/)[1]}`);
+				assert.ok(head.startsWith('P7\n'), 'a crop as raw pixels (PAM), not a PNG');
+				return { data: { text: '' } };
+			}
+			log.push(`words ${input.name}`);
+			return { data: { blocks: [] } };
+		},
+	};
+}
+
+test('reader on the page: the next screenshot decoded while the engine reads; crops as raw pixels', async () => {
+	const log = [];
+	const d = decoding(log);
+	const document = { baseURI: 'https://xxl.example.org/xxl/', createElement: tag => { assert.equal(tag, 'canvas'); return d.canvas(); } };
+	await withGlobals({ document, createImageBitmap: d.createImageBitmap, ImageData: d.ImageData, navigator: {} }, async () => {
+		const w = engineLog(log);
+		const reader = readerFor(w);
+		assert.equal(readerFor(w), reader, 'one reader per engine, kept with it');
+		const fb = shot('b');
+		const a = await reader.read(shot('a'), fb, rules);
+		assert.equal(log[0], 'decode a');
+		assert.ok(log.indexOf('decode b') > 0 && log.indexOf('decode b') < log.findIndex(l => l.startsWith('line ')), `b decoded while the engine reads a: ${log}`);
+		assert.ok(log.filter(l => l.startsWith('line ')).length >= 2, 'the crops (CP and name: nothing else on a white screen)');
+		assert.deepEqual(a.size, [W, H]);
+		assert.equal(a.thumb, 'data:image/jpeg;q=0.72;112x90', 'the sprite\'s thumbnail, as a JPEG');
+		assert.equal(a.reading.species, null);
+		log.length = 0;
+		await reader.read(fb, null, rules);
+		assert.deepEqual(log.slice(0, 1), ['words b'], 'b not decoded again');
+		log.length = 0;
+		await assert.rejects(reader.read(shot('wide'), null, rules), /landscape/);
+		await assert.rejects(reader.read(shot('huge'), null, rules), /too large/);
+		assert.deepEqual(log, ['decode wide', 'decode huge', 'closed'], 'refused before the engine is asked');
+	});
+});
+
+test('reader in a worker of its own (Chromium): the same readings, the engine asked from the page', async () => {
+	const log = [];
+	const d = decoding(log);
+	let worker = null;
+	class Worker {
+		constructor(url, opts) {
+			worker = this;
+			assert.deepEqual(opts, { type: 'module' });
+			this.url = url;
+			this.sent = [];
+			// the worker's side (reader.js), in this process: messages cloned as the browser would
+			globalThis.postMessage = (m, transfer) => {
+				for (const t of transfer || []) assert.ok(t instanceof ArrayBuffer, 'only buffers handed over');
+				setTimeout(() => this.onmessage({ data: structuredClone(m) }));
+			};
+			// a module runs once per process: a second worker gets its "ready" from here
+			const again = Worker.started;
+			Worker.started = true;
+			import('../src/ui/reader.js').then(() => again && globalThis.postMessage({ ready: true }));
+		}
+		postMessage(m) {
+			this.sent.push(Object.keys(m)[0]);
+			// the rest cloned; a browser clones a File whole, Node's clone would drop its name
+			const c = structuredClone({ ...m, file: undefined, next: m.next && { ...m.next, file: undefined } });
+			if (m.file) c.file = m.file;
+			if (m.next) c.next.file = m.next.file;
+			setTimeout(() => globalThis.onmessage({ data: c }));
+		}
+	}
+	const blobs = [];
+	const URL_ = class extends URL {
+		static createObjectURL(b) { blobs.push(b); return 'blob:x'; }
+	};
+	const globals = {
+		document: { baseURI: 'https://xxl.example.org/xxl/' },
+		navigator: { userAgentData: { brands: [{ brand: 'Not A Brand' }, { brand: 'Chromium' }] } },
+		createImageBitmap: d.createImageBitmap, ImageData: d.ImageData, Worker, URL: URL_,
+		OffscreenCanvas: function OffscreenCanvas(w, h) { return Object.assign(d.canvas(), { width: w, height: h, toDataURL: undefined }); },
+		FileReaderSync: class { readAsDataURL(b) { return `data:${b.text}`; } },
+		postMessage: null, onmessage: null,
+	};
+	await withGlobals(globals, async () => {
+		const reader = readerFor(engineLog(log));
+		assert.match(await blobs[0].text(), /^import\("https:\/\/xxl\.example\.org\/xxl\/src\/ui\/reader\.js"\)/, 'a module from the site, started from a blob: URL');
+		const fb = shot('b');
+		const a = await reader.read(shot('a'), fb, rules);
+		assert.equal(log[0], 'decode a');
+		assert.ok(log.indexOf('decode b') > 0 && log.indexOf('decode b') < log.findIndex(l => l.startsWith('line ')), `b decoded while the engine reads a: ${log}`);
+		assert.ok(log.filter(l => l.startsWith('line ')).length >= 2, 'the crops (CP and name: nothing else on a white screen)');
+		assert.equal(a.thumb, 'data:image/jpeg;q=0.72;112x90', 'the same thumbnail, from an OffscreenCanvas');
+		assert.deepEqual(a.size, [W, H]);
+		log.length = 0;
+		const b = await reader.read(fb, null, rules);
+		assert.deepEqual(log.slice(0, 1), ['words b'], 'decoded ahead in the worker, not again');
+		assert.deepEqual({ ...b.reading, ms: 0 }, { ...a.reading, ms: 0 });
+		await assert.rejects(reader.read(shot('huge'), null, rules), /too large/);
+		assert.equal(worker.sent.filter(k => k === 'rules').length, 1, 'the rules sent once');
+		// an engine call that fails reaches the read
+		const failing = readerFor({ async setParameters() {}, async recognize() { throw new Error('engine gone'); } });
+		await assert.rejects(failing.read(shot('c'), null, rules), /engine gone/);
 	});
 });
 
@@ -113,11 +319,11 @@ test('a screenshot over 40 megapixels refused by its header, before it is decode
 	};
 	const createImageBitmap = async f => { decoded.push(f); return { width: 8000, height: 6000, close() {} }; };
 	await withGlobals({ createImageBitmap }, async () => {
-		await assert.rejects(readFile(file(png(8000, 6000))), /too large/);
+		await assert.rejects(decode(file(png(8000, 6000))), /too large/);
 		assert.equal(decoded.length, 0, 'nothing decoded');
 		// a header that says less, or none that can be read: checked once decoded, as before
-		await assert.rejects(readFile(file(png(100, 100))), /too large/);
-		await assert.rejects(readFile(file(Buffer.from('GIF89a'))), /too large/);
+		await assert.rejects(decode(file(png(100, 100))), /too large/);
+		await assert.rejects(decode(file(Buffer.from('GIF89a'))), /too large/);
 		assert.equal(decoded.length, 2);
 	});
 });
@@ -202,4 +408,33 @@ test('storage: persistence asked for once, its answer returned, never an error',
 	assert.equal(await withGlobals({ navigator: {} }, askPersist), false, 'no storage API');
 	const broken = { async persisted() { throw new Error('SecurityError'); } };
 	assert.equal(await withGlobals({ navigator: { storage: broken } }, askPersist), false);
+});
+
+test('reader worker that doesn\'t start or stops: reads waiting fail, the next ones are done on the page', async () => {
+	const log = [];
+	const d = decoding(log);
+	class Worker {
+		constructor() {
+			// "start": fails at once; "stop": ready, then gone at the first read
+			this.mode = Worker.mode;
+			setTimeout(() => (this.mode === 'start' ? this.onerror({ message: 'blocked' }) : this.onmessage({ data: { ready: true } })));
+		}
+		postMessage(m) {
+			if (m.read) setTimeout(() => this.onerror({}));
+		}
+	}
+	const globals = {
+		document: { baseURI: 'https://xxl.example.org/xxl/', createElement: () => d.canvas() },
+		navigator: { userAgentData: { brands: [{ brand: 'Chromium' }] } },
+		createImageBitmap: d.createImageBitmap, ImageData: d.ImageData, Worker, OffscreenCanvas: function () {},
+	};
+	await withGlobals(globals, async () => {
+		Worker.mode = 'start';
+		const a = readerFor(engineLog(log));
+		assert.deepEqual((await a.read(shot('a'), null, rules)).size, [W, H], 'on the page');
+		Worker.mode = 'stop';
+		const b = readerFor(engineLog(log));
+		await assert.rejects(b.read(shot('b'), null, rules), /the reader worker stopped/);
+		assert.deepEqual((await b.read(shot('c'), null, rules)).size, [W, H], 'the next one on the page');
+	});
 });
