@@ -66,7 +66,7 @@ won't run JavaScript modules from `file://`.
    second one. On a 16:9 phone (iPhone 8, SE) the appraisal always covers them: take every
    Pokémon with and without it. Do this for every Pokémon you want to compare; swiping through
    the storage and screenshotting each one twice is fine, the screenshots are put together again
-   (step 3). The **?** button shows a [drawing of the two](docs/screenshot.png).
+   (step 3). The **?** button shows a [drawing of the two](docs/help.png).
 2. Open xxl-scorer and press **Add screenshots** (or drop the files onto the page). Pick as many
    as you like. A screenshot taken with "Copy & Delete" goes in with **Paste** (the clipboard
    button next to it). On a Mac, the file dialog usually lists the Photos library in its
@@ -199,7 +199,7 @@ No dependencies and no build: plain JavaScript modules.
   the same major version. Updates are never automatic: after one, run the tests below and try
   the page.
 - `tools/build-gm.sh` the game data compaction in bash + jq, kept identical to the JS by a test
-- `tools/readme-picture.mjs` draws the picture at the top of this README (instructions inside)
+- `tools/readme-picture.mjs` draws the pictures in this README (instructions inside)
 - `docs/HOW-IT-WORKS.md` the core: the score formula, the IVs, reading and merging screenshots
 - `CHANGELOG.md` what changed in each release; `docs/RELEASING.md` how a release is made
 

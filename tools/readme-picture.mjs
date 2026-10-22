@@ -1,14 +1,17 @@
-// Draws the README's picture: the real page at a phone's width (iPhone 17 Pro, 402 CSS px),
-// filled with made-up XXL Pokémon, light and dark. No game art and no screenshots: the rows are
-// invented values for real species, and each thumbnail is drawn here the way the help draws
-// its phones (backdrop, arc, a blob standing in for the Pokémon, tinted by its type).
-// The species, CP, HP and scores come from the real game data, so the numbers add up.
+// Draws the README's pictures: the real page at a phone's width (iPhone 17 Pro, 402 CSS px).
+//   docs/list.png, docs/list-dark.png   the list, filled with made-up XXL Pokémon
+//   docs/help.png                       the empty list with its drawing of which screenshots
+// No game art, no screenshots and no species names: the rows are invented values for real
+// species, shown under invented names (the page's copy of the game texts is changed for them),
+// and each thumbnail is drawn here the way the help draws its phones (backdrop, arc, a blob
+// standing in for the Pokémon, tinted by its type). Stats, sizes and the score formula are the
+// real game data's, so CP, HP and scores are ones a Pokémon of that species could have.
 //
 //   npm install --no-save --ignore-scripts playwright-core@<version in .github/workflows/ci.yml>
 //   node tools/readme-picture.mjs                                # Google Chrome installed
 //   XXL_CHROME=/path/to/chromium node tools/readme-picture.mjs   # another Chromium
 //
-// Writes docs/list.png and docs/list-dark.png. The game data is downloaded from PokeMiners,
+// The game data is downloaded from PokeMiners,
 // or taken from XXL_GM_DIR (latest.json, i18n_english.json) when set. With pngquant on the
 // PATH the pictures are quantized to a quarter of their size.
 //
@@ -23,12 +26,13 @@ import { join, dirname, extname, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
 import { compactGameMaster, GM_URL, ROW } from '../src/core/gm.js';
-import { compactText, textUrl } from '../src/core/text.js';
+import { compactText, textUrl, levenshtein, normalizeName } from '../src/core/text.js';
 import { makeContext, evaluate } from '../src/core/evaluate.js';
 import { levelTable, cpOf, hpOf } from '../src/core/ivs.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const HEIGHT = 760;	// CSS px: the header and three and a half rows
+const HELP_HEIGHT = 548;	// CSS px: the header and the drawing with its captions
 const TRACKING = process.env.XXL_TRACKING ?? '-0.035em';
 
 async function load(file, url) {
@@ -43,20 +47,27 @@ async function load(file, url) {
 
 const gm = compactGameMaster(await load('latest.json', GM_URL));
 const text = compactText(await load('i18n_english.json', textUrl('en')));
-const ctx = makeContext(gm, text);
 const levels = levelTable(gm.cpm);
 
-// species, IVs, level, where the height sits between the XL and the XXL bound,
-// weight against (height ratio)² × average weight, catch date
+// species, the name shown for it, IVs, level, where the height sits between the XL and the XXL
+// bound, weight against (height ratio)² × average weight, catch date. The names are made up:
+// close enough to guess, at least two letters from any real one.
 const LIST = [
-	['DRAGONITE', 'Dragonite', [15, 14, 15], 40, 0.93, 1.06, '7/12/2023'],
-	['SNORLAX', 'Snorlax', [12, 15, 13], 33, 0.88, 0.97, '3/2/2025'],
-	['URSALUNA', 'Ursaluna', [14, 12, 15], 30, 0.79, 1.12, '11/23/2024'],
-	['PIKACHU', 'Pikachu', [10, 13, 11], 25, 0.86, 1.09, '8/9/2026'],
-	['WOOPER', 'Wooper', [15, 15, 14], 22, 0.84, 1.02, '5/30/2026'],
-	['GYARADOS', 'Gyarados', [13, 11, 12], 35, 0.71, 0.94, '9/14/2022'],
-	['LAPRAS', 'Lapras', [9, 14, 15], 28, 0.66, 1.0, '6/1/2024'],
+	['DRAGONITE', 'Drakonyte', [15, 14, 15], 40, 0.93, 1.06, '7/12/2023'],
+	['SNORLAX', 'Snoozlax', [12, 15, 13], 33, 0.88, 0.97, '3/2/2025'],
+	['URSALUNA', 'Ursamoon', [14, 12, 15], 30, 0.79, 1.12, '11/23/2024'],
+	['PIKACHU', 'Pikazu', [10, 13, 11], 25, 0.86, 1.09, '8/9/2026'],
+	['WOOPER', 'Wuppel', [15, 15, 14], 22, 0.84, 1.02, '5/30/2026'],
+	['GYARADOS', 'Gyradon', [13, 11, 12], 35, 0.71, 0.94, '9/14/2022'],
+	['LAPRAS', 'Lapriss', [9, 14, 15], 28, 0.66, 1.0, '6/1/2024'],
 ];
+for (const [sp, name] of LIST) {
+	const real = Object.values(text.names);
+	const near = real.find(n => levenshtein(normalizeName(n), normalizeName(name)) < 2);
+	if (near) throw new Error(`${name} is too close to the real ${near}`);
+	text.names[String(gm.species[sp].dex)] = name;
+}
+const ctx = makeContext(gm, text);
 const r2 = x => Math.round(x * 100) / 100;
 const rows = LIST.map(([sp, species, [a, d, s], level, f, wf, caught], i) => {
 	const row = gm.species[sp].f[''];
@@ -67,7 +78,7 @@ const rows = LIST.map(([sp, species, [a, d, s], level, f, wf, caught], i) => {
 	const reading = { species, caught, cp: cpOf(row, a, d, s, m), hp: hpOf(row, s, m), height_m, weight_kg,
 		bars: { a, d, s }, badge: 'XXL', types };
 	const e = evaluate(reading, ctx);
-	if (!e.score || !e.xxl || e.issues.length) throw new Error(`${species} isn't a clean XXL row: ${e.issues.map(x => x.msg)}`);
+	if (e.id !== sp || !e.score || !e.xxl || e.issues.length) throw new Error(`${species} isn't a clean XXL row of ${sp}: ${e.issues.map(x => x.msg)}`);
 	return { id: `readme-${i}`, created: 1e12 + i, updated: 1e12 + i, scanned: 1e12, scanIdx: i,
 		file: `${i}.png`, edits: {}, reading, type: types[0] };
 });
@@ -140,17 +151,38 @@ async function draw(scheme, out) {
 	await page.waitForTimeout(300);
 	await page.screenshot({ path: out });
 	await context.close();
+	quantize(out);
+	console.log(out);
+}
+
+/** The empty list: the header and the help's drawing. Light only: the README links to it. */
+async function drawHelp(out) {
+	const context = await browser.newContext({ viewport: { width: 402, height: HELP_HEIGHT }, deviceScaleFactor: 2,
+		colorScheme: 'light', isMobile: true, hasTouch: true });
+	const page = await context.newPage();
+	page.on('pageerror', err => { throw err; });
+	await page.goto(base);
+	await page.waitForFunction(() => /species from/.test(document.querySelector('#gm-status').textContent));
+	await page.evaluate(tracking => { document.body.style.letterSpacing = tracking; }, TRACKING);
+	await page.waitForTimeout(300);
+	await page.screenshot({ path: out });
+	await context.close();
+	quantize(out);
+	console.log(out);
+}
+
+function quantize(file) {
 	try {
-		execFileSync('pngquant', ['--quality', '80-100', '--speed', '1', '--force', '--ext', '.png', out]);
+		execFileSync('pngquant', ['--quality', '80-100', '--speed', '1', '--force', '--ext', '.png', file]);
 	} catch (err) {
 		if (err.code !== 'ENOENT') throw err;
 	}
-	console.log(out);
 }
 
 try {
 	await draw('light', join(root, 'docs/list.png'));
 	await draw('dark', join(root, 'docs/list-dark.png'));
+	await drawHelp(join(root, 'docs/help.png'));
 } finally {
 	await browser.close();
 	server.close();
