@@ -20,6 +20,9 @@ collect under "Unreleased".
   check misjudged screenshots of other screen shapes, and such a screenshot is rare
 - Fewer banners to dismiss after adding screenshots: none for screenshots merged into Pokémon
   already in the list, and the time it took moved to a line under the footer
+- A Pokémon with forms of equal HP (Dialga and Origin Dialga) gets the form whose CP was read
+  exactly, instead of one whose CP only looks like a misread; before, the page took the first
+  form and asked to check it
 
 
 ## 1.2.1 - 2026-10-22
