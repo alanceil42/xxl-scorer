@@ -9,6 +9,16 @@ collect under "Unreleased".
 ## Unreleased
 
 
+## 1.2.1 - 2026-10-22
+
+Nothing changes in how the page works: new pictures in the README and two tidy-ups in the code.
+
+- The README opens with a picture of the list, light and dark, filled with made-up Pokémon;
+  the drawing of which screenshots to take moved to docs/help.png (was docs/screenshot.png)
+  and shows today's buttons. tools/readme-picture.mjs draws both from the page itself
+- Code no longer used since 1.2 removed from the screenshot reader in its own worker
+
+
 ## 1.2 - 2026-10-22
 
 Screenshots are read sooner, with the same readings, and the footer says which version is
