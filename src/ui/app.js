@@ -15,6 +15,7 @@ import rulesEn from '../rules/en.js';
 import { phoneElement } from './help.js';
 import { cleanRow } from '../core/backup.js';
 import { imprintLink } from '../core/imprint.js';
+import { readBuild, buildLink } from '../core/buildinfo.js';
 
 const $ = sel => document.querySelector(sel);
 const el = (tag, attrs = {}, ...kids) => {
@@ -91,6 +92,7 @@ async function boot() {
 		} catch { /* keep what we have */ }
 	}
 	showImprint();
+	showBuild();
 	await loadData(false);
 }
 
@@ -102,6 +104,18 @@ function showImprint() {
 	a.href = link.href;
 	a.textContent = link.label;
 	a.parentElement.hidden = false;
+}
+
+/** The footer's version: the release, or branch and commit, when git archive filled them in. */
+async function showBuild() {
+	try {
+		const r = await fetch('src/build.js', { cache: 'no-cache' });
+		const link = r.ok ? buildLink(readBuild(await r.text())) : null;
+		const a = $('#version');
+		if (!link || !a) return;
+		a.href = link.href;
+		a.textContent = link.text;
+	} catch { /* index.html's text stays */ }
 }
 
 async function loadData(force) {

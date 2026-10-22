@@ -39,6 +39,10 @@ self-hosters have to act on (a backup file that no longer imports, a setting tha
 meaning, paths in contrib/) → 2.0; anything new → 1.1; fixes only → 1.0.1. When in doubt, the
 higher one.
 
+The footer's text in index.html is what a plain checkout shows. Files made with `git archive`
+name themselves: git fills in src/build.js (.gitattributes), and the page shows the version when
+the files are exactly a release tag, otherwise the branch and the commit.
+
 ### 2. Checks on your computer
 
 On the release branch, in your checkout:
@@ -62,6 +66,8 @@ this computer only, and a server open to the network would hand out everything i
 
     site="$(mktemp -d)" && git archive HEAD | tar -x -C "$site"
     python3 -m http.server 8001 --directory "$site"   # on the phone: http://<this computer>:8001/
+
+This copy's footer names the branch and the commit, not the version: the tag doesn't exist yet.
 
 ### 3. Merge
 
@@ -96,10 +102,11 @@ maintainer:
   "(tar.gz)" download.
 - `git fetch --tags` on your computer lists the tag: `git tag` → `v1.1`.
 - The footer link of the new version opens this release page.
-- Actions → **Pages**: the run for the release is green, and the public copy's footer names
-  the new version. The workflow publishes only a release's tag that is on main, and nothing
-  for a pre-release. GitHub Pages lets browsers keep files for up to 10 minutes, so a reload
-  may show the old version for a while.
+- Actions → **Pages**: the run for the release is green, its step "Assemble the site" logs
+  src/build.js naming the tag, and the public copy's footer names the new version. The
+  workflow publishes only a release's tag that is on main, and nothing for a pre-release.
+  GitHub Pages lets browsers keep files for up to 10 minutes, so a reload may show the old
+  version for a while.
 
 ### 6. Update a server that runs releases
 

@@ -60,7 +60,20 @@ jobs:
         run: |
           site="$RUNNER_TEMP/site"
           mkdir -p "$site"
-          cp -R index.html app.css icon.svg config.json src vendor "$site/"
+          # git archive rather than a copy: it fills in src/build.js (.gitattributes), from which
+          # the footer names the version. Spelled out in full, as above.
+          git archive -o "$RUNNER_TEMP/site.tar" "refs/tags/$GITHUB_REF_NAME" \
+            index.html app.css icon.svg config.json src vendor
+          tar -x -f "$RUNNER_TEMP/site.tar" -C "$site"
+          build="$(grep -s '^export default' "$site/src/build.js" || true)"
+          echo "src/build.js: $build"
+          case "$build" in
+            "export default { describe: '$GITHUB_REF_NAME', "*) ;;
+            *)
+              echo "::error::src/build.js doesn't name $GITHUB_REF_NAME: the footer would not show this version."
+              exit 1
+              ;;
+          esac
           # The upload replaces a symbolic link by what it points to, which could be any file of
           # the runner: only regular files and directories go up.
           odd="$(find "$site" ! -type f ! -type d)"
