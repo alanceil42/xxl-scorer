@@ -68,14 +68,58 @@ function chunk(kind, body) {
 	return Buffer.concat([head, body, crc]);
 }
 
-export function encodePng({ width, height, data }) {
+/**
+ * RGBA pixels as a PNG, 8 bits per sample, or 16 (each byte doubled: v * 257) as phones often
+ * save them. `chunks`: [kind, body] pairs placed before the pixels, e.g. a colour profile (iCCP).
+ */
+export function encodePng({ width, height, data }, { depth = 8, chunks = [] } = {}) {
 	const ihdr = Buffer.alloc(13);
 	ihdr.writeUInt32BE(width, 0); ihdr.writeUInt32BE(height, 4);
-	ihdr[8] = 8; ihdr[9] = 6;
-	const raw = Buffer.alloc((width * 4 + 1) * height);
-	for (let y = 0; y < height; y++) Buffer.from(data.buffer, data.byteOffset + y * width * 4, width * 4).copy(raw, y * (width * 4 + 1) + 1);
+	ihdr[8] = depth; ihdr[9] = 6;
+	const k = depth / 8, stride = width * 4 * k;
+	const raw = Buffer.alloc((stride + 1) * height);
+	for (let y = 0; y < height; y++) {
+		for (let x = 0; x < width * 4; x++) raw.fill(data[y * width * 4 + x], y * (stride + 1) + 1 + x * k, y * (stride + 1) + 1 + (x + 1) * k);
+	}
 	return Buffer.concat([
 		Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-		chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0)),
+		chunk('IHDR', ihdr), ...chunks.map(([kind, body]) => chunk(kind, body)),
+		chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0)),
 	]);
+}
+
+/**
+ * An iCCP chunk's body: an ICC v2 display profile with Display P3's primaries (as phones tag
+ * their screenshots) and a plain 2.2 gamma, so a browser has to convert the colours to sRGB.
+ */
+export function iccpDisplayP3() {
+	const s15 = v => { const b = Buffer.alloc(4); b.writeInt32BE(Math.round(v * 65536)); return b; };
+	const xyz = (x, y, z) => Buffer.concat([Buffer.from('XYZ \0\0\0\0', 'latin1'), s15(x), s15(y), s15(z)]);
+	const desc = Buffer.alloc(12 + 9 + 12 + 67);
+	desc.write('desc', 0, 'latin1'); desc.writeUInt32BE(9, 8); desc.write('Test P3\0', 12, 'latin1');
+	const curv = Buffer.from([0x63, 0x75, 0x72, 0x76, 0, 0, 0, 0, 0, 0, 0, 1, 0x02, 0x33, 0, 0]);
+	const tags = [
+		['desc', desc], ['wtpt', xyz(0.9642, 1, 0.8249)], ['cprt', Buffer.from('text\0\0\0\0none\0\0\0\0', 'latin1')],
+		['rXYZ', xyz(0.515121, 0.241196, -0.001053)], ['gXYZ', xyz(0.291977, 0.692245, 0.041885)],
+		['bXYZ', xyz(0.157104, 0.066574, 0.784073)], ['rTRC', curv], ['gTRC', curv], ['bTRC', curv],
+	];
+	const pad4 = b => Buffer.concat([b, Buffer.alloc((4 - b.length % 4) % 4)]);
+	let offset = 128 + 4 + 12 * tags.length;
+	const table = [], body = [];
+	for (const [sig, data] of tags) {
+		const e = Buffer.alloc(12);
+		e.write(sig, 0, 'latin1'); e.writeUInt32BE(offset, 4); e.writeUInt32BE(data.length, 8);
+		table.push(e); body.push(pad4(data));
+		offset += pad4(data).length;
+	}
+	const head = Buffer.alloc(128);
+	head.writeUInt32BE(offset, 0);
+	head.writeUInt32BE(0x02100000, 8);
+	head.write('mntrRGB XYZ ', 12, 'latin1');
+	head.write('acsp', 36, 'latin1');
+	s15(0.9642).copy(head, 68); s15(1).copy(head, 72); s15(0.8249).copy(head, 76);
+	const count = Buffer.alloc(4);
+	count.writeUInt32BE(tags.length);
+	const profile = Buffer.concat([head, count, ...table, ...body]);
+	return Buffer.concat([Buffer.from('Test P3\0\0', 'latin1'), deflateSync(profile)]);
 }

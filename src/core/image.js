@@ -230,6 +230,22 @@ export function yearPillText(img) {
 	}
 }
 
+/**
+ * Pixels as they are, in a file the text recognition engine reads without decoding: a PAM
+ * (netpbm's P7) with all four channels, so the engine gets exactly what a PNG of the same pixels
+ * would give it, without a PNG encoder on one side and a decoder on the other. The comment pads
+ * the header past 500 bytes: tesseract.js takes an EXIF orientation from the first 500 bytes of
+ * an image, and raw pixel values could look like one.
+ * @returns {Uint8Array}
+ */
+export function pam(img) {
+	const head = new TextEncoder().encode(`P7\n# ${'-'.repeat(500)}\nWIDTH ${img.width}\nHEIGHT ${img.height}\nDEPTH 4\nMAXVAL 255\nTUPLTYPE RGB_ALPHA\nENDHDR\n`);
+	const out = new Uint8Array(head.length + img.width * img.height * 4);
+	out.set(head);
+	out.set(img.data, head.length);
+	return out;
+}
+
 export function crop(img, { x, y, w, h }) {
 	const out = new Uint8ClampedArray(w * h * 4);
 	for (let j = 0; j < h; j++) {
