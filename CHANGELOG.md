@@ -12,6 +12,13 @@ collect under "Unreleased".
   the branch and the commit, linking to it. git fills these in when it packs the files
   (`git archive`, as the public copy and a tarball of a commit are made); a plain git checkout
   keeps showing the last release's number
+- A picture of more than 40 megapixels is refused by the size in its PNG or JPEG header, before
+  it is decoded, instead of after: it no longer takes the tab's memory first
+- Importing a backup keeps a Pokémon's thumbnail only when it is a JPEG image, which is all the
+  page has ever stored: an image of another kind labelled as JPEG is dropped
+- Game data whose "was caught" line repeats a placeholder, has more of them than the line's
+  own, or is over 200 characters long no longer freezes the page: that variant of the line is
+  left out. The game's own texts are not affected
 - Long lists are quicker again: species names are looked up once per name rather than for
   every row each time screenshots come in, and in a window just too narrow for the table,
   sorting 1000 Pokémon takes about a third less time

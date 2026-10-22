@@ -7,7 +7,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { poolSize, getWorkers, getWorker } from '../src/ui/ocr.js';
+import { poolSize, getWorkers, getWorker, readFile } from '../src/ui/ocr.js';
+import { encodePng } from './lib/png.js';
 import { checkInterval, DEFAULT_CHECK_DAYS } from '../src/ui/gamedata.js';
 import { phoneSvg, phoneElement } from '../src/ui/help.js';
 import { newId, askPersist } from '../src/ui/db.js';
@@ -99,6 +100,25 @@ test('engines: from the site itself (vendor/), the first alone, kept for reuse, 
 		fail = 1;
 		assert.deepEqual((await getWorkers(5)).map(w => w.n), [1, 2, 3, 5]);
 		assert.deepEqual((await getWorkers(5)).map(w => w.n), [1, 2, 3, 5, 6]);
+	});
+});
+
+test('a screenshot over 40 megapixels refused by its header, before it is decoded', async () => {
+	const decoded = [];
+	const file = buf => ({ slice: (a, b) => ({ arrayBuffer: async () => Uint8Array.from(buf.subarray(a, b)).buffer }) });
+	const png = (w, h) => {
+		const b = Buffer.from(encodePng({ width: 1, height: 1, data: new Uint8ClampedArray(4) }));
+		b.writeUInt32BE(w, 16); b.writeUInt32BE(h, 20);
+		return b;
+	};
+	const createImageBitmap = async f => { decoded.push(f); return { width: 8000, height: 6000, close() {} }; };
+	await withGlobals({ createImageBitmap }, async () => {
+		await assert.rejects(readFile(file(png(8000, 6000))), /too large/);
+		assert.equal(decoded.length, 0, 'nothing decoded');
+		// a header that says less, or none that can be read: checked once decoded, as before
+		await assert.rejects(readFile(file(png(100, 100))), /too large/);
+		await assert.rejects(readFile(file(Buffer.from('GIF89a'))), /too large/);
+		assert.equal(decoded.length, 2);
 	});
 });
 

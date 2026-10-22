@@ -18,9 +18,13 @@ const ivs = (v, exact) => {
 };
 const nullable = f => v => (v === null ? null : f(v));
 
-/** Embedded JPEG, PNG or WebP only (what the page itself stores), at most ~200 KB. */
+/**
+ * An embedded JPEG, what the page itself stores, at most ~200 KB. Its bytes must start as a
+ * JPEG does (FF D8 FF, "/9j/" in base64): the browser goes by the bytes, not the label, and
+ * would decode a GIF or BMP labelled as JPEG all the same.
+ */
 export function safeThumb(v) {
-	return typeof v === 'string' && v.length <= 200_000 && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/.test(v) ? v : undefined;
+	return typeof v === 'string' && v.length <= 200_000 && /^data:image\/jpeg;base64,\/9j\/[A-Za-z0-9+/]*=*$/.test(v) ? v : undefined;
 }
 
 const READING = {

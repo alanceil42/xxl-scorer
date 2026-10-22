@@ -69,6 +69,20 @@ test('info line: only the variants the language has; a template ending with the 
 	assert.deepEqual(matchCaught('This Testmon was caught on 7/28/2024, around X', p), { species: 'Testmon', caught: '7/28/2024' }, 'punctuation after the date');
 });
 
+test('info line: templates from the game data with repeated, extra or too many characters skipped', () => {
+	const t = { ...en, caught: { ...en.caught } };
+	// each of these takes minutes on a line of text when turned into a pattern
+	t.caught.appraise_v2_caught = 'This {0} {0} {0} {0} was caught on {1} around {2}.';
+	t.caught.appraise_v2_date_uncached_loc = 'This {0} was caught on {1} {2} {3}';
+	t.caught.appraise_v2_dateless_caught = `This {0} was caught around {1}.${' '.repeat(200)}`;
+	const t0 = Date.now();
+	const p = caughtPatterns(t);
+	assert.deepEqual(p.map(x => x.key), ['appraise_v2_dateless_uncached_loc'], 'only the plain one left');
+	const line = `This ${'Testmon '.repeat(30)}was caught`;
+	assert.deepEqual(matchCaught(line, p), { species: 'Testmon '.repeat(30).trim(), caught: null });
+	assert.ok(Date.now() - t0 < 1000);
+});
+
 test('species names: short names allow one slip, a slip that fits several is unsure', () => {
 	const idx = nameIndex(compactText(table([['pokemon_name_0200', 'Muk']])));
 	assert.equal(findDex('Mak', idx), 200);
