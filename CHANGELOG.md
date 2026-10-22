@@ -19,6 +19,15 @@ collect under "Unreleased".
 - Game data whose "was caught" line repeats a placeholder, has more of them than the line's
   own, or is over 200 characters long no longer freezes the page: that variant of the line is
   left out. The game's own texts are not affected
+- Screenshots are read sooner: the text recognition starts while the page is idle and while
+  the file picker is open, each screenshot is decoded while the one before is being read, and
+  the close-ups go to the engine as plain pixels rather than as PNG images. In Chrome, Edge and
+  other Chromium browsers decoding and the work on the pixels leave the page's main thread
+  altogether, so more of the computer's cores are put to use. After a batch, a note says how
+  many screenshots were read and how long it took. Readings are the same as before
+- The text recognition's language model is stored under a name of the site's own, which
+  includes the model's version: a newer model reaches returning visitors, and the copy stored
+  under the old name is deleted
 
 
 ## 1.1 - 2026-10-22

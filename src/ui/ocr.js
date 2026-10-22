@@ -1,9 +1,10 @@
-// Browser side of reading a screenshot: decode, tesseract.js worker, thumbnail.
-import { tesseractEngine, readScreenshot } from '../core/pipeline.js';
-import { REGIONS, boxOf, crop, downscale, imageSize } from '../core/image.js';
+// Browser side of reading screenshots: the tesseract.js engines, and for each engine a reader that
+// decodes the screenshots, does the pixel work and hands the engine its crops.
+import { tesseractEngine } from '../core/pipeline.js';
+import { pam } from '../core/image.js';
+import { decode, readImage, pageCanvas } from './decode.js';
 
 const abs = p => new URL(p, document.baseURI).href;
-let workerP = null;
 
 function loadScript(src) {
 	return new Promise((resolve, reject) => {
@@ -30,6 +31,33 @@ export function poolSize(configured) {
 	return Math.max(1, touch ? Math.min(2, cores) : Math.min(8, cores - 1));
 }
 
+/**
+ * The model in vendor/tessdata: its file's SHA-256, first 16 digits (vendor/SHA256SUMS; a test
+ * keeps the two equal). Part of the key the engine caches the model under in IndexedDB, with
+ * the site's path: an updated model is fetched instead of the old one being used for good, and
+ * another site on the same host and port keeps its own.
+ */
+export const MODEL = 'eng.traineddata.gz 45b4cb346724ac17';
+export const modelCacheKey = () => `xxl-scorer ${new URL('.', document.baseURI).pathname} ${MODEL}`;
+
+/**
+ * The model as cached under tesseract.js's own key before it had one of its own: deleted, or it
+ * would take up the space for good. tesseract.js keeps it in IndexedDB "keyval-store"; a
+ * database that isn't there is not created.
+ */
+export function dropOldModel() {
+	try {
+		const req = indexedDB.open('keyval-store');
+		req.onupgradeneeded = () => req.transaction.abort();
+		req.onerror = e => e.preventDefault();
+		req.onsuccess = () => {
+			const db = req.result;
+			if (db.objectStoreNames.contains('keyval')) db.transaction('keyval', 'readwrite').objectStore('keyval').delete('./eng.traineddata');
+			db.close();
+		};
+	} catch { /* no IndexedDB: nothing stored either */ }
+}
+
 function newWorker(lang, onProgress) {
 	const p = (async () => {
 		if (!globalThis.Tesseract) await loadScript(abs('vendor/tesseract/tesseract.min.js'));
@@ -38,6 +66,7 @@ function newWorker(lang, onProgress) {
 			corePath: abs('vendor/tesseract/core/'),
 			langPath: abs('vendor/tessdata'),
 			gzip: true,
+			cachePath: modelCacheKey(),
 			// The worker starts from a blob: URL, so it runs under the page's own
 			// Content-Security-Policy (a worker from a file of the site would get only that
 			// file's response headers, i.e. none on GitHub Pages): the engine, too, may load
@@ -50,15 +79,22 @@ function newWorker(lang, onProgress) {
 	return p;
 }
 
-/** n workers (engine and model from vendor/, same origin), started in parallel; kept for reuse. */
-export async function getWorkers(n = 1, lang = 'eng', onProgress) {
-	if (!pool.length) {
-		// the first one alone: it loads the script and stores the model in IndexedDB
-		pool.push(newWorker(lang, onProgress));
-		await pool[0];
-	}
+/**
+ * n workers (engine and model from vendor/, same origin), started in parallel and kept for reuse:
+ * a promise of each, to put each to work as soon as it is ready. Fails when the first fails.
+ */
+export async function startWorkers(n = 1, lang = 'eng', onProgress) {
+	// the first one alone: it loads the script and stores the model in IndexedDB (also when it
+	// was started ahead, by warmUp, and is still starting)
+	if (!pool.length) pool.push(newWorker(lang, onProgress));
+	await pool[0];
 	while (pool.length < n) pool.push(newWorker(lang, onProgress));
-	const ok = await Promise.allSettled(pool.slice(0, n));
+	return pool.slice(0, n);
+}
+
+/** n workers, once all have started; those that failed left out (and started again next time). */
+export async function getWorkers(n = 1, lang = 'eng', onProgress) {
+	const ok = await Promise.allSettled(await startWorkers(n, lang, onProgress));
 	const got = ok.filter(r => r.status === 'fulfilled').map(r => r.value);
 	if (!got.length) throw ok[0].reason;
 	return got;
@@ -66,52 +102,116 @@ export async function getWorkers(n = 1, lang = 'eng', onProgress) {
 
 export const getWorker = async (lang = 'eng', onProgress) => (await getWorkers(1, lang, onProgress))[0];
 
-function toCanvas(img) {
-	const c = document.createElement('canvas');
-	c.width = img.width;
-	c.height = img.height;
-	c.getContext('2d').putImageData(new ImageData(img.data, img.width, img.height), 0, 0);
-	return c;
+/** Engines started ahead of the first screenshot, quietly: a failure shows when one is needed. */
+export function warmUp(n, lang = 'eng') {
+	if (!pool.length) dropOldModel();
+	getWorkers(n, lang).then(ws => ws.forEach(readerFor), () => {});
 }
 
-// a phone screenshot is 1-4 megapixels; refuse what would only exhaust the tab's memory
-const MAX_PIXELS = 40e6;
-const TOO_LARGE = 'image too large for a screenshot';
+const readers = new WeakMap();	// engine -> its reader, kept with it for the next batch
 
-async function decode(file) {
-	// PNG and JPEG by the size in their header, before anything is decoded; other kinds (and a
-	// JPEG whose metadata runs past the first 256 KB) once decoded
-	const size = imageSize(new Uint8Array(await file.slice(0, 1 << 18).arrayBuffer()));
-	if (size && size.width * size.height > MAX_PIXELS) throw new Error(TOO_LARGE);
-	const bmp = await createImageBitmap(file);
-	if (bmp.width * bmp.height > MAX_PIXELS) { bmp.close && bmp.close(); throw new Error(TOO_LARGE); }
-	const c = document.createElement('canvas');
-	c.width = bmp.width;
-	c.height = bmp.height;
-	const ctx = c.getContext('2d', { willReadFrequently: true });
-	ctx.drawImage(bmp, 0, 0);
-	bmp.close && bmp.close();
-	const d = ctx.getImageData(0, 0, c.width, c.height);
-	return { width: d.width, height: d.height, data: d.data };
-}
-
-/** Sprite crop only: no info-line text is ever stored. */
-function thumbnail(img) {
-	const small = downscale(crop(img, boxOf(img, REGIONS.sprite)), 112);
-	return toCanvas(small).toDataURL('image/jpeg', 0.72);
+/**
+ * The reader of one engine: read(file, next, rules) gives the readings, thumbnail and size of a
+ * screenshot, and decodes `next`, the one this engine reads after it, while the engine works.
+ * One read at a time per reader, like the engine's own calls.
+ */
+export function readerFor(worker) {
+	let r = readers.get(worker);
+	if (!r) readers.set(worker, r = inWorker() ? workerReader(worker) : pageReader(worker));
+	return r;
 }
 
 /**
- * @param {File} file
- * @param {ReturnType<import('../core/read.js').makeRules>} rules
- * @param {string} lang     Tesseract language code
- * @param {object} [worker] one from getWorkers; calls on one worker must not overlap
+ * Decoding and pixel work off the main thread, in a worker of the reader's own (reader.js): only
+ * in Chromium, where its pixels were shown to be the page's, byte for byte (OffscreenCanvas and
+ * an HTML canvas; PNG at 8 and 16 bits, with a colour profile, and JPEG: tests/browser/smoke.js).
+ * Untested in WebKit and Gecko, so Safari and Firefox decode on the page as before.
+ * navigator.userAgentData exists in Chromium-based browsers only.
  */
-export async function readFile(file, rules, lang = 'eng', worker = null) {
-	const img = await decode(file);
-	if (img.width > img.height) throw new Error('landscape image: not a Pokémon screenshot?');
-	worker = worker || await getWorker(lang);
-	const engine = tesseractEngine(worker, async px => toCanvas(px));
-	const reading = await readScreenshot(img, file, engine, rules);
-	return { reading, thumb: thumbnail(img), size: [img.width, img.height] };
+function inWorker() {
+	const ua = globalThis.navigator && navigator.userAgentData;
+	return !!(ua && ua.brands && ua.brands.some(b => b.brand === 'Chromium')) && typeof OffscreenCanvas === 'function';
+}
+
+/** On the page's main thread: crops handed to the engine as raw pixels (pam), not as PNG. */
+function pageReader(worker) {
+	const engine = tesseractEngine(worker, pam);
+	let ahead = null;	// {file, pixels: promise}
+	return {
+		async read(file, next, rules) {
+			const pixels = ahead && ahead.file === file ? ahead.pixels : decode(file, pageCanvas);
+			ahead = null;
+			const img = await pixels;
+			if (next) {
+				ahead = { file: next, pixels: decode(next, pageCanvas) };
+				ahead.pixels.catch(() => {});	// reported by the read that takes it
+			}
+			return readImage(img, file, engine, rules, pageCanvas);
+		},
+	};
+}
+
+/** In a worker of its own; this side passes its requests on to the engine. */
+function workerReader(worker) {
+	const engine = tesseractEngine(worker, b => b);	// the crops come as PAM files already
+	// Started from a blob: URL, like the engine, so it runs under the page's own policy. That
+	// policy refuses a static import there (Chromium 141), not a dynamic one from the site.
+	const src = `import(${JSON.stringify(abs('src/ui/reader.js'))}).catch(err => postMessage({ failed: String(err) }));`;
+	const w = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })), { type: 'module' });
+	let fallback = null, broken = false, sentRules = null, keys = 0;
+	const files = new Map();	// key -> file
+	const keyOf = new Map();	// file decoded ahead -> its key
+	const done = new Map();	// key -> {resolve, reject}
+	const ready = new Promise((resolve, reject) => {
+		// it didn't start (an older browser), or it stopped (out of memory): the reads waiting
+		// fail, and the next ones are done on the page
+		w.onerror = e => {
+			const err = new Error(e.message || e.failed || 'the reader worker stopped');
+			broken = true;
+			reject(err);
+			for (const d of done.values()) d.reject(err);
+			done.clear();
+		};
+		w.onmessage = async ({ data: m }) => {
+			if (m.ready) resolve();
+			else if (m.failed) w.onerror(m);
+			else if (m.ask) {
+				try {
+					const value = m.words ? await engine.words(m.image || files.get(m.words)) : await engine.line(m.line, m.whitelist, m.psm);
+					w.postMessage({ answer: m.ask, value });
+				} catch (err) {
+					w.postMessage({ answer: m.ask, error: String(err && err.message || err) });
+				}
+			} else if (m.done) {
+				const d = done.get(m.done);
+				done.delete(m.done);
+				files.delete(m.done);
+				if (m.error) d.reject(new Error(m.error));
+				else d.resolve(m.result);
+			}
+		};
+	});
+	ready.catch(() => {});
+	return {
+		async read(file, next, rules) {
+			await ready.catch(() => {});
+			if (broken) {
+				fallback = fallback || pageReader(worker);
+				return fallback.read(file, next, rules);
+			}
+			if (rules !== sentRules) w.postMessage({ rules: sentRules = rules });
+			const key = keyOf.get(file) || ++keys;
+			keyOf.delete(file);
+			files.set(key, file);
+			const msg = { read: key, file };
+			if (next) {
+				msg.next = { key: ++keys, file: next };
+				keyOf.set(next, msg.next.key);
+			}
+			return new Promise((resolve, reject) => {
+				done.set(key, { resolve, reject });
+				w.postMessage(msg);
+			});
+		},
+	};
 }
