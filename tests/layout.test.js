@@ -52,7 +52,7 @@ test('card column: the whole width on a phone, a centred 9:16 column on a wider 
 		const img = { width: W, height: H, data: new Uint8ClampedArray(0) };
 		assert.equal(columnOf(img), img, 'a phone screenshot is used as it is');
 	}
-	// iPad (A16): the HP bar measured at 0.300-0.699 of the width, row 1299
+	// a 1640 × 2360 iPad: the HP bar measured at 0.300-0.699 of the width, row 1299
 	assert.deepEqual(cardColumn(1640, 2360), { x: 156, w: 1328 });
 	const W = 1640, H = 2360, c = cardColumn(W, H);
 	const { img, rect } = canvas(W, H);
