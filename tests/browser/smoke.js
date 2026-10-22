@@ -2,7 +2,8 @@
 // the rows, sorting, search, the editor, select and delete, at a phone's width and a desktop's.
 // Rows kept on screen from one drawing to the next show what they should after each of these.
 // Rows that can't be scored, a hostile backup, a failed import, copying without the clipboard API.
-// The text recognition engine reading a drawn image, under the page's CSP, loading only from the site.
+// The text recognition engine reading a drawn image, under the page's CSP, loading only from the site,
+// with screenshots decoded in a worker or on the page: the same pixels, the same readings.
 // Fails on any Content-Security-Policy violation, any error in the console or the page, and
 // any request to somewhere other than the site itself and PokeMiners on GitHub.
 //
@@ -28,7 +29,7 @@ import { sortList } from '../../src/core/sort.js';
 import { compileSearch } from '../../src/core/search.js';
 import { levelTable, cpOf, hpOf } from '../../src/core/ivs.js';
 import { syntheticGameMaster, syntheticText, CPM } from '../synthetic.js';
-import { encodePng } from '../lib/png.js';
+import { encodePng, iccpDisplayP3 } from '../lib/png.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const PM = 'https://raw.githubusercontent.com/PokeMiners/';
@@ -400,23 +401,117 @@ function drawnScreen() {
 	return encodePng({ width, height, data });
 }
 
-test('the text recognition engine runs under the CSP and loads only from the site', { timeout: 120_000 }, async () => {
+/** The stored rows, as the page keeps them (src/ui/db.js). */
+const storedRows = page => page.evaluate(async () => (await import('/src/ui/db.js')).rows.all());
+const readBoth = {};	// where -> the row read
+
+// In Chrome the page decodes screenshots in a worker of their own; without
+// navigator.userAgentData (as in Safari and Firefox) on the page itself.
+for (const where of ['worker', 'page']) {
+	test(`the text recognition engine runs under the CSP and loads only from the site (decoded on the ${where === 'page' ? 'page' : 'reader\'s worker'})`, { timeout: 120_000 }, async () => {
+		const { context, page, problems } = await open(1280);
+		const loaded = [];
+		page.on('request', r => loaded.push(r.url()));
+		if (where === 'page') await page.addInitScript(() => Object.defineProperty(Navigator.prototype, 'userAgentData', { get: () => undefined }));
+		try {
+			await boot(page);
+			// one engine started ahead, once the page is idle: before any screenshot
+			await page.waitForFunction(() => document.querySelectorAll('script[src$="tesseract.min.js"]').length === 1, null, { timeout: 30_000 });
+			await page.waitForTimeout(2000);
+			assert.ok(page.workers().length >= 1, 'the engine\'s worker');
+			const before = loaded.length;
+			await page.setInputFiles('#add', { name: 'drawn.png', mimeType: 'image/png', buffer: drawnScreen() });
+			await page.waitForFunction(() => document.querySelector('#queue').hidden && !/Starting/.test(document.querySelector('#queue').textContent), null, { timeout: 100_000 });
+			assert.ok(!loaded.slice(before).some(u => /tesseract|tessdata/.test(u)), 'engine and model loaded ahead, while the page was idle');
+			for (const f of ['vendor/tesseract/tesseract.min.js', 'vendor/tesseract/worker.min.js', 'vendor/tessdata/eng.traineddata.gz'])
+				assert.ok(loaded.includes(base + f), `${f} loaded:\n${loaded.join('\n')}`);
+			assert.ok(loaded.some(u => u.startsWith(`${base}vendor/tesseract/core/tesseract-core-`)), 'a core file');
+			assert.equal(loaded.includes(`${base}src/ui/reader.js`), where === 'worker', `reader.js loaded only for the worker:\n${loaded.join('\n')}`);
+			assert.deepEqual(loaded.filter(u => !u.startsWith(base) && !/^(data|blob):/.test(u)), [], 'nothing from elsewhere, PokeMiners included');
+			assert.ok(page.workers().length > 0 && page.workers().every(w => w.url().startsWith('blob:')), page.workers().map(w => w.url()).join(', '));
+			// the reading went through: a row to check, or a note that nothing could be read
+			assert.match(await page.textContent('main') + await page.textContent('#banners'), /Species not read|Could not read|check/);
+			assert.match(await page.textContent('#banners'), /1 screenshot read in \d+\.\d s\./);
+			const rows = await storedRows(page);
+			assert.equal(rows.length, 1);
+			readBoth[where] = { reading: { ...rows[0].reading, ms: 0 }, thumb: rows[0].thumb };
+			assert.deepEqual(problems, []);
+		} finally {
+			await context.close();
+		}
+	});
+}
+
+test('decoded on the page or in the reader\'s worker: the same readings and thumbnail', () => {
+	assert.ok(readBoth.worker && readBoth.page, 'both runs above passed');
+	assert.deepEqual(readBoth.worker, readBoth.page);
+});
+
+// The pixels a worker decodes (OffscreenCanvas) must be the page's (HTML canvas), byte for byte,
+// or the readings could differ: PNG at 8 and 16 bits per sample, with a colour profile that
+// has to be converted, a JPEG and a JPEG turned by its EXIF orientation. And the thumbnail.
+function testImages() {
+	const width = 240, height = 400, data = new Uint8ClampedArray(width * height * 4);
+	for (let y = 0; y < height; y++) {
+		for (let x = 0; x < width; x++) {
+			const i = (y * width + x) * 4;
+			data[i] = (x * 7 + y) & 255; data[i + 1] = (y * 3) & 255; data[i + 2] = (x * y) & 255; data[i + 3] = 255;
+		}
+	}
+	const img = { width, height, data };
+	return {
+		png8: encodePng(img), png16: encodePng(img, { depth: 16 }),
+		p3: encodePng(img, { chunks: [['iCCP', iccpDisplayP3()]] }),
+	};
+}
+
+test('decoding in a worker gives the page\'s pixels and thumbnail, byte for byte', { timeout: 60_000 }, async () => {
 	const { context, page, problems } = await open(1280);
-	const loaded = [];
-	page.on('request', r => loaded.push(r.url()));
 	try {
 		await boot(page);
-		const before = loaded.length;
-		await page.setInputFiles('#add', { name: 'drawn.png', mimeType: 'image/png', buffer: drawnScreen() });
-		await page.waitForFunction(() => document.querySelector('#queue').hidden && !/Starting/.test(document.querySelector('#queue').textContent), null, { timeout: 100_000 });
-		const engine = loaded.slice(before);
-		for (const f of ['vendor/tesseract/tesseract.min.js', 'vendor/tesseract/worker.min.js', 'vendor/tessdata/eng.traineddata.gz'])
-			assert.ok(engine.includes(base + f), `${f} loaded:\n${engine.join('\n')}`);
-		assert.ok(engine.some(u => u.startsWith(`${base}vendor/tesseract/core/tesseract-core-`)), 'a core file');
-		assert.deepEqual(engine.filter(u => !u.startsWith(base) && !/^(data|blob):/.test(u)), [], 'nothing from elsewhere, PokeMiners included');
-		assert.ok(page.workers().length > 0 && page.workers().every(w => w.url().startsWith('blob:')), page.workers().map(w => w.url()).join(', '));
-		// the reading went through: a row to check, or a note that nothing could be read
-		assert.match(await page.textContent('main') + await page.textContent('#banners'), /Species not read|Could not read|check/);
+		const imgs = Object.fromEntries(Object.entries(testImages()).map(([k, b]) => [k, b.toString('base64')]));
+		const got = await page.evaluate(async imgs => {
+			const files = Object.fromEntries(Object.entries(imgs).map(([k, b64]) =>
+				[k, new File([Uint8Array.from(atob(b64), c => c.charCodeAt(0))], `${k}.png`, { type: 'image/png' })]));
+			// a JPEG, and the same with an EXIF orientation (6: turned a quarter clockwise)
+			const c = Object.assign(document.createElement('canvas'), { width: 240, height: 400 });
+			const g = c.getContext('2d');
+			g.drawImage(await createImageBitmap(files.png8), 0, 0);
+			const jpeg = new Uint8Array(await (await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9))).arrayBuffer());
+			const exif = [0xff, 0xe1, 0, 34, 0x45, 0x78, 0x69, 0x66, 0, 0, 0x4d, 0x4d, 0, 0x2a, 0, 0, 0, 8, 0, 1, 0x01, 0x12, 0, 3, 0, 0, 0, 1, 0, 6, 0, 0, 0, 0, 0, 0];
+			files.jpeg = new File([jpeg], 'a.jpg', { type: 'image/jpeg' });
+			files.turned = new File([jpeg.subarray(0, 2), new Uint8Array(exif), jpeg.subarray(2)], 'b.jpg', { type: 'image/jpeg' });
+			const { decode, thumbnail, pageCanvas } = await import('/src/ui/decode.js');
+			// as ocr.js starts reader.js: a dynamic import, which the page's policy allows there
+			const src = `const m = import(${JSON.stringify(new URL('src/ui/decode.js', document.baseURI).href)});
+				onmessage = async ({ data: file }) => {
+					const { decode, thumbnail, workerCanvas } = await m;
+					const img = await decode(file, workerCanvas);
+					postMessage({ img, thumb: await thumbnail(img, workerCanvas) });
+				};`;
+			const w = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })), { type: 'module' });
+			const inWorker = file => new Promise(resolve => { w.onmessage = m => resolve(m.data); w.postMessage(file); });
+			const out = {};
+			const same = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+			for (const [k, file] of Object.entries(files)) {
+				const a = await decode(file, pageCanvas), b = await inWorker(file);
+				out[k] = {
+					size: [a.width, a.height], same: a.width === b.img.width && a.height === b.img.height && same(a.data, b.img.data),
+					thumb: (await thumbnail(a, pageCanvas)) === b.thumb, data: a.data,
+				};
+			}
+			const differs = (a, b) => !same(a, b);
+			return {
+				...Object.fromEntries(Object.entries(out).map(([k, v]) => [k, { size: v.size, same: v.same, thumb: v.thumb }])),
+				// the profile was applied, the 16-bit file cut to 8 bits like the 8-bit one
+				converted: differs(out.p3.data, out.png8.data), sixteen: same(out.png16.data, out.png8.data),
+			};
+		}, imgs);
+		for (const k of ['png8', 'png16', 'p3', 'jpeg', 'turned']) {
+			assert.deepEqual(got[k], { size: k === 'turned' ? [400, 240] : [240, 400], same: true, thumb: true }, k);
+		}
+		assert.equal(got.converted, true, 'the colour profile converted');
+		assert.equal(got.sixteen, true);
 		assert.deepEqual(problems, []);
 	} finally {
 		await context.close();

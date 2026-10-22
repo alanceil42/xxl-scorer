@@ -186,7 +186,8 @@ No dependencies and no build: plain JavaScript modules.
 
 - `src/core/` pure logic, runs in the browser and in Node: game data compaction, text rules,
   IV solver, appraisal bars, score, evaluation
-- `src/ui/` the page: storage (IndexedDB), game data loading, the tesseract.js worker, table
+- `src/ui/` the page: storage (IndexedDB), game data loading, the tesseract.js workers and the
+  screenshots' decoding (on the page, or in a worker of its own in Chromium), table
 - `src/rules/` per game language: what the game's own text tables don't provide
 - `vendor/` third-party files copied into the repo ("vendored"): tesseract.js (Apache-2.0) and
   its English model, and the buttons' icons from Lucide (ISC) as one sprite, at the versions in
