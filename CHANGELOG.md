@@ -8,6 +8,9 @@ collect under "Unreleased".
 
 ## Unreleased
 
+- A Pokémon with forms of equal HP (Dialga and Origin Dialga) gets the form whose CP was read
+  exactly, instead of one whose CP only looks like a misread; before, the page took the first
+  form and asked to check it
 - iPad screenshots are read: the game lays out the card there as on a 16:9 phone, centred on
   the wider screen, and the page now reads it in that column. Before, most iPad screenshots
   were skipped as if taken mid-swipe, and height and weight stayed empty

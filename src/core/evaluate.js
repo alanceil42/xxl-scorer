@@ -88,6 +88,8 @@ export function evaluate(reading, ctx, edits = {}) {
 	res.forms = forms.map(f => f.form);
 	if (edits.form != null && forms.some(f => f.form === edits.form)) forms = forms.filter(f => f.form === edits.form);
 	const cp = v.cp, hp = v.hp, bars = reading.bars;
+	// every CP read for this Pokémon (merged screenshots keep theirs in cpAlt)
+	const reads = [cp, ...(edits.cp == null ? reading.cpAlt || [] : [])].filter(c => c != null);
 	const tried = forms.map(f => {
 		const size = fixSizes(v.height_m, v.weight_kg, f.row);
 		let cpUse = cp, hits = cp && hp ? rankByBars(solveIVs(f.row, cp, hp, gm.cpm), bars) : [];
@@ -100,7 +102,6 @@ export function evaluate(reading, ctx, edits = {}) {
 		if (hp && bars) {
 			const lv = levelsForHp(f.row, roundBars(bars), hp, gm.cpm);
 			if (!(cp && lv.some(l => l.cp === cp))) {
-				const reads = [cp, ...(edits.cp == null ? reading.cpAlt || [] : [])].filter(c => c != null);
 				const all = [...new Set(lv.map(l => l.cp))];
 				let cps = reads.length ? all.filter(c => reads.some(r => cpLooksLike(r, c))) : all;
 				let forced = false;
@@ -116,14 +117,18 @@ export function evaluate(reading, ctx, edits = {}) {
 		const ft = f.row[ROW.TYPES].split('/');
 		const typesMatch = !reading.types || !reading.types.length ? 0
 			: sameSet(reading.types, ft) ? 2 : reading.types.every(t => ft.includes(t)) ? 1 : -1;
-		return { ...f, size, cpUse, cpForced, hits, plausible, typesMatch, best: hits.length ? hits[0].dist : Infinity };
+		// A CP read exactly as one of this form's possible CPs beats one that only looks like
+		// it: a crystal over Origin Dialga's last digit read "233", another pass "2337" (Origin)
+		// and "237", which looks like the normal form's 2307.
+		const cpExact = cpUse != null && reads.includes(cpUse);
+		return { ...f, size, cpUse, cpForced, cpExact, hits, plausible, typesMatch, best: hits.length ? hits[0].dist : Infinity };
 	});
 	// the type icons' labels (ROCK / GROUND) tell Alolan and other forms apart
 	const withHits = tried.filter(t => t.hits.length && t.plausible)
-		.sort((a, b) => b.typesMatch - a.typesMatch || a.cpForced - b.cpForced || a.best - b.best);
+		.sort((a, b) => b.typesMatch - a.typesMatch || a.cpForced - b.cpForced || b.cpExact - a.cpExact || a.best - b.best);
 	let pick = withHits[0] || tried.find(t => t.plausible) || tried[0];
 	if (withHits.length > 1 && withHits[1].typesMatch === withHits[0].typesMatch && withHits[1].cpForced === withHits[0].cpForced &&
-		withHits[1].best - withHits[0].best < 1 && edits.form == null) {
+		withHits[1].cpExact === withHits[0].cpExact && withHits[1].best - withHits[0].best < 1 && edits.form == null) {
 		issues.push({ code: 'form', msg: `Form unclear: ${withHits.map(t => formLabel(t.form) || 'normal').join(' / ')}` });
 	}
 	res.form = pick.form;

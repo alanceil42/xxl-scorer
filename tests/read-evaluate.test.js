@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { compactGameMaster } from '../src/core/gm.js';
+import { compactGameMaster, ROW } from '../src/core/gm.js';
 import { compactText } from '../src/core/text.js';
 import { makeRules, parseWords, parseCp, parseCrops, parseTypes, parseName, parseYearPill, dateParts, pillAsCaught } from '../src/core/read.js';
 import { makeContext, evaluate, duplicateKey, formLabel } from '../src/core/evaluate.js';
@@ -402,4 +402,27 @@ test('evaluate: a form the user picked is kept; one the species does not have is
 	assert.deepEqual(giant.forms, ['', 'GIANT'], 'the others stay offered');
 	assert.ok(!giant.issues.some(i => i.code === 'form'));
 	assert.equal(evaluate(r, ctx, { form: 'ALOLA' }).form, '');
+});
+
+test('evaluate: a CP read exactly as one form\'s beats one that only looks like another form\'s', () => {
+	// two forms with the same stamina (same HP, same levels), as Dialga and Origin Dialga
+	const gm2 = structuredClone(gm);
+	const normal = gm2.species.FAKEON.f[''];
+	const origin = normal.slice();
+	origin[ROW.ATK] = normal[ROW.ATK] + 12;
+	gm2.species.FAKEON.f.ORIGIN = origin;
+	const ctx2 = makeContext(gm2, en);
+	const ivs = { a: 15, d: 15, s: 15 };
+	const n = shown(normal, ivs, 30), o = shown(origin, ivs, 30);
+	assert.equal(n.hp, o.hp);
+	assert.notEqual(n.cp, o.cp);
+	// one pass read a digit off the normal form's CP, another the Origin form's exactly
+	const reading = { species: 'Fakeon', hp: o.hp, cp: n.cp + 1, cpAlt: [o.cp], height_m: 0.5, weight_kg: 8, bars: { a: 14.8, d: 14.8, s: 14.8 } };
+	const r = evaluate(reading, ctx2);
+	assert.equal(r.form, 'ORIGIN');
+	assert.equal(r.cp, o.cp);
+	assert.ok(!r.issues.some(i => i.code === 'form'), JSON.stringify(r.issues));
+	// read exactly for both: still unclear
+	const both = evaluate({ ...reading, cp: n.cp }, ctx2);
+	assert.ok(both.issues.some(i => i.code === 'form'), JSON.stringify(both.issues));
 });
