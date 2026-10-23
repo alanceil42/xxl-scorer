@@ -226,6 +226,20 @@ test('a lucky Pokémon with the appraisal higher up: the stats row still readabl
 	assert.equal(r.weight_kg, 57.63);
 });
 
+test('CP: the small "CP" swallowed the first digit; the digits alone agree on the whole number', async () => {
+	const cp = async (whole, d1, d2) => read(screen(), fakeEngine([], { cp: [whole], cpDigits: [d1, d2] }));
+	// "CP835" read as "35"; another client's "PC" in front
+	const r = await cp('35', '835', '835');
+	assert.equal(r.cp, 835);
+	assert.deepEqual(r.cpAlt, [35]);
+	assert.equal((await cp('PC35', '835', '835')).cp, 835);
+	// the digits alone came out shorter: they lost a digit, the whole read stays
+	assert.equal((await cp('1234', '124', '124')).cp, 1234);
+	// not the tail of it, or the digits alone disagree: the whole read stays
+	assert.equal((await cp('512', '5172', '5172')).cp, 512);
+	assert.equal((await cp('35', '835', '8351')).cp, 35);
+});
+
 test('a screenshot cut off at the top: CP looked for higher up, name and year pill moved with the card', async () => {
 	const full = screen({ pill: true });
 	const cut = 66;	// 0.11 W, about what a status bar is

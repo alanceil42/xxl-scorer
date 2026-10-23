@@ -103,7 +103,9 @@ export function evaluate(reading, ctx, edits = {}) {
 			const lv = levelsForHp(f.row, roundBars(bars), hp, gm.cpm);
 			if (!(cp && lv.some(l => l.cp === cp))) {
 				const all = [...new Set(lv.map(l => l.cp))];
-				let cps = reads.length ? all.filter(c => reads.some(r => cpLooksLike(r, c))) : all;
+				// a CP read exactly as one of them wins over those that only look like a read
+				const exact = all.filter(c => reads.includes(c));
+				let cps = exact.length === 1 ? exact : reads.length ? all.filter(c => reads.some(r => cpLooksLike(r, c))) : all;
 				let forced = false;
 				if (!cps.length && all.length === 1) { cps = all; forced = reads.length > 0; }
 				if (cps.length === 1) {

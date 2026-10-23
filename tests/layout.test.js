@@ -163,6 +163,12 @@ test('HP crop: the label may be cut off by the trainer', () => {
 	assert.equal(parseCrops({ hp: '131 / 131 H' }, rules).hp, 131);
 	assert.equal(parseCrops({ hp: '131 / 131' }, rules).hp, 131);
 	assert.equal(parseCrops({ hp: '131 / 1314' }, rules).hp, null, 'a digit is not a cut-off label');
+	// an H read as 1 ("60 / 60 HP" as "60/601P") is no HP of 601
+	assert.equal(parseCrops({ hp: '60/601P' }, rules).hp, 60);
+	assert.equal(parseCrops({ hp: '60 / 60 1P' }, rules).hp, 60);
+	assert.equal(parseCrops({ hp: '60/601 HP' }, rules).hp, 601, 'with its H, the 1 is a digit');
+	// what other clients' labels (KP, PS) leave
+	assert.equal(parseCrops({ hp: '120/120 P' }, rules).hp, 120);
 });
 
 test('CP digits: the smaller "CP" and specks dropped; blobs at the edge removed', () => {
