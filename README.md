@@ -19,7 +19,7 @@ table sorted by showcase points.
 - Every value can be corrected; a backup file moves the list to another device
 
 Runs entirely in your browser: screenshots are read on your device and never uploaded. No
-account, no server, no AI service.
+account, no cloud service needed.
 
 **Use it:** <https://alanceil42.github.io/xxl-scorer/> (the latest release), or run your own
 copy (below).
