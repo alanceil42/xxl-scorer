@@ -10,6 +10,11 @@ collect under "Unreleased".
 
 - The settings button is tinted green while the settings are open, like the sort button while
   the list is not sorted by score
+- A CP whose first digit ran into the small "CP" in front of it is read whole, and an HP whose
+  label was read as a digit ("60 / 60 HP" as 601) no longer keeps a Pokémon's two screenshots
+  apart
+- A CP read exactly as one the IVs and HP allow is taken, even when another possible CP looks
+  like one of the reads too
 
 
 ## 1.3.1 - 2026-10-23

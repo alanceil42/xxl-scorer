@@ -415,6 +415,25 @@ test('evaluate: a form the user picked is kept; one the species does not have is
 	assert.equal(evaluate(r, ctx, { form: 'ALOLA' }).form, '');
 });
 
+test('evaluate: a CP read exactly as one the bars and HP allow beats others that look like a read', () => {
+	// E.g. read as CP 35 and 835, with bars and HP allowing 829, 835 or 841: 835 is read exactly, 829
+	// only looks like it (one digit off). Find such a pair in the test species.
+	const row = gm.species.FAKEON.f[''];
+	const ivs = { a: 7, d: 12, s: 8 };
+	let pair = null;
+	for (let l = 15; l < 40 && !pair; l += 0.5) {
+		const x = shown(row, ivs, l), y = shown(row, ivs, l + 0.5);
+		const a = String(x.cp), b = String(y.cp);
+		if (x.hp === y.hp && a.length === b.length && a.length >= 3 && [...a].filter((c, i) => c !== b[i]).length === 1) pair = { lower: x.cp, cp: y.cp, hp: y.hp, level: l + 0.5 };
+	}
+	assert.ok(pair, 'no two CPs one digit apart at the same HP');
+	const bars = { a: 6.99, d: 11.94, s: 8.01 };
+	const r = evaluate({ species: 'Fakeon', hp: pair.hp, cp: Number(String(pair.cp).slice(1)), cpAlt: [pair.cp], height_m: 0.5, weight_kg: 8.31, bars }, ctx);
+	assert.equal(r.cp, pair.cp);
+	assert.equal(r.level, pair.level);
+	assert.ok(!r.issues.some(i => !i.info), JSON.stringify(r.issues));
+});
+
 test('evaluate: a CP read exactly as one form\'s beats one that only looks like another form\'s', () => {
 	// two forms with the same stamina (same HP, same levels), as Dialga and Origin Dialga
 	const gm2 = structuredClone(gm);

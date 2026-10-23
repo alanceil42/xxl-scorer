@@ -84,7 +84,9 @@ export function parseWords(words, width, rules) {
 export function parseCrops(t, rules) {
 	const clean = s => String(s || '').trim().replace(/\s+/g, ' ');
 	const size = (s, re) => { const m = re.exec(clean(s).replace(/ /g, '')); return m ? num(m[1]) : null; };
-	const hp = rules.cropHp.exec(clean(t.hp));
+	// "60 / 60 HP" read as "60/601P": the H became a 1 stuck to the second number. Any other
+	// "P" alone is fine, it is what other clients' labels leave ("120/120 P" for KP or PS).
+	const hp = rules.cropHp.exec(clean(t.hp).replace(/^(\d+)(\s*\/\s*)\1 ?1P$/u, '$1$2$1 HP'));
 	// at most three digits: no Pokémon has 1000 HP, and "131 / 131 H" can come out as "1314"
 	const hpVal = hp && Number(hp[1]) <= Number(hp[2]) && Number(hp[2]) > 0 && Number(hp[2]) < 1000 ? Number(hp[2]) : null;
 	const b = clean(t.badge).replace(/ /g, '');

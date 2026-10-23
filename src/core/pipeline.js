@@ -61,11 +61,12 @@ const shift = (b, dx) => ({ ...b, x0: b.x0 + dx, x1: b.x1 + dx });
 /**
  * CP: white digits over the photo, so whatever bright is behind them gets in the way (bokeh, a
  * planet, the sprite). Read three ways: the thresholded crop as a whole, and its digits alone
- * (cpDigits) at two thresholds. The first is `cp`, the others that differ go to `cpAlt`; the bars
- * and HP pick the right one later (evaluate.js), as for the CPs of merged screenshots.
+ * (cpDigits) at two thresholds. The first is `cp`, unless the two digits-only reads agree on
+ * one it is the tail of (below); the others that differ go to `cpAlt`. The bars and HP pick the
+ * right one later (evaluate.js), as for the CPs of merged screenshots.
  */
 async function readCp(img, engine, readings, dy) {
-	const reads = [];
+	const reads = [], digitReads = [];
 	const add = v => { if (v != null && !reads.includes(v)) reads.push(v); };
 	const readAt = async box => {
 		const c = crop(img, box);
@@ -73,7 +74,10 @@ async function readCp(img, engine, readings, dy) {
 		add(parseCp(await engine.line(t, 'CP0123456789')));
 		for (const px of [t, thresholdWhiteText(c, 200)]) {
 			const d = cpDigits(px);
-			if (d) add(parseCp(await engine.line(d, '0123456789')));
+			if (!d) continue;
+			const v = parseCp(await engine.line(d, '0123456789'));
+			if (v != null) digitReads.push(v);
+			add(v);
 		}
 	};
 	const box = boxOf(img, REGIONS.cp);
@@ -86,6 +90,15 @@ async function readCp(img, engine, readings, dy) {
 		const found = findCpBox(img);
 		if (found && Math.abs(found.y - box.y) > 0.01 * img.width) await readAt(found);
 		else if (Math.abs(dy) > 0.02 * img.width) await readAt(boxOf(img, REGIONS.cp, dy));
+	}
+	// The small "CP" can swallow the first digit(s) ("CP835" read as "35"): when
+	// both digits-only reads agree on a number the whole-crop read is the tail of, they win.
+	// Not the other way round: digits-only reads that come out shorter lost a digit themselves
+	// ("124" for 1234).
+	const agreed = digitReads.length === 2 && digitReads[0] === digitReads[1] ? String(digitReads[0]) : null;
+	if (agreed && reads[0] != null && agreed.length > String(reads[0]).length && agreed.endsWith(String(reads[0]))) {
+		reads.splice(reads.indexOf(digitReads[0]), 1);
+		reads.unshift(digitReads[0]);
 	}
 	readings.cp = reads[0] ?? null;
 	if (reads.length > 1) readings.cpAlt = reads.slice(1);
