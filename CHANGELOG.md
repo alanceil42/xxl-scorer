@@ -8,6 +8,9 @@ collect under "Unreleased".
 
 ## Unreleased
 
+- The settings button is tinted green while the settings are open, like the sort button while
+  the list is not sorted by score
+
 
 ## 1.3.1 - 2026-10-23
 

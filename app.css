@@ -247,10 +247,11 @@ summary { cursor: pointer; color: var(--muted); }
 }
 /* a row too narrow for its words (src/ui/app.js fitRows): the marked labels give way */
 .fit.tight .lbl.give { display: none; }
-/* Sort: a square as tall as the search field next to it; tinted while not by score */
+/* Sort: a square as tall as the search field next to it; tinted while not by score (and the
+   settings button, the same way, while the settings are open) */
 .search-row .sort-menu { align-self: stretch; }
 .search-row .sort-menu > summary { width: 44px; min-height: 0; padding: 0; }
-.sort-menu > summary.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.sort-menu > summary.on, #settings-btn[aria-expanded="true"] { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
 .sort-menu .menu-pop { min-width: 230px; gap: 0; padding: 6px; }
 .sort-menu .menu-head { margin: 4px 10px 6px; font-weight: 600; }
 .sort-menu .item { display: flex; width: 100%; align-items: center; gap: 10px; padding: 0 10px; min-height: 42px; border: 0; border-radius: 8px; background: none; color: var(--text); font: inherit; font-weight: 500; text-align: left; cursor: pointer; }
