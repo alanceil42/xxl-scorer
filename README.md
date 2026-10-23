@@ -200,6 +200,7 @@ No dependencies and no build: plain JavaScript modules.
   the page.
 - `tools/build-gm.sh` the game data compaction in bash + jq, kept identical to the JS by a test
 - `tools/readme-picture.mjs` draws the pictures in this README (instructions inside)
+- `tools/results-diff.mjs` compares two runs of the tests with real screenshots (below)
 - `docs/HOW-IT-WORKS.md` the core: the score formula, the IVs, reading and merging screenshots
 - `CHANGELOG.md` what changed in each release; `docs/RELEASING.md` how a release is made
 
@@ -210,12 +211,14 @@ No dependencies and no build: plain JavaScript modules.
 npm install --no-save --ignore-scripts \
 	tesseract.js@$(tools/vendor.sh --version tesseract.js) \
 	tesseract.js-core@$(tools/vendor.sh --version tesseract.js-core)
-XXL_FIXTURES=/path/to/my/screenshots npm test
+XXL_FIXTURES=/path/to/my/screenshots XXL_OCR_CACHE=/path/to/a/cache npm test
 ```
 
-That folder holds the screenshots and an `expected.json` (format at the top of
-`tests/fixtures.test.js`), and optionally `latest.json` and `i18n_english.json` (otherwise
-they are downloaded).
+That folder holds sets of screenshots, a folder each, with what they should read as in a
+`truth.json` (format at the top of `tests/fixtures.test.js`), and optionally `latest.json` and
+`i18n_english.json` (otherwise they are downloaded). With `XXL_OCR_CACHE` the engine's answers
+are kept, so the next run only reads what a change touched. `XXL_RESULTS=file.json` writes
+what was read; `node tools/results-diff.mjs before.json after.json` compares two versions.
 
 **Another game language** needs a file in `src/rules/` (Tesseract language code, anything special
 about the layout), its entry in `LANGUAGES` in `src/core/text.js` and in `tools/build-gm.sh`, and

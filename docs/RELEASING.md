@@ -52,7 +52,7 @@ On the release branch, in your checkout:
     npm install --no-save --ignore-scripts \
         tesseract.js@$(tools/vendor.sh --version tesseract.js) \
         tesseract.js-core@$(tools/vendor.sh --version tesseract.js-core)
-    XXL_FIXTURES=/path/to/my/screenshots npm test        # real screenshots, a few minutes
+    XXL_FIXTURES=/path/to/my/screenshots XXL_OCR_CACHE=/path/to/a/cache npm test   # real screenshots
 
 The engine for Node at exactly the vendored versions, and without install scripts: npm would
 run them as you, on the computer that holds the screenshots.
