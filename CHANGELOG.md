@@ -20,6 +20,8 @@ collect under "Unreleased".
     higher
 - A height or weight read as a whole number on a screenshot with the appraisal ("1 m") is
   marked to check: most often the trainer hides the rest of it (2.01 m)
+- Appraisal bars in recompressed screenshots: a bar with a broken row counted as two bars,
+  and the IVs came from the wrong three (15/14/15 read as 14/14/15)
 
 
 ## 1.3 - 2026-10-22
