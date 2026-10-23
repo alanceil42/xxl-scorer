@@ -28,7 +28,10 @@ export function findBars(img, U = img.width) {
 		return Math.max(data[i], data[i + 1], data[i + 2]) - Math.min(data[i], data[i + 1], data[i + 2]);
 	};
 	const bands = [];
-	let band = [];
+	let band = [], miss = 0;
+	// a row or two inside a bar can miss (a recompressed screenshot's artefacts): one bar must
+	// not count as two, or the last three bands are the wrong three
+	const maxMiss = Math.max(2, Math.round(U * 0.003));
 	for (let y = Math.floor(H * 0.5); y < H; y++) {
 		const runs = [];
 		let x = 0;
@@ -48,10 +51,12 @@ export function findBars(img, U = img.width) {
 			if (L.every(l => l >= U * 0.07 && l <= U * 0.16) && Math.max(...L) - Math.min(...L) <= U * 0.02 &&
 				g1 >= 2 && g1 <= U * 0.02 && g2 >= 2 && g2 <= U * 0.02) hit = seg;
 		}
-		if (hit) band.push({ y, seg: hit });
+		if (hit) { band.push({ y, seg: hit }); miss = 0; }
+		else if (band.length && ++miss <= maxMiss) continue;
 		else {
 			if (band.length >= U * 0.008) bands.push(band);
 			band = [];
+			miss = 0;
 		}
 	}
 	if (band.length >= U * 0.008) bands.push(band);

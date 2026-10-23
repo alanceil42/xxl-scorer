@@ -62,6 +62,9 @@ src/core/pipeline.js (readScreenshot), src/ui/ocr.js (the workers).
   the width (the CP 0.13–0.19 widths from the top, the HP bar at 0.98, …): 19.5:9 and 16:9
   screens read alike. A wider screen, such as an iPad's, gets a 16:9 phone's layout as tall as
   the screen, centred; the card is read in that column.
+- What is on the card is found from the HP bar, a green line found by colour: the card sits
+  higher or lower on other phones and in screenshots cut off at the top, and the player's tags
+  push the stats row down. Where the CP isn't, its digits are looked for.
 - The whole screenshot gives the species and catch date ("This … was caught on …", matched
   with the game's own texts); close-ups of single regions give HP, weight, height, types and
   the size badge.
@@ -69,7 +72,8 @@ src/core/pipeline.js (readScreenshot), src/ui/ocr.js (the workers).
   reading only when it fits (or is one digit off).
 - The trainer or the sprite can hide digits ("62" for 1.62 m). A value the species can't have
   is repaired by putting digits back, picking the one that fits the other size, and the row is
-  marked to check. Every value can be edited.
+  marked to check, as is a whole number under the appraisal ("1m" of 2.01 m). Every value can
+  be edited.
 
 
 ## Several screenshots, one Pokémon

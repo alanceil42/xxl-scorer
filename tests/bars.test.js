@@ -26,6 +26,16 @@ test('reads three bars', () => {
 	assert.ok(Math.abs(r.a - 15) < 0.2 && Math.abs(r.d - 7) < 0.2 && Math.abs(r.s - 0) < 0.2, JSON.stringify(r));
 });
 
+test('a row missing inside a bar: still one bar, the three right ones read', () => {
+	const W = 600, H = 1300;
+	const img = drawBars(W, H, [15, 14, 15]);
+	// a white row through the middle bar (a recompressed screenshot breaks a row now and then)
+	const y = Math.round(H * 0.75) + Math.round(H * 0.04) + Math.round(W * 0.01);
+	img.data.fill(255, y * W * 4, (y + 1) * W * 4);
+	const r = readBars(img);
+	assert.ok(Math.abs(r.a - 15) < 0.2 && Math.abs(r.d - 14) < 0.2 && Math.abs(r.s - 15) < 0.2, JSON.stringify(r));
+});
+
 test('no bars → null', () => {
 	const W = 300, H = 600;
 	assert.equal(readBars({ width: W, height: H, data: new Uint8ClampedArray(W * H * 4).fill(255) }), null);
