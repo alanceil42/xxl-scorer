@@ -57,25 +57,26 @@ export function findHpBar(img) {
 	};
 	// Green first. A yellow or red run must cross the middle: the year badge on the card's
 	// right edge is the same orange.
-	return scanBar(img, green, () => true) || scanBar(img, hurt, (x0, x1) => x0 < W / 2 && x1 > W / 2);
+	const mid = (x0, x1) => x0 < W / 2 && x1 > W / 2;
+	// At 0.98 W, 1.03 W with "LUCKY POKÉMON" (REGIONS); 0.93-1.05 W on other phones, or with the
+	// card pushed up a little.
+	const usual = [Math.floor(W * 0.78), Math.min(H, W * 1.17)];
+	// A screenshot cut off at the top by 0.11 W (players crop the status bar away before
+	// posting) still has it at 0.875 W.
+	return scanBar(img, green, () => true, usual) || scanBar(img, hurt, mid, usual);
 }
 
-function scanBar(img, fill, accept) {
-	const { width: W, height: H } = img;
+function scanBar(img, fill, accept, [ya, yb]) {
+	const { width: W } = img;
 	const minRun = W * 0.12;
 	let band = null;
-	// At 0.98 W, 1.03 W with "LUCKY POKÉMON" (REGIONS); 0.93-1.05 W on other phones, or with the
-	// card pushed up a little. Higher up only in a screenshot cut off at the top (players crop
-	// the status bar away before posting, 0.11 W and more): there the bar must start where a
-	// full or hurt bar starts, since a green sprite or background could be anything.
-	for (let y = Math.floor(W * 0.6); y < Math.min(H, W * 1.17); y++) {
-		const high = y < W * 0.78;
+	for (let y = ya; y < yb; y++) {
 		let best = null, s = -1;
 		for (let x = 0; x <= W; x++) {
 			const on = x < W && fill((y * W + x) * 4);
 			if (on && s < 0) s = x;
 			else if (!on && s >= 0) {
-				if (x - s >= minRun && accept(s, x) && (!high || Math.abs(s / W - HP_BAR_X0) < 0.02) && (!best || x - s > best[1] - best[0])) best = [s, x];
+				if (x - s >= minRun && accept(s, x) && (!best || x - s > best[1] - best[0])) best = [s, x];
 				s = -1;
 			}
 		}

@@ -60,16 +60,6 @@ test('card offset: the card moved up (scrolled, top cut off) or down (other phon
 	assert.deepEqual(boxOf({ width: 1000, height: 2000 }, REGIONS.name, 31), { x: 120, y: 909, w: 660, h: 74 });
 });
 
-test('the HP bar in a screenshot cut off at the top: higher up only where a bar starts', () => {
-	const W = 600, H = 1100;
-	const { img, rect } = canvas(W, H);
-	rect(Math.round(W * HP_BAR_X0), 420, Math.round(W * 0.49), 8, [140, 225, 178]);	// 0.70 W
-	assert.equal(findHpBar(img).y, 424);
-	const other = canvas(W, H);
-	other.rect(40, 420, 200, 8, [140, 225, 178]);	// green, thin, but not where a bar starts
-	assert.equal(findHpBar(other.img), null);
-});
-
 test('stats row: one row lower per row of tags, from the weight\'s text or the pills', () => {
 	const W = 600, H = 1300, by = 588;	// bar at 0.98 W
 	const make = (textAt, pills = 0) => {
