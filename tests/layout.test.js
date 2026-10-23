@@ -3,7 +3,7 @@
 // No game art: the images are drawn here, the game data is synthetic.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { REGIONS, boxOf, findHpBar, isLucky, cardColumn, columnOf, yearPillText, cpDigits, dropEdgeBlobs, HP_BAR_X0 } from '../src/core/image.js';
+import { REGIONS, boxOf, findHpBar, isLucky, cardOffset, statsShift, findCpBox, cardColumn, columnOf, yearPillText, cpDigits, dropEdgeBlobs, HP_BAR_X0 } from '../src/core/image.js';
 import { parseName, parseYearPill, dateParts, dateRelation, pillAsCaught, parseCrops, makeRules } from '../src/core/read.js';
 import { compactGameMaster } from '../src/core/gm.js';
 import { compactText, nameIndex, findDexByName } from '../src/core/text.js';
@@ -33,7 +33,7 @@ test('regions are in units of the width: the same place on a 16:9 and a 19.5:9 s
 		rect(Math.round(W * HP_BAR_X0), Math.round(W * 0.98), Math.round(W * 0.49), Math.round(W * 0.012), [140, 225, 178]);
 		const bar = findHpBar(img);
 		assert.ok(bar && Math.abs(bar.y / W - 0.986) < 0.01, `${W}: ${JSON.stringify(bar)}`);
-		assert.equal(isLucky(bar, W), false);
+		assert.equal(isLucky(img, bar), false);
 	}
 });
 
@@ -43,7 +43,68 @@ test('HP bar: teal under the Mystic appraisal tint; lucky', () => {
 	rect(Math.round(W * HP_BAR_X0), Math.round(W * 1.03), Math.round(W * 0.49), 8, [90, 179, 172]);
 	const bar = findHpBar(img);
 	assert.ok(bar, 'teal bar on a blue card');
-	assert.equal(isLucky(bar, W), true, 'pushed down by LUCKY POKÉMON');
+	assert.equal(isLucky(img, bar), false, 'the tint is bluer than green, and the bar\'s place says nothing');
+	// "LUCKY POKÉMON": green letters above the bar
+	for (let x = 0.36 * W; x < 0.64 * W; x += 0.03 * W) rect(Math.round(x), Math.round(W * 1.03) - 26, 9, 12, [110, 200, 150]);
+	assert.equal(isLucky(img, findHpBar(img)), true);
+});
+
+test('card offset: the card moved up (scrolled, top cut off) or down (other phones), not a pixel or two', () => {
+	const img = { width: 1000 };
+	assert.equal(cardOffset(img, { y: 986 }, false), 0);
+	assert.equal(cardOffset(img, { y: 990 }, false), 0, 'within 0.01 W');
+	assert.equal(cardOffset(img, { y: 1036 }, true), 0);
+	assert.equal(cardOffset(img, { y: 875 }, false), -111, 'cut off at the top');
+	assert.equal(cardOffset(img, { y: 1017 }, false), 31, 'lower on some Android phones');
+	assert.deepEqual(boxOf({ width: 1000, height: 2000 }, REGIONS.cp, -111), { x: 300, y: 0, w: 400, h: 99 }, 'clipped at the top');
+	assert.deepEqual(boxOf({ width: 1000, height: 2000 }, REGIONS.name, 31), { x: 120, y: 909, w: 660, h: 74 });
+});
+
+test('the HP bar in a screenshot cut off at the top: higher up only where a bar starts', () => {
+	const W = 600, H = 1100;
+	const { img, rect } = canvas(W, H);
+	rect(Math.round(W * HP_BAR_X0), 420, Math.round(W * 0.49), 8, [140, 225, 178]);	// 0.70 W
+	assert.equal(findHpBar(img).y, 424);
+	const other = canvas(W, H);
+	other.rect(40, 420, 200, 8, [140, 225, 178]);	// green, thin, but not where a bar starts
+	assert.equal(findHpBar(other.img), null);
+});
+
+test('stats row: one row lower per row of tags, from the weight\'s text or the pills', () => {
+	const W = 600, H = 1300, by = 588;	// bar at 0.98 W
+	const make = (textAt, pills = 0) => {
+		const { img, rect } = canvas(W, H);
+		rect(Math.round(W * HP_BAR_X0), by - 4, Math.round(W * 0.49), 8, [140, 225, 178]);
+		for (let k = 0; k < pills; k++) rect(200, Math.round(by + (0.09 + k * 0.089) * W) + 2, 200, 32, [170, 90, 200]);
+		if (textAt != null) for (let x = 60; x < 160; x += 20) rect(x, Math.round(by + textAt * W), 12, 22, [70, 80, 85]);
+		return { img, bar: findHpBar(img) };
+	};
+	for (const [at, rows] of [[0.178, 0], [0.267, 1], [0.356, 2]]) {
+		const { img, bar } = make(at, rows);
+		assert.equal(statsShift(img, bar), Math.round(rows * 0.089 * W), `text at ${at}`);
+	}
+	const hidden = make(null, 2);
+	assert.equal(statsShift(hidden.img, hidden.bar), Math.round(2 * 0.089 * W), 'weight covered: the pill rows counted');
+	const bare = make(null, 0);
+	assert.equal(statsShift(bare.img, bare.bar), 0);
+	const ribbon = make(0.178, 0);
+	// a "NEW RECORD" ribbon above the weight: saturated, not text
+	for (let y = 0; y < 20; y++) for (let x = 60; x < 180; x++) { const i = ((by + 66 + y) * W + x) * 4; ribbon.img.data.set([200, 120, 220], i); }
+	assert.equal(statsShift(ribbon.img, ribbon.bar), 0);
+});
+
+test('CP digits found where they are: a row of tall white glyphs near the top', () => {
+	const W = 600, H = 1200;
+	const { img, rect } = canvas(W, H, [40, 60, 90]);
+	for (const x of [250, 280, 310]) rect(x, 12, 20, 36, [255, 255, 255]);
+	rect(20, 5, 10, 14, [255, 255, 255]);	// the status bar's clock: small, at the side
+	const b = findCpBox(img);
+	assert.ok(b, 'found');
+	assert.equal(b.x, Math.round(W * REGIONS.cp.x));
+	assert.ok(b.y <= 12 && b.y + b.h >= 48, JSON.stringify(b));
+	const one = canvas(W, H, [40, 60, 90]);
+	one.rect(280, 100, 20, 36, [255, 255, 255]);
+	assert.equal(findCpBox(one.img), null, 'a single glyph is no CP');
 });
 
 test('card column: the whole width on a phone, a centred 9:16 column on a wider screen', () => {

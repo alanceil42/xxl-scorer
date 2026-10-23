@@ -89,7 +89,8 @@ test('evaluate: species, IVs from bars + CP/HP, XXL, score, key', () => {
 	assert.equal(r.level, 20);
 	assert.equal(r.xxl, true);
 	assert.ok(Math.abs(r.score.total - (800 * 1.7 / 1.75 + 100 + 50 * 43 / 45 + 178)) < 1e-9);
-	assert.deepEqual(r.issues, []);
+	// "30kg" under the appraisal: the trainer may hide the rest of it
+	assert.deepEqual(r.issues.map(i => i.code), ['size-whole']);
 	assert.equal(r.key, 'TESTMON||d:7/28/2024|1.70|30.00|iv:15/13/15');
 	assert.equal(duplicateKey({ ...r, caught: null }), `TESTMON||cp:${cp}|1.70|30.00|iv:15/13/15`);
 	assert.equal(duplicateKey({ ...r, ivSource: 'cp' }), 'TESTMON||d:7/28/2024|1.70|30.00', 'IVs guessed from CP/HP: left out');
@@ -131,7 +132,7 @@ test('evaluate: a CP that lost a digit is replaced by the one the bars and HP al
 	const { cp, hp } = shown(row, ivs, 30);
 	assert.ok(cp >= 100, `want a 3+ digit CP, got ${cp}`);
 	const misread = Number(String(cp).slice(1));	// "521" → 21
-	const r = evaluate({ species: 'Fakeon', hp, cp: misread, height_m: 0.6, weight_kg: 9, bars: { a: 1.02, d: 13.97, s: 10.95 } }, ctx);
+	const r = evaluate({ species: 'Fakeon', hp, cp: misread, height_m: 0.6, weight_kg: 9.12, bars: { a: 1.02, d: 13.97, s: 10.95 } }, ctx);
 	assert.equal(r.cp, cp);
 	assert.deepEqual(r.ivs, ivs);
 	assert.equal(r.level, 30);
@@ -356,7 +357,7 @@ test('evaluate: bars far from every IV combination CP/HP allow are flagged', () 
 	// 0/0/15 at level 25, bars read as 15/15/15: same HP, and the bars allow two CPs at that HP,
 	// neither like the one read
 	const { cp, hp } = shown(gm.species.TESTMON.f[''], { a: 0, d: 0, s: 15 }, 25);
-	const r = evaluate({ species: 'Testmon', hp, cp, height_m: 1.2, weight_kg: 20, bars: { a: 15, d: 15, s: 15 } }, ctx);
+	const r = evaluate({ species: 'Testmon', hp, cp, height_m: 1.2, weight_kg: 20.4, bars: { a: 15, d: 15, s: 15 } }, ctx);
 	assert.deepEqual(r.ivs, { a: 0, d: 0, s: 15 }, 'CP/HP decide when the bars fit nothing');
 	assert.equal(r.cp, cp);
 	assert.deepEqual(r.issues.map(i => i.code), ['bars']);
@@ -365,7 +366,7 @@ test('evaluate: bars far from every IV combination CP/HP allow are flagged', () 
 test('evaluate: IVs from the bars alone; a CP that fits no level at that HP is flagged', () => {
 	const ivs = { a: 10, d: 10, s: 10 };
 	const { hp } = shown(gm.species.FAKEON.f[''], ivs, 25);	// a Fakeon with these IVs has this HP at 25 and 25.5
-	const r = evaluate({ species: 'Fakeon', hp, cp: 9999, height_m: 0.5, weight_kg: 8, bars: ivs }, ctx);
+	const r = evaluate({ species: 'Fakeon', hp, cp: 9999, height_m: 0.5, weight_kg: 8.31, bars: ivs }, ctx);
 	assert.equal(r.ivSource, 'bars');
 	assert.deepEqual(r.ivs, ivs);
 	assert.equal(r.level, 25, 'the first level the bars and HP allow');
@@ -375,6 +376,16 @@ test('evaluate: IVs from the bars alone; a CP that fits no level at that HP is f
 	const noHp = evaluate({ species: 'Fakeon', hp: null, cp: null, height_m: 0.5, weight_kg: 8, bars: ivs }, ctx);
 	assert.deepEqual(noHp.ivs, ivs);
 	assert.equal(noHp.level, null, 'no HP, no level');
+});
+
+test('evaluate: a whole-number size under the appraisal is marked to check, nowhere else', () => {
+	const r = { species: 'Testmon', hp: null, cp: null, height_m: 1, weight_kg: 30.12, bars: { a: 1, d: 2, s: 3 } };
+	const whole = x => x.issues.filter(i => i.code === 'size-whole').map(i => i.msg);
+	assert.deepEqual(whole(evaluate(r, ctx)), ['Height read as 1 m: a whole number, digits may be hidden. Save to confirm.']);
+	assert.deepEqual(whole(evaluate({ ...r, bars: null }, ctx)), [], 'no appraisal, nothing drawn over the stats row');
+	assert.deepEqual(whole(evaluate({ ...r, merged: 2 }, ctx)), [], 'merged: another screenshot had the longer reading');
+	assert.deepEqual(whole(evaluate(r, ctx, { height_m: 1 })), [], 'confirmed by saving');
+	assert.deepEqual(whole(evaluate({ ...r, height_m: 1.6, weight_kg: 30 }, ctx)), ['Weight read as 30 kg: a whole number, digits may be hidden. Save to confirm.']);
 });
 
 test('evaluate: a missing size says why when the appraisal covers the stats row', () => {

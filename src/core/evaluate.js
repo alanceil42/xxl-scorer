@@ -141,8 +141,15 @@ export function evaluate(reading, ctx, edits = {}) {
 	const w = pick.size.w ? pick.size.w.value : null;
 	res.height_m = h;
 	res.weight_kg = w;
-	for (const [k, label, unit] of [['h', 'Height', 'm'], ['w', 'Weight', 'kg']]) {
+	for (const [k, label, unit, key] of [['h', 'Height', 'm', 'height_m'], ['w', 'Weight', 'kg', 'weight_kg']]) {
 		const fx = pick.size[k];
+		// On a screenshot with the appraisal, a whole number is most often what the trainer's
+		// hair left of a size: "1m" of 2.01 m. The game shows one only for an exact x.00. Not
+		// asked when another screenshot of the Pokémon was merged in: one without the
+		// appraisal, where nothing covers the row, had the longer reading then.
+		if (fx && !fx.fixed && fx.value != null && Number.isInteger(fx.value) && reading.bars && !(reading.merged > 1) && edits[key] == null) {
+			issues.push({ code: 'size-whole', msg: `${label} read as ${fx.value} ${unit}: a whole number, digits may be hidden. Save to confirm.` });
+		}
 		if (!fx || !fx.fixed) continue;
 		issues.push(fx.value == null
 			? { code: 'size', msg: `${label} read as ${fx.read} ${unit}, impossible for ${res.name}: please type it in` }

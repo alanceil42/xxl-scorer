@@ -1,6 +1,6 @@
 // One screenshot → readings. Shared by the browser (src/ui/ocr.js) and the local tests.
 import { findBars } from './bars.js';
-import { REGIONS, boxOf, crop, thresholdWhiteText, thresholdDarkText, badgeText, findHpBar, statsBoxes, dropEdgeBlobs, cpDigits, isLucky, yearPillText, cardColumn, columnOf } from './image.js';
+import { REGIONS, boxOf, crop, thresholdWhiteText, thresholdDarkText, badgeText, findHpBar, statsBoxes, dropEdgeBlobs, cpDigits, isLucky, cardOffset, statsShift, findCpBox, yearPillText, cardColumn, columnOf } from './image.js';
 import { parseWords, parseCp, parseCrops, parseTypes, parseName, parseYearPill } from './read.js';
 
 /**
@@ -45,10 +45,13 @@ export async function readScreenshot(img, source, engine, rules) {
 	const col = columnOf(img);
 	const words = (await engine.words(source)).map(wd => (x ? { ...wd, bbox: shift(wd.bbox, -x) } : wd));
 	const readings = parseWords(words, w, rules);
-	await readCp(col, engine, readings);
+	const bar = findHpBar(col);
+	const lucky = bar ? isLucky(col, bar) : false;
+	const dy = bar ? cardOffset(col, bar, lucky) : 0;
+	await readCp(col, engine, readings, dy);
 	const bars = findBars(img, w);
 	readings.bars = bars ? bars.ivs : null;
-	await readCard(col, engine, rules, readings, bars);
+	await readCard(col, engine, rules, readings, bars, bar, lucky, dy);
 	readings.ms = Date.now() - t0;
 	return readings;
 }
@@ -61,15 +64,28 @@ const shift = (b, dx) => ({ ...b, x0: b.x0 + dx, x1: b.x1 + dx });
  * (cpDigits) at two thresholds. The first is `cp`, the others that differ go to `cpAlt`; the bars
  * and HP pick the right one later (evaluate.js), as for the CPs of merged screenshots.
  */
-async function readCp(img, engine, readings) {
-	const c = crop(img, boxOf(img, REGIONS.cp));
+async function readCp(img, engine, readings, dy) {
 	const reads = [];
 	const add = v => { if (v != null && !reads.includes(v)) reads.push(v); };
-	const t = thresholdWhiteText(c);
-	add(parseCp(await engine.line(t, 'CP0123456789')));
-	for (const px of [t, thresholdWhiteText(c, 200)]) {
-		const d = cpDigits(px);
-		if (d) add(parseCp(await engine.line(d, '0123456789')));
+	const readAt = async box => {
+		const c = crop(img, box);
+		const t = thresholdWhiteText(c);
+		add(parseCp(await engine.line(t, 'CP0123456789')));
+		for (const px of [t, thresholdWhiteText(c, 200)]) {
+			const d = cpDigits(px);
+			if (d) add(parseCp(await engine.line(d, '0123456789')));
+		}
+	};
+	const box = boxOf(img, REGIONS.cp);
+	await readAt(box);
+	// The CP sits where the top of the screen puts it, which is not always where it is on an
+	// uncut iPhone screenshot: players cut the status bar off before posting, some phones have a
+	// taller one. Nothing read: look for the digits (findCpBox), else move the crop as far as
+	// the card is off its place (cut off at the top, both move up alike).
+	if (!reads.length) {
+		const found = findCpBox(img);
+		if (found && Math.abs(found.y - box.y) > 0.01 * img.width) await readAt(found);
+		else if (Math.abs(dy) > 0.02 * img.width) await readAt(boxOf(img, REGIONS.cp, dy));
 	}
 	readings.cp = reads[0] ?? null;
 	if (reads.length > 1) readings.cpAlt = reads.slice(1);
@@ -84,24 +100,27 @@ async function readCp(img, engine, readings) {
  * Also: the XXL/XL/XS/XXS badge above the height and "LUCKY POKÉMON" (`lucky`).
  * On a 16:9 screen the appraisal covers the stats row (`covered`): then only HP is read there.
  */
-async function readCard(img, engine, rules, readings, bars) {
+async function readCard(img, engine, rules, readings, bars, bar, lucky, dy) {
 	const W = img.width;
-	const bar = findHpBar(img);
 	// the name: the species when the Pokémon has no nickname (resolved against the game's names
-	// later, evaluate.js); a nickname is kept as read, for comparing screenshots
-	readings.name = parseName(await engine.line(crop(img, boxOf(img, REGIONS.name)), ''));
+	// later, evaluate.js); a nickname is kept as read, for comparing screenshots. Name and year
+	// pill are on the card, so they move with it (cardOffset).
+	readings.name = parseName(await engine.line(crop(img, boxOf(img, REGIONS.name, dy)), ''));
 	// the catch year pill, for Pokémon caught in an earlier year: a catch date on screenshots
 	// without the "was caught" line
-	const pill = yearPillText(crop(img, boxOf(img, REGIONS.year)));
+	const pill = yearPillText(crop(img, boxOf(img, REGIONS.year, dy)));
 	readings.caughtPill = pill ? parseYearPill(await engine.line(pill, '0123456789/', '6')) : null;
 	if (!bar) return;
-	readings.lucky = isLucky(bar, W);
+	readings.lucky = lucky;
+	// Tags under the HP line push the stats row down (statsShift).
+	const shift = statsShift(img, bar);
 	// The appraisal (bottom-anchored) reaches up into the stats row when its bars sit less than
-	// 0.6 W below the HP bar: 0.26-0.31 W on an iPhone 8 (16:9), 0.71 W on an iPhone 17 Pro.
-	// The star medallion, the bar panel and the trainer then cover weight, types and height; a
-	// reading there would be a fragment ("kg" next to the medallion).
-	const covered = !!bars && (bars.y[0] - bar.y) / W < 0.6;
-	const box = statsBoxes(img, bar);
+	// 0.33 W below the top of the weight's text: 0.1 W on an iPhone 8 (16:9), 0.52 W on an iPhone
+	// 17 Pro, 0.41 W on phones whose appraisal sits higher, 0.17-0.29 W on those with tags. The
+	// star medallion, the bar panel and the trainer then cover weight, types and height; a reading
+	// there would be a fragment ("kg" next to the medallion).
+	const covered = !!bars && (bars.y[0] - bar.y - shift) / W - 0.178 < 0.33;
+	const box = statsBoxes(img, bar, shift);
 	const digits = '0123456789.,';
 	const letters = s => [...new Set(s)].join('');
 	// HP: grey text; the appraisal's tint lightens the card (Instinct) or darkens it (Mystic), so

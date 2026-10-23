@@ -8,6 +8,19 @@ collect under "Unreleased".
 
 ## Unreleased
 
+- Screenshots from other players' phones read better (tested on screenshots posted to Reddit):
+  - cut off at the top (the status bar cropped away): the CP and the name are read again,
+    found from where the card is
+  - tags under the HP line: height and weight are read one row lower, where the tags pushed
+    them; before, they stayed empty
+  - phones that lay the card out a little lower (some Android phones) or with the card
+    scrolled up: name and catch-year pill are read where they are
+  - a lucky Pokémon is told by the "LUCKY POKÉMON" line, not by where the HP bar sits, and the
+    appraisal no longer counts as covering height and weight on phones where it sits a little
+    higher
+- A height or weight read as a whole number on a screenshot with the appraisal ("1 m") is
+  marked to check: most often the trainer hides the rest of it (2.01 m)
+
 
 ## 1.3 - 2026-10-22
 

@@ -64,14 +64,18 @@ function scanBar(img, fill, accept) {
 	const { width: W, height: H } = img;
 	const minRun = W * 0.12;
 	let band = null;
-	// at 0.98 W, 1.03 W with "LUCKY POKÉMON" (REGIONS)
-	for (let y = Math.floor(W * 0.78); y < Math.min(H, W * 1.17); y++) {
+	// At 0.98 W, 1.03 W with "LUCKY POKÉMON" (REGIONS); 0.93-1.05 W on other phones, or with the
+	// card pushed up a little. Higher up only in a screenshot cut off at the top (players crop
+	// the status bar away before posting, 0.11 W and more): there the bar must start where a
+	// full or hurt bar starts, since a green sprite or background could be anything.
+	for (let y = Math.floor(W * 0.6); y < Math.min(H, W * 1.17); y++) {
+		const high = y < W * 0.78;
 		let best = null, s = -1;
 		for (let x = 0; x <= W; x++) {
 			const on = x < W && fill((y * W + x) * 4);
 			if (on && s < 0) s = x;
 			else if (!on && s >= 0) {
-				if (x - s >= minRun && accept(s, x) && (!best || x - s > best[1] - best[0])) best = [s, x];
+				if (x - s >= minRun && accept(s, x) && (!high || Math.abs(s / W - HP_BAR_X0) < 0.02) && (!best || x - s > best[1] - best[0])) best = [s, x];
 				s = -1;
 			}
 		}
@@ -91,21 +95,117 @@ function scanBar(img, fill, accept) {
 export const HP_BAR_X0 = 0.249;
 export const HP_BAR_X1 = 0.742;
 
-/** "LUCKY POKÉMON" under the name pushes the HP bar down, from 0.98 W to 1.03 W. */
-export const isLucky = (bar, width) => bar.y / width > 1.005;
+/** Where the HP bar sits on a 1206 px wide iPhone, in widths: 0.986, 1.036 with "LUCKY POKÉMON". */
+export const HP_BAR_Y = 0.986;
+export const LUCKY_DY = 0.05;
+
+/**
+ * "LUCKY POKÉMON": a line of green text between the name and the HP bar, which pushes the bar
+ * down by 0.05 W. Told by that text's colour, not by where the bar is: the bar sits higher or
+ * lower on other phones (0.93-1.05 W without the line) and in screenshots cut off at the top.
+ * Measured: 88-206 ‰ of the band green on lucky cards, at most 4 ‰ otherwise (Mystic's teal
+ * tint is bluer than green: G must beat B).
+ */
+export function isLucky(img, bar) {
+	const { width: W, data } = img;
+	let n = 0, g = 0;
+	for (let y = Math.max(0, Math.round(bar.y - 0.06 * W)); y < bar.y - 0.02 * W; y++) {
+		for (let x = Math.round(0.3 * W); x < 0.7 * W; x++) {
+			const i = (y * W + x) * 4, r = data[i], gr = data[i + 1], b = data[i + 2];
+			n++;
+			if (gr - r > 40 && gr > 110 && gr - b > 10) g++;
+		}
+	}
+	return n > 0 && g / n > 0.04;
+}
+
+/**
+ * How far the info card sits from where it sits on a 1206 px wide iPhone, in px (negative: higher
+ * up). The card moves as a whole: it scrolls up over the sprite, sits lower on some Android phones
+ * (+0.03 W), and everything moves up when the top of the screenshot is cut off. The name and the
+ * year pill move with it; the HP bar tells by how much. 0 for a pixel or two.
+ */
+export function cardOffset(img, bar, lucky) {
+	const dy = bar.y - (HP_BAR_Y + (lucky ? LUCKY_DY : 0)) * img.width;
+	// a pixel or two is the same layout (the iPhone 8 and the iPad: -0.002 W), and moving the
+	// crops by that much only changes how nicknames full of symbols come out
+	return Math.abs(dy) < 0.01 * img.width ? 0 : Math.round(dy);
+}
+
+/**
+ * Tags (the player's own labels, coloured pills under the HP line) and a Dynamax level push the
+ * stats row down, by 0.089 W per row of them. Found by the weight's dark text in the row's left
+ * part: its top sits 0.177-0.180 W below the HP bar without tags, 0.265-0.269 W with one row.
+ * When the weight can't be seen (the appraisal's medallion covers it), the pill rows are counted
+ * in the middle instead. Returns the shift in px.
+ */
+export function statsShift(img, bar) {
+	const W = img.width;
+	const rows = textRows(img, bar.y + 0.12 * W, bar.y + 0.40 * W, 0.06, 0.30);
+	for (let k = 0; k <= 2; k++) {
+		const top = bar.y + (STATS_TOP + k * TAG_ROW) * W;
+		if (rows.some(r => Math.abs(r.y0 - top) <= 0.015 * W && r.y1 - r.y0 >= 0.015 * W)) return Math.round(k * TAG_ROW * W);
+	}
+	let k = 0;
+	while (k < 2 && pillRow(img, bar.y + (0.09 + k * TAG_ROW) * W)) k++;
+	return Math.round(k * TAG_ROW * W);
+}
+const STATS_TOP = 0.178, TAG_ROW = 0.089;
+
+/** Runs of rows with dark text between x0 and x1 (fractions of the width), each row against its own median. */
+function textRows(img, ya, yb, x0, x1) {
+	const { width: W, data } = img;
+	const runs = [];
+	let cur = null;
+	for (let y = Math.max(0, Math.round(ya)); y < Math.min(img.height, yb); y++) {
+		const lums = [], sats = [];
+		for (let x = Math.round(x0 * W); x < x1 * W; x++) {
+			const i = (y * W + x) * 4;
+			lums.push(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
+			sats.push(Math.max(data[i], data[i + 1], data[i + 2]) - Math.min(data[i], data[i + 1], data[i + 2]));
+		}
+		const ref = [...lums].sort((a, b) => a - b)[lums.length >> 1];
+		// dark grey text on the card; a "NEW RECORD" ribbon is saturated
+		let ink = 0;
+		lums.forEach((l, k) => { if (l < ref - 45 && sats[k] < 90) ink++; });
+		if (ink / lums.length <= 0.02) continue;
+		if (cur && y - cur.y1 <= W * 0.006) cur.y1 = y;
+		else runs.push(cur = { y0: y, y1: y });
+	}
+	return runs;
+}
+
+/** A row of tag pills from y on: 0.07 W of rows where the middle differs from the card's edge. */
+function pillRow(img, y0) {
+	const { width: W, data } = img;
+	let hits = 0;
+	for (let k = 0; k < 7; k++) {
+		let ink = 0, n = 0;
+		for (let y = Math.round(y0 + k * 0.01 * W); y < y0 + (k + 1) * 0.01 * W && y < img.height; y++) {
+			const r = (y * W + Math.round(0.08 * W)) * 4;
+			for (let x = Math.round(0.3 * W); x < 0.7 * W; x += 2) {
+				const i = (y * W + x) * 4;
+				n++;
+				if (Math.abs(data[i] - data[r]) + Math.abs(data[i + 1] - data[r + 1]) + Math.abs(data[i + 2] - data[r + 2]) > 90) ink++;
+			}
+		}
+		if (n && ink / n >= 0.1) hits++;
+	}
+	return hits >= 5;
+}
 
 /**
  * Crops for a second, closer reading of the stats row, positioned from the HP bar (findHpBar).
  * Offsets are fractions of the width, measured on 1206 px wide iPhone screenshots.
  */
-export function statsBoxes(img, bar) {
+export function statsBoxes(img, bar, shift = 0) {
 	const W = img.width;
-	const box = (x0, x1, dy0, dy1) => {
-		const y = Math.max(0, Math.round(bar.y + dy0 * W)), y1 = Math.min(img.height, Math.round(bar.y + dy1 * W));
+	const box = (x0, x1, dy0, dy1, s = shift) => {
+		const y = Math.min(img.height - 1, Math.max(0, Math.round(bar.y + s + dy0 * W))), y1 = Math.min(img.height, Math.round(bar.y + s + dy1 * W));
 		return { x: Math.round(x0 * W), y, w: Math.round((x1 - x0) * W), h: Math.max(1, y1 - y) };
 	};
 	return {
-		hp: box(0.28, 0.72, 0.016, 0.062),
+		hp: box(0.28, 0.72, 0.016, 0.062, 0),
 		weight: box(0.03, 0.34, 0.165, 0.236),
 		height: box(0.70, 0.97, 0.172, 0.236),
 		badge: box(0.75, 0.93, 0.125, 0.172),
@@ -189,11 +289,17 @@ export function dropEdgeBlobs(img) {
 	return { width: W, height: H, data };
 }
 
-/** A REGIONS entry in pixels (all four numbers are fractions of the width), clipped to the image. */
-export function boxOf(img, r) {
+/**
+ * A REGIONS entry in pixels (all four numbers are fractions of the width), clipped to the image;
+ * moved down by dy px (up when negative).
+ */
+export function boxOf(img, r, dy = 0) {
 	const W = img.width;
-	const x = Math.round(W * r.x), y = Math.min(img.height - 1, Math.round(W * r.y));
-	return { x, y, w: Math.min(W - x, Math.round(W * r.w)), h: Math.max(1, Math.min(img.height - y, Math.round(W * r.h))) };
+	let y = Math.round(W * r.y + dy), h = Math.round(W * r.h);
+	if (y < 0) { h += y; y = 0; }
+	y = Math.min(img.height - 1, y);
+	const x = Math.round(W * r.x);
+	return { x, y, w: Math.min(W - x, Math.round(W * r.w)), h: Math.max(1, Math.min(img.height - y, h)) };
 }
 
 /**
@@ -322,6 +428,57 @@ export function cpDigits(img) {
 		}
 	}
 	return { width: w, height: h, data: out };
+}
+
+/**
+ * Where the CP's digits are, searched for in the top 0.35 W of the column: a row of at least
+ * two near-white glyphs of the same height (0.035-0.075 W; the status bar's are smaller) on
+ * one baseline, in the middle of the width. For screenshots where the CP is not where an
+ * uncut iPhone screenshot has it (cut off at the top, a taller status bar, a black band drawn
+ * over it). Returns a REGIONS.cp-sized box around it, in px, or null.
+ */
+export function findCpBox(img) {
+	const W = img.width;
+	const band = { x: Math.round(0.25 * W), y: 0, w: Math.round(0.5 * W), h: Math.min(img.height, Math.round(0.35 * W)) };
+	const t = thresholdWhiteText(crop(img, band));
+	const comps = components(t).filter(c => {
+		const h = c.y1 - c.y0 + 1, w = c.x1 - c.x0 + 1;
+		return h >= 0.035 * W && h <= 0.075 * W && w <= h * 1.1 && c.y0 > 0 && c.y1 < t.height - 1;
+	});
+	let best = null;
+	for (const a of comps) {
+		const h = a.y1 - a.y0 + 1;
+		const row = comps.filter(c => Math.abs(c.y1 - a.y1) <= h * 0.15 && Math.abs(c.y1 - c.y0 + 1 - h) <= h * 0.2);
+		if (row.length >= 2 && (!best || row.length > best.length)) best = row;
+	}
+	if (!best) return null;
+	const y0 = Math.min(...best.map(c => c.y0)), y1 = Math.max(...best.map(c => c.y1));
+	const r = REGIONS.cp, h = Math.round(r.h * W);
+	const y = Math.max(0, Math.min(img.height - h, Math.round((y0 + y1) / 2 - h / 2)));
+	return { x: Math.round(r.x * W), y, w: Math.round(r.w * W), h: Math.min(h, img.height - y) };
+}
+
+/** Connected black regions of a thresholded image: bounding boxes, pixel lists. */
+function components(img) {
+	const { width: W, height: H } = img;
+	const label = new Int32Array(W * H).fill(-1);
+	const out = [];
+	for (let p0 = 0; p0 < W * H; p0++) {
+		if (img.data[p0 * 4] !== 0 || label[p0] >= 0) continue;
+		const c = { x0: W, x1: -1, y0: H, y1: -1, px: [] };
+		const st = [p0];
+		label[p0] = out.length;
+		while (st.length) {
+			const p = st.pop(), x = p % W, y = (p - x) / W;
+			c.px.push(p);
+			if (x < c.x0) c.x0 = x; if (x > c.x1) c.x1 = x; if (y < c.y0) c.y0 = y; if (y > c.y1) c.y1 = y;
+			for (const q of [x > 0 ? p - 1 : -1, x < W - 1 ? p + 1 : -1, y > 0 ? p - W : -1, y < H - 1 ? p + W : -1]) {
+				if (q >= 0 && img.data[q * 4] === 0 && label[q] < 0) { label[q] = out.length; st.push(q); }
+			}
+		}
+		out.push(c);
+	}
+	return out;
 }
 
 /** Box-filter downscale so the longer side is at most maxSide. */

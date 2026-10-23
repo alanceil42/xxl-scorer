@@ -24,16 +24,24 @@ function canvas(W, H, rgb = [250, 250, 250]) {
 
 /**
  * A screenshot 600 px wide, drawn: the CP over a dark photo (three white digits unless cp is
- * false), the HP bar ('plain' at 0.98 W, 'lucky' at 1.03 W, or none), the
- * catch year pill, and the appraisal's three bars starting at row `bars`.
+ * false), the HP bar ('plain' at 0.98 W, 'lucky' at 1.03 W under a line of green "LUCKY
+ * POKÉMON" letters, or none), the catch year pill, the appraisal's three bars starting at row
+ * `bars`, and with `tags` a row of tag pills under the HP line and the weight's dark text one
+ * row lower (otherwise no weight text is drawn).
  */
-function screen({ H = 1300, cp = true, bar = 'plain', pill = false, bars = null } = {}) {
+function screen({ H = 1300, cp = true, bar = 'plain', pill = false, bars = null, tags = false } = {}) {
 	const { img, rect } = canvas(W, H);
 	rect(180, 60, 240, 66, [40, 60, 90]);
 	if (cp) for (const x of [230, 260, 290]) rect(x, 75, 20, 40, [255, 255, 255]);
 	if (bar) {
-		const x0 = Math.round(W * HP_BAR_X0);
-		rect(x0, Math.round(W * (bar === 'lucky' ? 1.03 : 0.98)), Math.round(W * 0.49), 8, [140, 225, 178]);
+		const x0 = Math.round(W * HP_BAR_X0), y = Math.round(W * (bar === 'lucky' ? 1.03 : 0.98));
+		rect(x0, y, Math.round(W * 0.49), 8, [140, 225, 178]);
+		if (bar === 'lucky') for (let x = 0.36 * W; x < 0.64 * W; x += 0.03 * W) rect(Math.round(x), y - 26, 9, 12, [110, 200, 150]);
+		if (tags) {
+			rect(200, y + 54, 90, 30, [170, 90, 200]);
+			rect(310, y + 54, 90, 30, [90, 180, 90]);
+			for (let x = 60; x < 160; x += 20) rect(x, y + 162, 12, 22, [70, 80, 85]);
+		}
 	}
 	if (pill) {
 		rect(450, 470, 140, 70, [255, 188, 90]);
@@ -197,6 +205,50 @@ test('appraisal bars, a lucky Pokémon, a year pill; no CP digits found', async 
 	assert.equal(engine.calls.find(c => c.kind === 'pill').psm, '6', 'two lines in the pill: block mode');
 	assert.equal(r.hp, 97);
 	assert.equal(engine.count('badge'), 2);
+});
+
+test('lucky by the green line above the HP bar, not by where the bar is', async () => {
+	const r = await read(screen({ bar: 'lucky' }), fakeEngine([]));
+	assert.equal(r.lucky, true);
+	// a bar as low as a lucky one on an iPhone, without the line: a phone that lays the card out
+	// lower (some Android phones: 1.017 W)
+	const { img, rect } = canvas(W, 1300);
+	rect(Math.round(W * HP_BAR_X0), Math.round(W * 1.03), Math.round(W * 0.49), 8, [140, 225, 178]);
+	assert.equal((await read(img, fakeEngine([]))).lucky, false);
+});
+
+test('a lucky Pokémon with the appraisal higher up: the stats row still readable', async () => {
+	// bars 0.57 W below a lucky HP bar: 0.39 W below the weight's text, seen on phones whose
+	// appraisal sits higher; the medallion stays below the weight
+	const engine = fakeEngine([], { weight: ['57.63kg'] });
+	const r = await read(screen({ bar: 'lucky', bars: 960 }), engine);
+	assert.equal(r.covered, undefined);
+	assert.equal(r.weight_kg, 57.63);
+});
+
+test('a screenshot cut off at the top: CP looked for higher up, name and year pill moved with the card', async () => {
+	const full = screen({ pill: true });
+	const cut = 66;	// 0.11 W, about what a status bar is
+	const img = { width: W, height: full.height - cut, data: full.data.slice(cut * W * 4) };
+	const engine = fakeEngine([], { cp: ['', 'CP217'], cpDigits: ['', '', '217', '217'], pill: ['2024 04/19'] });
+	const r = await read(img, engine);
+	assert.equal(r.cp, 217);
+	const cps = engine.calls.filter(c => c.kind === 'cp');
+	assert.equal(cps.length, 2, 'the usual place read nothing: read again where the digits are');
+	assert.equal(r.caughtPill, '2024 04/19', 'the pill found where the card puts it');
+	// nothing read at the usual place, and no digits anywhere: no second try
+	const none = fakeEngine([], {});
+	await read(screen({ cp: false }), none);
+	assert.equal(none.count('cp'), 1);
+});
+
+test('tags under the HP line: the stats row is read one row lower', async () => {
+	const black = img => { let n = 0; for (let i = 0; i < img.data.length; i += 4) if (img.data[i] === 0) n++; return n; };
+	const tagged = fakeEngine([]);
+	await read(screen({ tags: true }), tagged);
+	const crop = tagged.calls.find(c => c.kind === 'weight').img;
+	// the text sits 0.27 W below the bar; without the shift the crop would end at 0.236 W
+	assert.ok(black(crop) > 100, 'the weight\'s text is in the crop');
 });
 
 test('a year pill that reads as nothing like a date gives no catch date', async () => {
