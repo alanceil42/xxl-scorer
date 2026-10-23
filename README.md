@@ -111,9 +111,10 @@ game run them: the same score, the lowest wins. That is an assumption until such
 happens.
 
 Tested so far with English game text: iPhone screenshots (19.5:9 and 16:9 screens) from
-players of all three teams, Android phones (about 9:20) and an iPad. Other tablets and foldables
-are untested. If a screenshot is read wrong, please open an issue ("A screenshot isn't read
-correctly"); the template explains how to hide the catch location first.
+players of all three teams, Android phones (about 9:20), an iPad, and screenshots players posted
+on Reddit (cut off at the top, with tags). Other tablets and foldables are untested. If a
+screenshot is read wrong, please open an issue ("A screenshot isn't read correctly"); the
+template explains how to hide the catch location first.
 
 ## Where the game data comes from
 
