@@ -8,8 +8,11 @@ collect under "Unreleased".
 
 ## Unreleased
 
-- The settings button is tinted green while the settings are open, like the sort button while
-  the list is not sorted by score
+
+## 1.3.2 - 2026-10-23
+
+Fixes: CPs and HPs read better, more screenshots merge, two buttons look right.
+
 - A CP whose first digit ran into the small "CP" in front of it is read whole, and an HP whose
   label was read as a digit ("60 / 60 HP" as 601) no longer keeps a Pokémon's two screenshots
   apart
@@ -20,6 +23,8 @@ collect under "Unreleased".
   nickname
 - The sort button is as tall as the search field in older Safari (iOS 16), where it was half
   as tall
+- The settings button is tinted green while the settings are open, like the sort button while
+  the list is not sorted by score
 
 
 ## 1.3.1 - 2026-10-23
