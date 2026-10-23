@@ -11,8 +11,7 @@ collect under "Unreleased".
 
 ## 1.3.2 - 2026-10-23
 
-Fixes: CPs and HPs read better, a pair of screenshots that stayed apart merges, two buttons
-look right.
+Fixes: CPs and HPs read better, more screenshots merge, two buttons look right.
 
 - A CP whose first digit ran into the small "CP" in front of it is read whole, and an HP whose
   label was read as a digit ("60 / 60 HP" as 601) no longer keeps a Pokémon's two screenshots
