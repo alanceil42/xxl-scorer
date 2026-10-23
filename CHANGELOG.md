@@ -15,6 +15,9 @@ collect under "Unreleased".
   apart
 - A CP read exactly as one the IVs and HP allow is taken, even when another possible CP looks
   like one of the reads too
+- On 16:9 screens, a Pokémon whose CP is hidden behind it on both screenshots is merged when
+  the screenshot without its species shows type labels and a size that fit it, and the same
+  nickname
 
 
 ## 1.3.1 - 2026-10-23
