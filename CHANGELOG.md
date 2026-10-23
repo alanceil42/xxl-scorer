@@ -18,6 +18,8 @@ collect under "Unreleased".
 - On 16:9 screens, a Pokémon whose CP is hidden behind it on both screenshots is merged when
   the screenshot without its species shows type labels and a size that fit it, and the same
   nickname
+- The sort button is as tall as the search field in older Safari (iOS 16), where it was half
+  as tall
 
 
 ## 1.3.1 - 2026-10-23
