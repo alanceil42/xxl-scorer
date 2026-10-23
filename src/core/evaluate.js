@@ -432,7 +432,9 @@ function fitsBars(named, other, ctx) {
  *   other one's species (possible size, CP/HP solvable)
  *   HP agrees and the CPs look alike (1900 vs 1940) or one is missing, where exactly one
  *   screenshot has the bars, so its CP is the one bars and HP allow: plus catch date or
- *   species, or the other fits that species at that CP.
+ *   species, or the other fits that species at that CP. When the other read no CP at all,
+ *   each of its type labels that fits adds a point: HP, the same nickname and both labels
+ *   are enough, the nickname alone is not (many Pokémon share one, like "XXL").
  */
 export function matchScore(a, b, ctx) {
 	const A = infoOf(a, ctx), B = infoOf(b, ctx);
@@ -470,6 +472,7 @@ export function matchScore(a, b, ctx) {
 	const nRel = nameRelation(a.name, b.name);
 	const fitAB = () => (ctx ? fitsSpecies(a, b, ctx) || fitsSpecies(b, a, ctx) : false);
 	const cpSame = cpRel === 'eq' || cpRel === 'like';
+	let typeFit = 0;	// type labels of a screenshot without species or CP that fit the other's
 	let ok = false;
 	if (hp && w) ok = true;
 	else if (w && cpSame) ok = true;
@@ -487,7 +490,12 @@ export function matchScore(a, b, ctx) {
 		const [s, o, S] = A.sure ? [a, b, A] : [b, a, B];
 		const reads = [o.cp, ...(o.cpAlt || [])].filter(c => c != null);
 		const cs = reads.length ? S.cps.find(c => reads.some(x => cpLooksLike(x, c))) : S.cps[0];
-		if (cs != null) ok = caught || species || nRel === 'eq' || fitsSpecies(s, { ...o, cp: cs, cpAlt: [] }, ctx);
+		const fit = cs != null && fitsSpecies(s, { ...o, cp: cs, cpAlt: [] }, ctx);
+		if (cs != null) ok = caught || species || nRel === 'eq' || fit;
+		// No CP read at all: on a 16:9 screen a sprite that covers the CP covers it on every
+		// screenshot, and the appraisal covers the sizes. Then what the other screenshot shows of
+		// the species, its type labels with a possible size, is the evidence left (scored below).
+		if (fit && !reads.length) typeFit = (o.types || []).length;
 	}
 	// no HP on one of them (the trainer's hair): the same CP, and the screenshot without a
 	// species fits the other's (size, type labels, CP at its HP)
@@ -503,6 +511,7 @@ export function matchScore(a, b, ctx) {
 	if (nRel === 'eq') score += 2; else if (nRel === 'like') score += 1;
 	if (ctx && (fitsBars(a, b, ctx) || fitsBars(b, a, ctx))) score += 3;
 	if ((a.types || []).length && (b.types || []).length) score += 1;
+	score += typeFit;
 	// The rules above admit some thin matches: HP plus a CP one digit off, or HP plus a weight
 	// of two digits ("0.82"). Alone, that is too little: in a box of hundreds, HP and a near CP
 	// recur. Such a screenshot waits for its own row (a pair to merge by hand at worst).

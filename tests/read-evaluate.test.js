@@ -255,6 +255,30 @@ test('merging: a CP misread by a digit merges when the other screenshot has the 
 	assert.equal(canMerge(a, { ...b, hp: hp + 1 }, ctx), false);
 });
 
+test('merging: no CP on either screenshot, the type labels and sizes of the one without species fit', async () => {
+	const { canMerge, mergeTarget, mergeReadings } = await import('../src/core/evaluate.js');
+	const row = gm.species.MR_FAKE.f[''];
+	const ivs = { a: 0, d: 5, s: 8 };
+	const { cp, hp } = shown(row, ivs, 25);
+	// a 16:9 screen, a sprite over the CP on both: the appraisal has species, date and bars but no
+	// sizes, the plain screenshot sizes and type labels but no species (a nickname)
+	const named = { species: 'Mr. Fake', caught: '8/29/2026', hp, cp: null, height_m: null, weight_kg: null, types: [], bars: { a: 0, d: 5, s: 8.01 }, name: 'XXL', covered: true };
+	const other = { species: null, caught: null, hp, cp: null, height_m: 1.3, weight_kg: 55, types: ['PSYCHIC', 'FAIRY'], bars: null, name: 'XXL' };
+	assert.ok(canMerge(named, other, ctx) && canMerge(other, named, ctx));
+	const e = evaluate(mergeReadings(named, other, ctx), ctx);
+	assert.equal(e.cp, cp);
+	assert.equal(e.height_m, 1.3);
+	assert.deepEqual(e.ivs, ivs);
+	// HP and the nickname alone are not enough: many Pokémon share a nickname
+	assert.equal(canMerge(named, { ...other, types: [] }, ctx), false);
+	// nor labels that don't fit, a nickname that differs, or a CP read that the bars rule out
+	assert.equal(canMerge(named, { ...other, types: ['PSYCHIC', 'WATER'] }, ctx), false);
+	assert.equal(canMerge(named, { ...other, name: 'Fakey' }, ctx), false);
+	assert.equal(canMerge(named, { ...other, hp: hp + 1 }, ctx), false);
+	// two equally good candidates: kept apart
+	assert.equal(mergeTarget([named, { ...named, caught: '8/30/2026' }], other, ctx), -1);
+});
+
 test('merging: of two possible sizes, the one with more characters wins ("1.6" vs 1.68)', async () => {
 	const { mergeReadings } = await import('../src/core/evaluate.js');
 	const r = { species: 'Testmon', caught: null, hp: 80, cp: 500, bars: null };
