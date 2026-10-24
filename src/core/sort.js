@@ -4,8 +4,10 @@
 // Each sort has a key (from the evaluated row `e` and the stored row), the direction of its
 // first tap (1 ascending, -1 descending, 'best' = the showcase mode's: highest score first, or
 // lowest in XXS mode), and the words for each direction in the menu. A key of null (no
-// score, no CP read) sorts last in either direction. Ties go to the score, best first, then to
+// score, no CP read) sorts last in either direction. The score is the in-game one where entered. Ties go to the score, best first, then to
 // the newest scan, so e.g. the Pokédex order lists each species' best one first.
+
+import { rowScore } from './score.js';
 
 const higher = { [-1]: 'highest first', 1: 'lowest first' };
 const newer = { [-1]: 'newest first', 1: 'oldest first' };
@@ -19,7 +21,7 @@ const newer = { [-1]: 'newest first', 1: 'oldest first' };
 export const scanKey = row => [row.scanned ?? row.created ?? 0, -(row.scanIdx ?? 0)];
 
 export const SORTS = {
-	score: { label: 'Score', first: 'best', dirs: higher, key: e => (e.score ? e.score.total : null) },
+	score: { label: 'Score', first: 'best', dirs: higher, key: rowScore },
 	newest: { label: 'Newest', first: -1, dirs: newer, key: (e, row) => scanKey(row) },
 	cp: { label: 'CP', first: -1, dirs: higher, key: e => e.cp ?? null },
 	dex: { label: 'Pokédex', first: 1, dirs: { 1: '#1 first', [-1]: 'highest # first' }, key: e => (e.dex != null ? [e.dex, e.formName || ''] : null) },

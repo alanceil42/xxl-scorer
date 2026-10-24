@@ -55,6 +55,13 @@ export function isXXSByHeight(row, heightM) {
  * showcase has run since the formula was worked out, so XXS mode is an assumption until an
  * in-game score says otherwise.
  */
+/**
+ * The score a row counts with: the one shown in game when the user entered it (the game's own
+ * number beats a computed one, within its ± band or not), else the computed total; null without
+ * either. The list's order, a "score" search and the copied nickname all use it.
+ */
+export const rowScore = e => e.inGame ?? (e.score ? e.score.total : null);
+
 export const MODES = Object.freeze({
 	xxl: { ranking: 'MAX', label: 'Biggest (XXL)', best: -1 },
 	xxs: { ranking: 'MIN', label: 'Smallest (XXS)', best: 1 },

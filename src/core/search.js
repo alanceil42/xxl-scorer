@@ -17,6 +17,7 @@
 //   , ; :               or     (binds tighter than and, as in the game: fire,water&xxl)
 //   & |  space          and
 import { TYPES } from './read.js';
+import { rowScore } from './score.js';
 
 const STARS = [[0, 22], [23, 29], [30, 36], [37, 44], [45, 45]];
 /** The game's per-stat IV groups: 0attack = 0, 1attack = 1-5, …, 4attack = 15 (Find in game uses them too). */
@@ -64,7 +65,7 @@ function term(word) {
 		if (m[1] === 'cp') return e => inRange(e.cp, r);
 		if (m[1] === 'hp') return e => inRange(e.hp, r);
 		if (m[1] === 'year') return e => inRange(caughtYear(e), r);
-		return e => inRange(e.score && e.score.total, r);
+		return e => inRange(rowScore(e), r);
 	}
 	if ((m = /^(.+)\*$/.exec(word)) && parseRange(m[1])) {
 		const r = starsToIvs(parseRange(m[1]), STARS);

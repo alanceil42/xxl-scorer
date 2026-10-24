@@ -1,5 +1,7 @@
 // "Copy name": a nickname built from a template, to paste into the game.
 
+import { rowScore } from './score.js';
+
 // Score, IV % in superscript, attack IV in a dark circle, level in a circle: XX1063¹⁸⓿㉚
 export const DEFAULT_TEMPLATE = 'XX{score}{iv:sup}{a:dcirc}{lvl:circ}';
 export const MAX_NICKNAME = 12;	// Pokémon GO's nickname limit, in characters
@@ -42,7 +44,7 @@ export function nameValues(e) {
 	const ivs = e.ivs;
 	const sum = ivs ? ivs.a + ivs.d + ivs.s : null;
 	return {
-		score: e.score ? Math.round(e.score.total) : null,
+		score: rowScore(e) == null ? null : Math.round(rowScore(e)),	// the in-game one where entered
 		iv: sum == null ? null : Math.round(sum / 45 * 100),
 		ivsum: sum,
 		a: ivs ? ivs.a : null,
