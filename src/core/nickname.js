@@ -25,6 +25,18 @@ export function darkCircled(n) {
 
 const superscript = s => String(s).replace(/\d/g, d => SUP[d]);
 
+/**
+ * A whole number as one (dark) circled character; a half one (a half level, 20.5) as the whole
+ * part circled plus "½" (⑳½), two characters where "20.5" takes four. Else null.
+ */
+function circledHalf(fn, n) {
+	if (Number.isInteger(n)) return fn(n);
+	const whole = Math.floor(n);
+	if (n - whole !== 0.5) return null;
+	const c = fn(whole);
+	return c && c + '½';
+}
+
 /** Values a template can use, from an evaluated row (src/core/evaluate.js). */
 export function nameValues(e) {
 	const ivs = e.ivs;
@@ -46,8 +58,8 @@ export function nameValues(e) {
 
 /**
  * Fill a template: {score} {iv} {ivsum} {a} {d} {s} {lvl} {name} {xxl} {xxs} {size}, each optionally with a
- * style: {iv:sup} superscript digits, {lvl:circ} one circled number (whole numbers 0-50),
- * {a:dcirc} one dark circled number (0-20).
+ * style: {iv:sup} superscript digits, {lvl:circ} one circled number (0-50), {a:dcirc} one dark
+ * circled number (0-20); with both, a half number gets "½" after its whole part (⑳½).
  * Unknown placeholders stay as they are; unknown values become "?".
  * @returns {{text: string, length: number, tooLong: boolean, missing: string[]}}
  */
@@ -63,8 +75,8 @@ export function formatName(template, values) {
 			return label ? '' : '?';
 		}
 		if (style === 'sup') return superscript(v);
-		if (style === 'circ') return circled(Number(v)) ?? String(v);
-		if (style === 'dcirc') return darkCircled(Number(v)) ?? String(v);
+		if (style === 'circ') return circledHalf(circled, Number(v)) ?? String(v);
+		if (style === 'dcirc') return circledHalf(darkCircled, Number(v)) ?? String(v);
 		return String(v);
 	});
 	const length = [...text].length;
