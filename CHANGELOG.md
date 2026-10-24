@@ -8,6 +8,11 @@ collect under "Unreleased".
 
 ## Unreleased
 
+
+## 1.3.3 - 2026-10-24
+
+Fixes: a score entered by hand counts, and nicknames with a half level fit the game.
+
 - A score entered as "Score in game" counts instead of the computed one: the copied nickname
   uses it, the list is sorted by it, and a score search finds it; the row shows it, with the
   computed score below
