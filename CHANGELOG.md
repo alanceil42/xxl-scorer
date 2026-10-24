@@ -8,6 +8,9 @@ collect under "Unreleased".
 
 ## Unreleased
 
+- A half level in the copied nickname is its whole level circled plus ½ (XX990⁴⁰❽②½), no longer
+  digits (XX990⁴⁰❽2.5), which made some nicknames longer than the game's 12 characters
+
 
 ## 1.3.2 - 2026-10-23
 

@@ -37,7 +37,25 @@ test('circled numbers', () => {
 	assert.equal(darkCircled(15), '⓯');
 	assert.equal(darkCircled(20), '⓴');
 	assert.equal(darkCircled(21), null);
-	assert.equal(formatName('{lvl:circ}', { lvl: 20.5 }).text, '20.5', 'half levels fall back to digits');
+});
+
+test('half levels: the whole part circled, then ½', () => {
+	assert.equal(formatName('{lvl:circ}', { lvl: 20.5 }).text, '⑳½');
+	assert.equal(formatName('{lvl:circ}', { lvl: 2.5 }).text, '②½');
+	assert.equal(formatName('{lvl:circ}', { lvl: 49.5 }).text, '㊾½');
+	assert.equal(formatName('{lvl:dcirc}', { lvl: 1.5 }).text, '❶½');
+	assert.equal(formatName('{lvl:circ}', { lvl: 51 }).text, '51', 'out of range: digits');
+	assert.equal(formatName('{lvl:circ}', { lvl: 50.5 }).text, '㊿½');
+	assert.equal(formatName('{lvl:circ}', { lvl: 20.25 }).text, '20.25', 'not a half: digits');
+	// 990 points, 40 %, attack 8, level 2.5
+	const l = { ivs: { a: 8, d: 5, s: 5 }, level: 2.5, xxl: true, score: { total: 990.2 } };
+	const r = formatName(DEFAULT_TEMPLATE, nameValues(l));
+	assert.equal(r.text, 'XX990⁴⁰❽②½');
+	assert.equal(r.length, 10);
+	// a four-digit score with a half level still fits the game's 12
+	const n = formatName(DEFAULT_TEMPLATE, nameValues({ ivs: { a: 15, d: 15, s: 15 }, level: 39.5, xxl: true, score: { total: 1145 } }));
+	assert.equal(n.text, 'XX1145¹⁰⁰⓯㊴½');
+	assert.equal(n.tooLong, false);
 });
 
 test('missing values, unknown keys, length limit', () => {
