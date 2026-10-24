@@ -122,3 +122,15 @@ test('caught: year first, and day before month when the first number is over 12'
 	assert.equal(cmp(4, 3), 1);
 	assert.equal(cmp([1], [1, 2]), 0, 'a missing element decides nothing');
 });
+
+test('score: an entered in-game score counts instead of the computed one', () => {
+	// computed 1115.5, but the game says 1112: it belongs between 1113.6 and 1104.4
+	const list = [
+		item('excadrill', {}, score(1104.4)),
+		item('meditite', {}, { ...score(1115.5), inGame: 1112 }),
+		item('staryu', {}, score(1113.6)),
+		item('only-game', {}, { score: null, inGame: 1100 }),
+		item('none', {}, { score: null }),
+	];
+	assert.deepEqual(ids(sortList(list, { key: 'score', dir: -1 }, -1)), ['staryu', 'meditite', 'excadrill', 'only-game', 'none']);
+});

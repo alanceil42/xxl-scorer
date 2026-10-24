@@ -456,6 +456,17 @@ function fitRows() {
 	}
 }
 
+/**
+ * The score column: the computed score ± its band; where the score shown in game was entered,
+ * that one (the list is sorted by it), with the computed one below.
+ */
+function scoreCell(e) {
+	const calc = e.score ? [el('span', { class: 'score' }, e.score.total.toFixed(1)), el('span', { class: 'pm' }, `±${e.score.band.toFixed(1)}`)] : null;
+	if (e.inGame == null) return calc || ['–'];
+	return [el('span', { class: 'score', title: 'Score shown in game, entered by hand' }, String(e.inGame)), el('span', { class: 'pm' }, 'game'),
+		e.score ? el('div', { class: 'pm', title: 'Computed score' }, `calc ${e.score.total.toFixed(1)}`) : null];
+}
+
 function renderRow({ row, e, dup }) {
 	const ivs = e.ivs ? `${e.ivs.a}/${e.ivs.d}/${e.ivs.s}` : '–';
 	const status = dup ? el('span', { class: 'chip dup', title: 'Same species, catch date, height and weight as another row' }, 'duplicate')
@@ -473,9 +484,7 @@ function renderRow({ row, e, dup }) {
 	},
 		el('td', { class: 'c-thumb' }, row.thumb ? el('img', { src: row.thumb, alt: '', loading: 'lazy' }) : null,
 			state.selecting ? el('span', { class: 'tick', 'aria-hidden': 'true' }, sel ? '✓' : '') : null),
-		el('td', { class: 'c-num c-score' },
-			e.score ? [el('span', { class: 'score' }, e.score.total.toFixed(1)), el('span', { class: 'pm' }, `±${e.score.band.toFixed(1)}`)] : '–',
-			e.inGame != null ? el('div', { class: 'pm', title: 'Score shown in game' }, `game ${e.inGame}`) : null),
+		el('td', { class: 'c-num c-score' }, ...scoreCell(e)),
 		el('td', { class: 'c-name name' }, e.name || e.id || '?', e.formName ? el('small', {}, ` ${e.formName}`) : null,
 			e.xxl ? el('span', { class: 'xxl' }, 'XXL') : e.xxs ? el('span', { class: 'xxl' }, 'XXS') : null, el('div', { class: 'mobile-meta' }, meta)),
 		el('td', { class: 'c-meta c-num', 'data-label': 'CP' }, e.cp ?? '–'),

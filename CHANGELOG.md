@@ -8,6 +8,9 @@ collect under "Unreleased".
 
 ## Unreleased
 
+- A score entered as "Score in game" counts instead of the computed one: the copied nickname
+  uses it, the list is sorted by it, and a score search finds it; the row shows it, with the
+  computed score below
 - A half level in the copied nickname is its whole level circled plus ½ (XX990⁴⁰❽②½), no longer
   digits (XX990⁴⁰❽2.5), which made some nicknames longer than the game's 12 characters
 

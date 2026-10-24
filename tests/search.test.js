@@ -80,3 +80,9 @@ test('xxs and lucky (XXS mode; lucky read from the card)', () => {
 	assert.deepEqual(q('xxs&!lucky'), ['Onix']);
 	assert.deepEqual(q('xxl,xxs').length, 4);
 });
+
+test('score search: an entered in-game score counts instead of the computed one', () => {
+	const e = mon('Meditite', { score: { total: 1115.5 }, inGame: 1112 });
+	assert.equal(compileSearch('score1113-')(e), false);
+	assert.equal(compileSearch('score1110-1112')(e), true);
+});

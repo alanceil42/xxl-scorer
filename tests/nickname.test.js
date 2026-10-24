@@ -14,6 +14,12 @@ test('default template: score, IV % superscript, attack IV dark circle, level ci
 	assert.equal(formatName('XX{score}', nameValues(e)).text, 'XX1060');
 });
 
+test('an entered in-game score replaces the computed one', () => {
+	assert.equal(formatName('XX{score}', nameValues({ ...e, inGame: 1057 })).text, 'XX1057');
+	assert.equal(formatName('XX{score}', nameValues({ ...e, score: null, inGame: 1057 })).text, 'XX1057');
+	assert.equal(formatName('XX{score}', nameValues({ ...e, inGame: null })).text, 'XX1060');
+});
+
 test('styles: superscript IV percent, circled level', () => {
 	const r = formatName('XX{iv:sup}{lvl:circ}', nameValues(e));
 	assert.equal(r.text, 'XX⁶⁰㉙');
