@@ -54,8 +54,7 @@ const levels = levelTable(gm.cpm);
 const ctx = makeContext(gm, text);
 
 // species, IVs, level, the score aimed at, weight against (height ratio)² × average weight,
-// catch date. Scores as a real box of XXLs has them: about 940-1150, few above 1100 (the
-// maintainer's 280: Meowscarada 1144.7, Yanma 1098.7, Buizel 1030.1, Klink 940.9). Where a
+// catch date. Scores as a real box of XXLs has them: about 940-1150, few above 1100. Where a
 // species can land depends on its XXL bound K (h̄ × 1.55, 1.75 or 2.00): an XXL of a 1.55
 // species scores 1130 or more, so none here; the lowest scores come from 2.00 species.
 const LIST = [
