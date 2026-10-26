@@ -13,7 +13,7 @@ import { readerFor, startWorkers, poolSize, warmUp } from './ocr.js';
 import { evaluateRow } from './evalcache.js';
 import rulesEn from '../rules/en.js';
 import { phoneElement } from './help.js';
-import { cleanRow } from '../core/backup.js';
+import { cleanRow, cleanSettings } from '../core/backup.js';
 import { imprintLink } from '../core/imprint.js';
 import { readBuild, buildLink } from '../core/buildinfo.js';
 
@@ -58,6 +58,7 @@ const state = {
 	pendingDup: [],	// [{row, existing}]
 	errors: [],
 	nameTemplate: DEFAULT_TEMPLATE,
+	nameTemplateAt: -1,	// when it was set; -1: never (the default). A backup's newer one wins.
 	mode: 'xxl',	// showcase: 'xxl' biggest, 'xxs' smallest
 	minHintSeen: false,
 	selecting: false,	// select mode: a tap marks a row instead of opening it
@@ -76,7 +77,10 @@ async function boot() {
 	// The stored list first: it is on this device and quick, so the page can say "Loading 50
 	// Pokémon…" at once instead of showing the empty list until the game data is ready.
 	state.rows = await rowStore.all();
-	state.nameTemplate = (await kv.get('nameTemplate')) || DEFAULT_TEMPLATE;
+	const tpl = await kv.get('nameTemplate');
+	state.nameTemplate = tpl || DEFAULT_TEMPLATE;
+	// set before the time was kept: 0, older than any set since, newer than never
+	state.nameTemplateAt = (await kv.get('nameTemplateAt')) ?? (tpl ? 0 : -1);
 	state.lastExport = (await kv.get('lastExport')) || null;
 	state.mode = (await kv.get('mode')) === 'xxs' ? 'xxs' : 'xxl';
 	state.minHintSeen = !!(await kv.get('minHintSeen'));
@@ -742,6 +746,8 @@ function confirmDelete(row) {
 
 async function exportRows() {
 	const data = { app: 'xxl-scorer', v: 1, exported: new Date().toISOString(), rows: state.rows };
+	// the "Name to copy" template goes along once it was set, so a restore brings it back
+	if (state.nameTemplateAt >= 0) data.settings = { nameTemplate: state.nameTemplate, nameTemplateAt: state.nameTemplateAt };
 	const d = new Date();	// the local date: a backup made after midnight is the new day's
 	const name = `xxl-scorer-${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}.json`;
 	const file = new File([JSON.stringify(data)], name, { type: 'application/json' });
@@ -794,12 +800,34 @@ async function importRows(file) {
 		}
 		await rowStore.putMany(put);
 		state.rows = await rowStore.all();
-		banner('info', `Imported: ${added} new, ${updated} updated, ${data.rows.length - added - updated - bad} already up to date${bad ? `, ${bad} not readable` : ''}.`);
+		const tpl = await importSettings(data.settings);
+		banner('info', `Imported: ${added} new, ${updated} updated, ${data.rows.length - added - updated - bad} already up to date${bad ? `, ${bad} not readable` : ''}.${tpl ? ` Name to copy: ${tpl}` : ''}`);
 	} catch (err) {
 		// storage full or refused, or anything else: say so rather than fail silently
 		banner('bad', `Import failed: ${err.message || err}`);
 	}
 	render();
+}
+
+/**
+ * A backup's "Name to copy" template, when it was set later than the one here. Returns the
+ * template when it changed the list's nicknames, for the import's message.
+ */
+async function importSettings(raw) {
+	const s = cleanSettings(raw);
+	if (!s.nameTemplate || s.nameTemplateAt <= state.nameTemplateAt) return null;
+	const changed = s.nameTemplate !== state.nameTemplate;
+	await setTemplate(s.nameTemplate, s.nameTemplateAt);
+	$('#name-tpl').value = state.nameTemplate;
+	return changed ? state.nameTemplate : null;
+}
+
+/** The "Name to copy" template, kept with the time it was set (newer wins on import). */
+async function setTemplate(t, at) {
+	state.nameTemplate = t;
+	state.nameTemplateAt = at;
+	await kv.set('nameTemplate', t);
+	await kv.set('nameTemplateAt', at);
 }
 
 // ---------- banners and settings ----------
@@ -846,8 +874,9 @@ async function renderBanners() {
 	// long enough that Safari's 7-day rule could take it.
 	const last = state.lastExport || 0;
 	const pending = state.rows.filter(r => (r.updated || 0) > last);
-	$('#export-dot').hidden = pending.length === 0;
-	$('#backup > summary').title = pending.length ? `${pending.length} change${pending.length > 1 ? 's' : ''} not exported yet` : 'Export or import a backup';
+	const changes = pending.length + (state.nameTemplateAt > last ? 1 : 0);	// a new template counts too
+	$('#export-dot').hidden = changes === 0;
+	$('#backup > summary').title = changes ? `${changes} change${changes > 1 ? 's' : ''} not exported yet` : 'Export or import a backup';
 	const oldest = pending.length ? Math.min(...pending.map(r => r.updated || 0)) : Infinity;
 	if (Date.now() - oldest > EXPORT_NAG_DAYS * DAY) {
 		out.push(el('div', { class: 'banner' }, el('p', {}, `Some changes are ${EXPORT_NAG_DAYS}+ days old and not exported. Safari deletes a site's data after 7 days without a visit.`),
@@ -969,8 +998,7 @@ function wire() {
 		clearTimeout(tplTimer);
 		const t = $('#name-tpl').value.trim() || DEFAULT_TEMPLATE;
 		if (t === state.nameTemplate) return;
-		state.nameTemplate = t;
-		await kv.set('nameTemplate', state.nameTemplate);
+		await setTemplate(t, Date.now());
 		render();
 	};
 	$('#name-tpl').addEventListener('input', () => {

@@ -337,6 +337,51 @@ for (const width of [402, 1280]) {
 }
 
 // rows from outside or from an older version: shown and marked, never breaking the page
+test('a backup carries the "Name to copy" template; the newer one wins on import', { timeout: 60_000 }, async () => {
+	const tpl = 'XX{score}{lvl:circ}';
+	const a = await open(1280);
+	const b = await open(1280);	// another browser: storage of its own
+	try {
+		// set it, and the Backup button says there is something to export
+		await boot(a.page);
+		await a.page.click('#settings-btn');
+		await a.page.fill('#name-tpl', tpl);
+		await a.page.press('#name-tpl', 'Tab');
+		await a.page.waitForFunction(() => !document.querySelector('#export-dot').hidden);
+		await a.page.click('#backup > summary');
+		const [download] = await Promise.all([a.page.waitForEvent('download'), a.page.click('#export')]);
+		const file = await readFile(await download.path());
+		const data = JSON.parse(file.toString());
+		assert.equal(data.settings.nameTemplate, tpl);
+		assert.ok(data.settings.nameTemplateAt > 0, 'with the time it was set');
+		await a.page.waitForFunction(() => document.querySelector('#export-dot').hidden);
+
+		// restored where the browser has none (the default): taken, and the import says so
+		await boot(b.page);
+		assert.equal(await b.page.inputValue('#name-tpl'), 'XX{score}{iv:sup}{a:dcirc}{lvl:circ}');
+		await b.page.click('#backup > summary');
+		await b.page.setInputFiles('#import', { name: 'backup.json', mimeType: 'application/json', buffer: file });
+		await b.page.waitForFunction(() => /Name to copy: XX\{score\}\{lvl:circ\}/.test(document.querySelector('#banners').textContent));
+		assert.equal(await b.page.inputValue('#name-tpl'), tpl);
+
+		// an older backup's template doesn't replace it; one without settings changes nothing
+		const older = { app: 'xxl-scorer', v: 1, rows: [], settings: { nameTemplate: 'OLD{score}', nameTemplateAt: 1 } };
+		await b.page.setInputFiles('#import', { name: 'older.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(older)) });
+		await b.page.waitForFunction(() => /Imported: 0 new, 0 updated, 0 already up to date\.$/m.test(document.querySelector('#banners').innerText));
+		await b.page.setInputFiles('#import', { name: 'plain.json', mimeType: 'application/json', buffer: Buffer.from(BACKUP) });
+		await b.page.waitForSelector('#rows tr >> nth=2');
+		assert.equal(await b.page.inputValue('#name-tpl'), tpl);
+
+		// kept across visits
+		await boot(b.page);
+		assert.equal(await b.page.inputValue('#name-tpl'), tpl);
+		assert.deepEqual([...a.problems, ...b.problems], []);
+	} finally {
+		await a.context.close();
+		await b.context.close();
+	}
+});
+
 test('a row that can\'t be scored, a hostile backup, a failed import, copying without the clipboard API', { timeout: 60_000 }, async () => {
 	const { context, page, problems } = await open(1280);
 	try {

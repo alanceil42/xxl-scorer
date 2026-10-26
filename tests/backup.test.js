@@ -1,7 +1,7 @@
 // Backup files are untrusted input: known fields and types only.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cleanRow, safeThumb } from '../src/core/backup.js';
+import { cleanRow, cleanSettings, safeThumb } from '../src/core/backup.js';
 
 const good = {
 	id: 'a1', created: 1, updated: 2, scanned: 2, scanIdx: 4, file: 'IMG_1.PNG', thumb: 'data:image/jpeg;base64,/9j/AAAA',
@@ -102,4 +102,22 @@ test('times after now are taken as now', () => {
 	assert.equal(r.scanIdx, good.scanIdx, 'the place in the batch stays');
 	const later = cleanRow({ ...good, updated: Date.now() + 365 * 86400e3 });
 	assert.ok(later.updated <= Date.now(), 'now by default');
+});
+
+test('settings: the "Name to copy" template with the time it was set', () => {
+	const s = { nameTemplate: 'XX{score}{iv:sup}', nameTemplateAt: 1_700_000_000_000 };
+	assert.deepEqual(cleanSettings(s), s);
+	// a backup without the time: taken as older than any set since, newer than never set (-1)
+	assert.deepEqual(cleanSettings({ nameTemplate: ' XX{score} ' }), { nameTemplate: 'XX{score}', nameTemplateAt: 0 });
+	// set in the future: now, or it would win every import for good
+	assert.equal(cleanSettings({ nameTemplate: 'X', nameTemplateAt: 8e15 }, 5).nameTemplateAt, 5);
+	assert.equal(cleanSettings({ nameTemplate: 'X', nameTemplateAt: 8e15 }, 5).nameTemplate, 'X');
+});
+
+test('settings: anything else is dropped', () => {
+	for (const s of [undefined, null, 'XX', [], {}, { nameTemplate: '' }, { nameTemplate: '   ' }, { nameTemplate: 42 },
+		{ nameTemplate: 'x'.repeat(501) }, { nameTemplate: ['XX'] }]) {
+		assert.deepEqual(cleanSettings(s), {}, JSON.stringify(s));
+	}
+	assert.deepEqual(cleanSettings({ nameTemplate: 'XX', nameTemplateAt: 'soon', mode: 'xxs', evil: 1 }), { nameTemplate: 'XX', nameTemplateAt: 0 });
 });

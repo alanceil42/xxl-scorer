@@ -93,8 +93,8 @@ won't run JavaScript modules from `file://`.
    **All** marks only what the search shows.
 5. **Backup → Export** now and then (a dot on Backup means there are unexported changes). The list
    lives only in this browser, and browsers may delete it (Safari does after 7 days without a
-   visit). Import the file to restore it or move it to
-   another device.
+   visit). Import the file to restore it or move it to another device; it brings back the "Name
+   to copy" pattern too, unless the browser has one set more recently.
 
 The first time, the page downloads the text recognition engine (about 4 MB) and the game data
 (about 2 MB). After that it checks for new game data once a week.
