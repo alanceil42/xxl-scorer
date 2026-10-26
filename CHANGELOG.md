@@ -8,6 +8,11 @@ collect under "Unreleased".
 
 ## Unreleased
 
+
+## 1.4 - 2026-10-26
+
+A preview for links to the page.
+
 - A link to the page shows a preview picture and title in chats and on Reddit
 
 
