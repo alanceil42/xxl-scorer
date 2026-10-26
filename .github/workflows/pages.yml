@@ -63,7 +63,7 @@ jobs:
           # git archive rather than a copy: it fills in src/build.js (.gitattributes), from which
           # the footer names the version. Spelled out in full, as above.
           git archive -o "$RUNNER_TEMP/site.tar" "refs/tags/$GITHUB_REF_NAME" \
-            index.html app.css icon.svg config.json src vendor
+            index.html app.css icon.svg og.png config.json src vendor
           tar -x -f "$RUNNER_TEMP/site.tar" -C "$site"
           build="$(grep -s '^export default' "$site/src/build.js" || true)"
           echo "src/build.js: $build"
