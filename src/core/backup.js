@@ -73,6 +73,24 @@ function pick(src, schema) {
 }
 
 /**
+ * The settings a backup carries: the "Name to copy" template and when it was set. An import
+ * takes the template only when it was set later than the one in the browser, as rows go by
+ * "updated"; -1 stands for one never set (the default), so any template set anywhere beats it.
+ * The page only ever uses the template as text (formatName), so any string will do; the cap
+ * keeps a made-up file from storing megabytes.
+ * @param {unknown} s
+ * @param {number} [now]
+ * @returns {{nameTemplate?: string, nameTemplateAt?: number}}
+ */
+export function cleanSettings(s, now = Date.now()) {
+	if (!s || typeof s !== 'object' || Array.isArray(s)) return {};
+	const t = str(s.nameTemplate, 500);
+	if (!t || !t.trim()) return {};
+	// a backup from before the time was kept: as old as can be, but newer than never set
+	return { nameTemplate: t.trim(), nameTemplateAt: Math.min(num(s.nameTemplateAt, 0, 8.64e15) ?? 0, now) };
+}
+
+/**
  * One row of a backup file, cleaned; null when it isn't a row at all (no id, no reading).
  * Times after `now` are taken as `now`: a row from the future would stay "not exported" and
  * at the top of Newest for good.
