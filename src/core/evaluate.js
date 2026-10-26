@@ -544,7 +544,7 @@ export function nameRelation(x, y) {
 	return Math.min(a.length, b.length) >= 5 && levenshtein(a, b) <= 1 ? 'like' : null;
 }
 
-/** Least evidence for a merge (matchScore points; correct merges in the 566-screenshot test score 7+). */
+/** Least evidence for a merge (matchScore points; correct merges in the real-screenshot tests score 7+). */
 export const MIN_SCORE = 4.5;
 
 /** Whether two readings can be screenshots of the same Pokémon (see matchScore). */

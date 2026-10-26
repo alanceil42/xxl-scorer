@@ -73,7 +73,7 @@ const TEMPLATE_PAUSE = 400;	// ms without a keystroke before a new nickname temp
 // ---------- boot ----------
 
 async function boot() {
-	// The stored list first: it is on this device and quick, so the page can say "Loading 280
+	// The stored list first: it is on this device and quick, so the page can say "Loading 50
 	// Pokémon…" at once instead of showing the empty list until the game data is ready.
 	state.rows = await rowStore.all();
 	state.nameTemplate = (await kv.get('nameTemplate')) || DEFAULT_TEMPLATE;
