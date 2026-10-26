@@ -8,6 +8,11 @@ collect under "Unreleased".
 
 ## Unreleased
 
+
+## 1.5 - 2026-10-26
+
+A backup brings back the "Name to copy" pattern too.
+
 - A backup holds the "Name to copy" pattern too, and importing it brings the pattern back
   (unless the one in the browser was set more recently)
 
