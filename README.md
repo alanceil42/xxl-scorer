@@ -199,7 +199,8 @@ No dependencies and no build: plain JavaScript modules.
   the same major version. Updates are never automatic: after one, run the tests below and try
   the page.
 - `tools/build-gm.sh` the game data compaction in bash + jq, kept identical to the JS by a test
-- `tools/readme-picture.mjs` draws the pictures in this README (instructions inside)
+- `tools/readme-picture.mjs` draws the pictures in this README and the link preview `og.png`
+  (instructions inside)
 - `tools/results-diff.mjs` compares two runs of the tests with real screenshots (below)
 - `docs/HOW-IT-WORKS.md` the core: the score formula, the IVs, reading and merging screenshots
 - `CHANGELOG.md` what changed in each release; `docs/RELEASING.md` how a release is made

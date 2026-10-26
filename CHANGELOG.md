@@ -8,6 +8,8 @@ collect under "Unreleased".
 
 ## Unreleased
 
+- A link to the page shows a preview picture and title in chats and on Reddit
+
 
 ## 1.3.3 - 2026-10-24
 

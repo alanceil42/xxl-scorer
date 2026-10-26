@@ -19,6 +19,17 @@
 	<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src blob:; connect-src 'self' https://raw.githubusercontent.com/PokeMiners/; img-src 'self' data:; style-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
 	<meta name="description" content="Score Pokémon GO screenshots for size showcases, any day of the week. Runs in your browser.">
 	<title>xxl-scorer</title>
+	<!-- the link preview in chats and on Reddit; the image needs an absolute URL, so it is the
+	     public copy's (og.png, drawn by tools/readme-picture.mjs), for self-hosted copies too -->
+	<meta property="og:type" content="website">
+	<meta property="og:site_name" content="xxl-scorer">
+	<meta property="og:title" content="xxl-scorer: showcase scores from your Pokémon GO screenshots">
+	<meta property="og:description" content="Any day of the week, a whole batch at once. Runs in your browser; screenshots are never uploaded.">
+	<meta property="og:image" content="https://alanceil42.github.io/xxl-scorer/og.png">
+	<meta property="og:image:width" content="1200">
+	<meta property="og:image:height" content="630">
+	<meta property="og:image:alt" content="xxl-scorer on a phone: a list of XXL Pokémon sorted by showcase score">
+	<meta name="twitter:card" content="summary_large_image">
 	<link rel="icon" href="icon.svg" type="image/svg+xml">
 	<link rel="stylesheet" href="app.css">
 	<script type="module" src="src/ui/app.js"></script>

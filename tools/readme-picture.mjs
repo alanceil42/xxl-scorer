@@ -1,6 +1,8 @@
 // Draws the README's pictures: the real page at a phone's width (iPhone 17 Pro, 402 CSS px).
 //   docs/list.png, docs/list-dark.png   the list, filled with made-up XXL Pokémon
 //   docs/help.png                       the empty list with its drawing of which screenshots
+//   og.png                              the link preview (og:image in index.html): 1200 x 630,
+//                                       the light list next to what the page does
 // No game art and no screenshots: the rows are invented values for real species, and each
 // thumbnail is drawn here the way the help draws its phones (backdrop, arc, a blob standing in
 // for the Pokémon, tinted by its type). Stats, sizes and the score formula are the real game
@@ -176,6 +178,57 @@ async function drawHelp(out) {
 	console.log(out);
 }
 
+/**
+ * The link preview that chats and Reddit show for the page: 1200 x 630 (1.91:1, what they
+ * crop to), the list drawn by draw() on the right, running off the bottom edge. Previews are
+ * often shrunk to a thumbnail, so few words, large; the middle third holds the gist, since
+ * square thumbnails keep only that.
+ */
+async function drawCard(list, out) {
+	const context = await browser.newContext({ viewport: { width: 1200, height: 630 }, deviceScaleFactor: 1,
+		colorScheme: 'light' });
+	const page = await context.newPage();
+	page.on('pageerror', err => { throw err; });
+	await page.goto(base);
+	const c = await page.evaluate(() => {
+		const css = getComputedStyle(document.documentElement);
+		return Object.fromEntries(['--bg', '--surface', '--text', '--muted', '--line', '--accent']
+			.map(n => [n.slice(2), css.getPropertyValue(n).trim()]));
+	});
+	await page.close();	// the card is a page of its own: the site's CSP would block its styles
+	const card = await context.newPage();
+	card.on('pageerror', err => { throw err; });
+	const icon = readFileSync(join(root, 'icon.svg'), 'utf8');
+	const shot = `data:image/png;base64,${readFileSync(list).toString('base64')}`;
+	await card.setContent(`<!doctype html><meta charset="utf-8"><style>
+		* { margin: 0; box-sizing: border-box; }
+		body { width: 1200px; height: 630px; overflow: hidden; position: relative; background: ${c.bg};
+			color: ${c.text}; font-family: system-ui, -apple-system, sans-serif; letter-spacing: -0.01em; }
+		.text { position: absolute; left: 72px; top: 64px; width: 640px; }
+		.name { display: flex; align-items: center; gap: 16px; font-size: 34px; font-weight: 650; color: ${c.accent}; }
+		.name svg { width: 56px; height: 56px; }
+		h1 { margin-top: 52px; font-size: 66px; line-height: 1.06; font-weight: 750; letter-spacing: -0.03em; }
+		.sub { margin-top: 26px; font-size: 28px; line-height: 1.3; color: ${c.muted}; }
+		.url { position: absolute; left: 72px; bottom: 56px; font-size: 24px; color: ${c.muted}; }
+		.phone { position: absolute; left: 734px; top: 56px; width: 410px; height: 640px; padding: 4px;
+			background: ${c.surface}; border: 1px solid ${c.line}; border-radius: 34px; overflow: hidden;
+			box-shadow: 0 18px 50px rgba(35, 38, 31, 0.16); }
+		.phone img { display: block; width: 402px; border-radius: 30px 30px 0 0; }
+	</style>
+	<div class="text">
+		<div class="name">${icon}xxl-scorer</div>
+		<h1>Showcase scores from your screenshots</h1>
+		<p class="sub">Any day of the week, a whole batch at once.<br>Runs in your browser.</p>
+	</div>
+	<div class="url">alanceil42.github.io/xxl-scorer</div>
+	<div class="phone"><img src="${shot}" alt=""></div>`);
+	await card.evaluate(() => document.fonts.ready);
+	await card.screenshot({ path: out });
+	await context.close();
+	quantize(out);
+	console.log(out);
+}
+
 function quantize(file) {
 	try {
 		execFileSync('pngquant', ['--quality', '80-100', '--speed', '1', '--force', '--ext', '.png', file]);
@@ -188,6 +241,7 @@ try {
 	await draw('light', join(root, 'docs/list.png'));
 	await draw('dark', join(root, 'docs/list-dark.png'));
 	await drawHelp(join(root, 'docs/help.png'));
+	await drawCard(join(root, 'docs/list.png'), join(root, 'og.png'));
 } finally {
 	await browser.close();
 	server.close();

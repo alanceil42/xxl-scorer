@@ -5,6 +5,8 @@ fixtures/
 *.jpeg
 *.heic
 !docs/**/*.png
+# the link preview (og:image), drawn by tools/readme-picture.mjs
+!/og.png
 .DS_Store
 node_modules/
 # Site-specific settings and game data of a self-hosted install
