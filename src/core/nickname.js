@@ -44,7 +44,10 @@ export function nameValues(e) {
 	const ivs = e.ivs;
 	const sum = ivs ? ivs.a + ivs.d + ivs.s : null;
 	return {
-		score: rowScore(e) == null ? null : Math.round(rowScore(e)),	// the in-game one where entered
+		// the in-game one where entered; where the IVs aren't known, the top of the score's range
+		// (the list sorts by its middle): a name to check later, not a verdict
+		score: e.inGame == null && e.score && e.score.hi != null ? Math.round(e.score.hi)
+			: rowScore(e) == null ? null : Math.round(rowScore(e)),
 		iv: sum == null ? null : Math.round(sum / 45 * 100),
 		ivsum: sum,
 		a: ivs ? ivs.a : null,
