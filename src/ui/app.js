@@ -6,7 +6,7 @@ import { formatName, nameValues, DEFAULT_TEMPLATE } from '../core/nickname.js';
 import { compileSearch, needsCheck } from '../core/search.js';
 import { gameSearch } from '../core/gamesearch.js';
 import { MODES } from '../core/score.js';
-import { SORTS, MENU, firstDir, isDefault, sortList } from '../core/sort.js';
+import { SORTS, MENU, firstDir, isDefault, sortList, scoreRanks } from '../core/sort.js';
 import { rows as rowStore, kv, newId, askPersist } from './db.js';
 import { loadGameData, importGameData, dropImportedGameData } from './gamedata.js';
 import { readerFor, startWorkers, poolSize, warmUp } from './ocr.js';
@@ -379,6 +379,8 @@ function render() {
 	renderListBar();
 	const { key, dir } = state.sort;
 	sortList(list, state.sort, MODES[state.mode].best);
+	const ranks = scoreRanks(list, MODES[state.mode].best);
+	for (const x of list) x.rank = ranks.get(x.row.id);
 	for (const th of document.querySelectorAll('th[data-sort]')) {
 		th.setAttribute('aria-sort', th.dataset.sort === key ? (dir > 0 ? 'ascending' : 'descending') : 'none');
 	}
@@ -409,6 +411,7 @@ function renderRows(list) {
 		drawn.set(x.row.id, { from, node });
 		return node;
 	});
+	list.forEach((x, i) => setRank(nodes[i], x.rank));
 	const tbody = $('#rows'), old = [...tbody.children];
 	if (old.length === nodes.length && old.every((n, i) => n.dataset.id === nodes[i].dataset.id)) {
 		// the same rows in the same order: swap only those drawn again
@@ -417,6 +420,18 @@ function renderRows(list) {
 	// rows deleted or replaced by an import are gone for good
 	const ids = new Set(state.rows.map(r => r.id));
 	for (const id of drawn.keys()) if (!ids.has(id)) drawn.delete(id);
+}
+
+/**
+ * The rank badge is set apart from renderRow: a search changes the places of nearly every row
+ * shown, and that must not draw them all again.
+ */
+function setRank(node, rank) {
+	const b = node.querySelector('.rank'), text = rank ? String(rank) : '';
+	if (b.textContent === text) return;
+	b.textContent = text;
+	b.classList.toggle('top', rank <= TOP);
+	b.title = rank ? `${ordinal(rank)} by score in this list` : '';
 }
 
 // ---------- sort menu ----------
@@ -471,6 +486,10 @@ function scoreCell(e) {
 		e.score ? el('div', { class: 'pm', title: 'Computed score' }, `calc ${e.score.total.toFixed(1)}`) : null];
 }
 
+/** Places 1 to TOP get a tinted rank badge, so the end of the top ten stands out. */
+const TOP = 10;
+const ordinal = n => `${n}${[11, 12, 13].includes(n % 100) ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th'}`;
+
 function renderRow({ row, e, dup }) {
 	const ivs = e.ivs ? `${e.ivs.a}/${e.ivs.d}/${e.ivs.s}` : '–';
 	const status = dup ? el('span', { class: 'chip dup', title: 'Same species, catch date, height and weight as another row' }, 'duplicate')
@@ -480,12 +499,17 @@ function renderRow({ row, e, dup }) {
 	const meta = [e.cp != null ? `CP ${e.cp}` : null, e.types.replace('/', ' / '), `IV ${ivs}`, `${fmt(e.height_m)} m`, `${fmt(e.weight_kg)} kg`].filter(Boolean)
 		.flatMap((t, i) => [i ? ' · ' : null, el('span', { class: 'nw' }, t)]);
 	const sel = state.selecting && state.selected.has(row.id);
+	// In select mode the find and copy buttons stay, dimmed and out of reach (a tap marks the
+	// row): a card keeps its height, so the list doesn't jump when select mode ends.
+	const btns = rowButtons(row.id, e);
+	if (btns && state.selecting) btns.inert = true;
 	const act = () => (state.selecting ? toggleSelected(row.id) : openEditor(row.id));
 	return el('tr', {
 		tabindex: 0, 'data-id': row.id, class: sel ? 'selected' : null,
 		'aria-selected': state.selecting ? String(sel) : null,
 		onclick: act, onkeydown: ev => { if (ev.key === 'Enter' || (state.selecting && ev.key === ' ')) { ev.preventDefault(); act(); } },
 	},
+		el('td', { class: 'c-rank c-num' }, el('span', { class: 'rank' })),
 		el('td', { class: 'c-thumb' }, row.thumb ? el('img', { src: row.thumb, alt: '', loading: 'lazy' }) : null,
 			state.selecting ? el('span', { class: 'tick', 'aria-hidden': 'true' }, sel ? '✓' : '') : null),
 		el('td', { class: 'c-num c-score' }, ...scoreCell(e)),
@@ -498,7 +522,7 @@ function renderRow({ row, e, dup }) {
 		el('td', { class: 'c-meta c-num', 'data-label': 'Height' }, `${fmt(e.height_m)} m`),
 		el('td', { class: 'c-meta c-num', 'data-label': 'Weight' }, `${fmt(e.weight_kg)} kg`),
 		el('td', { class: 'c-meta', 'data-label': 'Caught' }, e.caught || '–'),
-		el('td', { class: 'c-status' }, status, state.selecting ? null : rowButtons(row.id, e)));
+		el('td', { class: 'c-status' }, status, btns));
 }
 
 // ---------- select mode: mark rows, delete them together ----------

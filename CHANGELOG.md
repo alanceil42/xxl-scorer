@@ -8,6 +8,10 @@ collect under "Unreleased".
 
 ## Unreleased
 
+- Each row starts with the Pokémon's place by score among the Pokémon shown (with a search,
+  among those it finds), whatever the list is sorted by; on phones it stands before "ok". The
+  top ten are tinted
+- Select mode keeps the find and copy buttons (dimmed), so the list no longer jumps when it ends
 
 ## 1.5 - 2026-10-26
 

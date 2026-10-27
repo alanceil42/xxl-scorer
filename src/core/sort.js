@@ -89,3 +89,16 @@ export function sortList(list, sort, best) {
 	keyed.forEach((k, i) => { list[i] = k.x; });
 	return list;
 }
+
+/**
+ * Each row's place by score among `list` ({row, e} items), best first (`best` as in sortList):
+ * the place it would take in a showcase against the others shown, whatever the list is sorted
+ * by. Equal scores share a place (1, 2, 2, 4); rows without a score get none.
+ */
+export function scoreRanks(list, best) {
+	const scored = list.map(x => ({ id: x.row.id, s: rowScore(x.e) })).filter(x => x.s != null)
+		.sort((p, q) => (p.s - q.s) * best);
+	const ranks = new Map();
+	scored.forEach((x, i) => ranks.set(x.id, i && x.s === scored[i - 1].s ? ranks.get(scored[i - 1].id) : i + 1));
+	return ranks;
+}

@@ -85,7 +85,9 @@ won't run JavaScript modules from `file://`.
    sorts by Newest, CP, Pokédex number, name, IVs or catch date too; pick the current one again
    to reverse it. Right after adding screenshots the list shows the newest first, so new and
    rescanned Pokémon are at the top, ready for their nickname; the button is tinted while the
-   list isn't sorted by score.
+   list isn't sorted by score. The number at the start of each row (on phones, before "ok") is
+   the Pokémon's place by score among those shown, whatever the order; the top ten are tinted.
+   Search for a species to see how your Pokémon of it would rank in its showcase.
 4. **Search** narrows the list: a name, or the game's own search terms: `cp700-800`, `hp100-`,
    `xxl`, `xxs`, `lucky`, `4*` (stars), `3-4attack`, `rock`, `74` (Pokédex number), `year2024`,
    plus `score1100-`.
