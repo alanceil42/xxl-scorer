@@ -52,8 +52,8 @@ wrong form (a screenshot says "Tornadus", not which Tornadus).
 
 Without the bars (no screenshot with the appraisal), the IVs stay open: the row shows "IV ?"
 and the middle of the scores all fitting combinations give, ± half their spread (at most 50
-points; forms that CP and HP can't tell apart widen it). It sorts by that middle; the copied
-name takes the top, as a reminder to check.
+points; forms that CP and HP can't tell apart widen it). Sorting and the copied name use that
+middle, the number shown.
 
 
 ## Reading the card
