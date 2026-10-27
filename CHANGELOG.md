@@ -8,6 +8,11 @@ collect under "Unreleased".
 
 ## Unreleased
 
+
+## 1.7 - 2026-10-27
+
+A Pokémon seen only without the appraisal no longer pretends to know its IVs.
+
 - A Pokémon without a screenshot of the appraisal shows "IV ?" and a score whose ± spans every
   IV set that fits its CP and HP, instead of the highest one as if it were known. Picking its IVs
   in the editor narrows it to one score.
