@@ -486,7 +486,7 @@ function scoreCell(e) {
 		e.score ? el('div', { class: 'pm', title: 'Computed score' }, `calc ${e.score.total.toFixed(1)}`) : null];
 }
 
-/** Places 1 to TOP get a filled rank badge, so the end of the top ten stands out. */
+/** Places 1 to TOP get a tinted rank badge, so the end of the top ten stands out. */
 const TOP = 10;
 const ordinal = n => `${n}${[11, 12, 13].includes(n % 100) ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th'}`;
 
@@ -510,10 +510,9 @@ function renderRow({ row, e, dup }) {
 		onclick: act, onkeydown: ev => { if (ev.key === 'Enter' || (state.selecting && ev.key === ' ')) { ev.preventDefault(); act(); } },
 	},
 		el('td', { class: 'c-thumb' }, row.thumb ? el('img', { src: row.thumb, alt: '', loading: 'lazy' }) : null,
-			state.selecting ? el('span', { class: 'tick', 'aria-hidden': 'true' }, sel ? '✓' : '') : null,
-			el('span', { class: 'rank' })),
+			state.selecting ? el('span', { class: 'tick', 'aria-hidden': 'true' }, sel ? '✓' : '') : null),
 		el('td', { class: 'c-num c-score' }, ...scoreCell(e)),
-		el('td', { class: 'c-name name' }, e.name || e.id || '?', e.formName ? el('small', {}, ` ${e.formName}`) : null,
+		el('td', { class: 'c-name name' }, el('span', { class: 'rank' }), e.name || e.id || '?', e.formName ? el('small', {}, ` ${e.formName}`) : null,
 			e.xxl ? el('span', { class: 'xxl' }, 'XXL') : e.xxs ? el('span', { class: 'xxl' }, 'XXS') : null, el('div', { class: 'mobile-meta' }, meta)),
 		el('td', { class: 'c-meta c-num', 'data-label': 'CP' }, e.cp ?? '–'),
 		el('td', { class: 'c-meta', 'data-label': 'Type' }, e.types.replace('/', ' / ').toLowerCase()),

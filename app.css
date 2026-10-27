@@ -8,6 +8,8 @@
 	--accent: #4d7a3a;
 	--accent-text: #ffffff;
 	--accent-soft: #e5eedd;
+	--rank-top: #8aa77b;		/* the accent, two thirds into --surface */
+	--rank-top-text: #23261f;
 	--ok: #2f7a3e;
 	--ok-soft: #e1f0e3;
 	--warn: #94600a;
@@ -28,6 +30,8 @@
 		--accent: #9cc77f;
 		--accent-text: #142010;
 		--accent-soft: #263320;
+		--rank-top: #728f5d;
+		--rank-top-text: #142010;
 		--ok: #8fd19b;
 		--ok-soft: #1f3324;
 		--warn: #f0c46b;
@@ -191,11 +195,11 @@ td.c-thumb { position: relative; }
 .tick { position: absolute; left: 4px; top: 4px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 15px; font-weight: 700; background: rgb(0 0 0 / 0.45); color: #fff; border: 2px solid #fff; }
 /* Select mode keeps the find and copy buttons, so a card doesn't change height (renderRow) */
 body.selecting .pair { opacity: 0.35; }
-/* The place by score in the list shown, on the thumbnail's lower left corner; the top ten
-   filled. The ring in the card's colour sets it off from the thumbnail. */
-.rank { position: absolute; left: 2px; top: 38px; min-width: 24px; height: 22px; padding: 0 5px; box-sizing: border-box; border-radius: 11px; display: grid; place-items: center; font-size: 12px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; background: var(--surface); color: var(--muted); border: 2px solid var(--surface); box-shadow: inset 0 0 0 1px var(--line); }
+/* The place by score in the list shown (setRank), before the name; the top ten tinted. Two
+   digits wide, so the names line up from 9 to 10. */
+.rank { display: inline-block; box-sizing: content-box; min-width: 2ch; padding: 0 6px; margin-right: 7px; border-radius: 4px; font-size: 12px; font-weight: 700; line-height: 19px; text-align: center; vertical-align: 1px; font-variant-numeric: tabular-nums; background: var(--line); color: var(--muted); }
 .rank:empty { display: none; }
-.rank.top { background: var(--accent); color: var(--accent-text); box-shadow: none; }
+.rank.top { background: var(--rank-top); color: var(--rank-top-text); }
 tr.selected .tick { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
 #ed-title:focus { outline: none; }
 .chip { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 99px; }
@@ -341,7 +345,6 @@ summary { cursor: pointer; color: var(--muted); }
 	td { padding: 0; white-space: normal; }
 	td.c-thumb { grid-area: t; }
 	td.c-thumb img { width: 64px; height: 52px; }
-	td.c-thumb .rank { left: -7px; top: 38px; }
 	td.c-score { grid-area: s; text-align: right; }
 	td.c-name { grid-area: n; }
 	td.c-meta { display: none; }

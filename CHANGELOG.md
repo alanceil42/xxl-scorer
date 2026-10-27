@@ -8,8 +8,8 @@ collect under "Unreleased".
 
 ## Unreleased
 
-- Each Pokémon's picture shows its place by score among the Pokémon shown (with a search,
-  among those it finds), whatever the list is sorted by; the top ten are filled in
+- Each Pokémon's name has its place by score in front, among the Pokémon shown (with a
+  search, among those it finds), whatever the list is sorted by; the top ten are tinted
 - Select mode keeps the find and copy buttons (dimmed), so the list no longer jumps when it ends
 
 ## 1.5 - 2026-10-26
