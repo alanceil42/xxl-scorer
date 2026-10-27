@@ -276,8 +276,25 @@ for (const width of [402, 1280]) {
 			assert.deepEqual(await ids(page), byName);
 			assert.equal((await tagged(page)).length, 12, 'and none for a search');
 
+			// rank badges: each row's place by score, whatever the order; the top ten filled
+			// (no ties among these rows); a search ranks the rows it shows, without drawing them again
+			const ranks = () => page.$$eval('#rows .rank', bs => bs.map(b => Number(b.textContent)).sort((a, b) => a - b));
+			const places = n => Array.from({ length: n }, (_, i) => i + 1);
+			const all12 = await ranks();
+			assert.deepEqual(all12, places(all12.length));
+			assert.equal(await page.locator('#rows .rank.top').count(), Math.min(10, all12.length));
+			await page.fill('#search', 'mr');
+			assert.deepEqual(await ranks(), places((await ids(page)).length));
+			await page.click('#search-clear');
+			assert.deepEqual(await ranks(), all12);
+			assert.equal((await tagged(page)).length, 12, 'none drawn again for the ranks');
+
 			// select mode: marks on exactly the rows tapped, also after a search and back
+			const heights = () => page.$$eval('#rows tr', trs => trs.map(t => t.getBoundingClientRect().height));
+			const unselected = await heights();
 			await page.click('#select-btn');
+			assert.deepEqual(await heights(), unselected, 'select mode keeps every row\'s height');
+			assert.equal(await page.locator('#rows .pair[inert]').count(), await page.locator('#rows .pair').count());
 			const [s1, s2, s3] = [byName[1], byName[4], byName[7]];
 			for (const id of [s1, s2, s3]) await page.click(`tr[data-id="${id}"] .c-name`);
 			await page.click(`tr[data-id="${s2}"] .c-name`);	// and off again
@@ -294,7 +311,7 @@ for (const width of [402, 1280]) {
 			await page.click('#select-done');
 			assert.deepEqual(await marked(), []);
 			assert.equal(await page.locator('#rows tr .tick').count(), 0, 'no ticks left');
-			assert.equal(await page.locator('#rows .btn.copy.find').count(), 12, 'the buttons are back');
+			assert.equal(await page.locator('#rows .pair[inert]').count(), 0, 'the buttons are back');
 
 			// find, then another row's find while the first is hidden by a search: one outline
 			const species = id => MANY.find(r => r.id === id).reading.species;

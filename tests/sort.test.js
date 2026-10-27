@@ -1,7 +1,7 @@
 // The list's orders: what "Newest" means, directions, missing values, ties.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { SORTS, MENU, firstDir, isDefault, sortList, caughtSortKey, cmp } from '../src/core/sort.js';
+import { SORTS, MENU, firstDir, isDefault, sortList, scoreRanks, caughtSortKey, cmp } from '../src/core/sort.js';
 
 // an evaluated row as the page has it: {row (stored), e (evaluate's result)}
 const item = (id, row = {}, e = {}) => ({ row: { id, ...row }, e: { issues: [], types: '', ...e } });
@@ -133,4 +133,13 @@ test('score: an entered in-game score counts instead of the computed one', () =>
 		item('none', {}, { score: null }),
 	];
 	assert.deepEqual(ids(sortList(list, { key: 'score', dir: -1 }, -1)), ['staryu', 'meditite', 'excadrill', 'only-game', 'none']);
+});
+
+test('ranks: place by score whatever the order, ties share one, no score no place', () => {
+	const list = [item('c', {}, score(990)), item('none'), item('a', {}, score(1100)),
+		item('b1', {}, score(1050)), item('b2', {}, { ...score(1000), inGame: 1050 }), item('d', {}, score(900))];
+	assert.deepEqual(Object.fromEntries(scoreRanks(list, -1)), { a: 1, b1: 2, b2: 2, c: 4, d: 5 });
+	// XXS mode: the lowest wins
+	assert.deepEqual(Object.fromEntries(scoreRanks(list, 1)), { d: 1, c: 2, b1: 3, b2: 3, a: 5 });
+	assert.deepEqual(ids(list), ['c', 'none', 'a', 'b1', 'b2', 'd'], 'the list itself stays as it was');
 });
