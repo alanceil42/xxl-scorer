@@ -290,7 +290,13 @@ for (const width of [402, 1280]) {
 			assert.equal((await tagged(page)).length, 12, 'none drawn again for the ranks');
 
 			// select mode: marks on exactly the rows tapped, also after a search and back
-			const heights = () => page.$$eval('#rows tr', trs => trs.map(t => t.getBoundingClientRect().height));
+			// rows off screen report a stand-in height (content-visibility): measured drawn
+			const heights = () => page.$$eval('#rows tr', trs => {
+				for (const t of trs) t.style.contentVisibility = 'visible';
+				const hs = trs.map(t => t.getBoundingClientRect().height);
+				for (const t of trs) t.style.contentVisibility = '';
+				return hs;
+			});
 			const unselected = await heights();
 			await page.click('#select-btn');
 			assert.deepEqual(await heights(), unselected, 'select mode keeps every row\'s height');
