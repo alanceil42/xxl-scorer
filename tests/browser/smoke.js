@@ -638,3 +638,37 @@ test('the guards notice what they are there for', { timeout: 30_000 }, async () 
 		await b.context.close();
 	}
 });
+
+// The editor gives the focus back to its row when it closes: after a tap the row shows no focus
+// ring, after the keyboard it has the focus (and its ring), after Cancel as after Save.
+test('closing the editor: no focus ring after a tap, the row focused after the keyboard', { timeout: 60_000 }, async () => {
+	const { context, page, problems } = await open(402, { hasTouch: true, isMobile: true });
+	await boot(page);
+	await page.setInputFiles('#import', { name: 'backup.json', mimeType: 'application/json', buffer: Buffer.from(BACKUP) });
+	await page.waitForSelector('tr[data-id="tm"]');
+	const focused = () => page.evaluate(() => {
+		const a = document.activeElement;
+		return { row: a?.dataset?.id ?? null, ring: !!a && a !== document.body && a.matches(':focus-visible') };
+	});
+	const closed = () => page.waitForFunction(() => !document.querySelector('#editor').open);
+	for (const button of ['cancel', 'save']) {
+		await page.tap('tr[data-id="tm"] .c-name');
+		await page.waitForSelector('#editor[open]');
+		await page.tap(`#editor button[value="${button}"]`);
+		await closed();
+		await page.waitForTimeout(100);
+		assert.deepEqual(await focused(), { row: null, ring: false }, `tap, ${button}`);
+
+		await page.focus('tr[data-id="tm"]');
+		await page.keyboard.press('Enter');
+		await page.waitForSelector('#editor[open]');
+		if (button === 'cancel') await page.keyboard.press('Escape');
+		else { await page.focus('#ed-save'); await page.keyboard.press('Enter'); }
+		await closed();
+		await page.waitForTimeout(100);
+		assert.deepEqual(await focused(), { row: 'tm', ring: true }, `keyboard, ${button}`);
+	}
+	assert.deepEqual(problems, []);
+	await context.close();
+});
+
