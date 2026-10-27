@@ -8,6 +8,11 @@ collect under "Unreleased".
 
 ## Unreleased
 
+
+## 1.6 - 2026-10-27
+
+Each row shows its place by score, so the top ten need no counting.
+
 - Each row starts with the Pokémon's place by score among the Pokémon shown (with a search,
   among those it finds), whatever the list is sorted by; on phones it stands before "ok". The
   top ten are tinted
