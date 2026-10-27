@@ -12,6 +12,8 @@ collect under "Unreleased".
   among those it finds), whatever the list is sorted by; on phones it stands before "ok". The
   top ten are tinted
 - Select mode keeps the find and copy buttons (dimmed), so the list no longer jumps when it ends
+- Closing a Pokémon's details with Cancel no longer leaves a green outline on its row; after
+  the keyboard (Escape, Enter on Save), its row has the keyboard focus again, after Save too
 
 ## 1.5 - 2026-10-26
 

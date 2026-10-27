@@ -718,6 +718,21 @@ const numOrNull = (s, int = false) => {
 	return Number.isFinite(n) ? (int ? Math.round(n) : n) : null;
 };
 
+/** Whether the last input was a key (not a tap or a click): see returnFocus. */
+let keyboardUsed = false;
+
+/**
+ * After the editor: with the keyboard, the focus goes back to the row (with its focus ring),
+ * so Tab and Enter carry on from there; after a tap or a click, nowhere, so no ring stays on
+ * the row. The same after Cancel as after Save. (The dialog itself gives the focus back to the
+ * row it came from, and on its own only after Cancel: Save draws the row anew.)
+ */
+function returnFocus(id) {
+	const tr = id ? $(`#rows tr[data-id="${CSS.escape(id)}"]`) : null;
+	if (keyboardUsed && tr) tr.focus({ preventScroll: true });
+	else if (document.activeElement && document.activeElement.closest('#rows')) document.activeElement.blur();
+}
+
 async function closeEditor(ev) {
 	const action = $('#editor').returnValue;
 	const row = editing;
@@ -1061,7 +1076,13 @@ function wire() {
 		th.addEventListener('click', go);
 		th.addEventListener('keydown', ev => { if (ev.key === 'Enter') go(); });
 	}
-	$('#editor').addEventListener('close', closeEditor);
+	addEventListener('keydown', () => { keyboardUsed = true; }, true);
+	addEventListener('pointerdown', () => { keyboardUsed = false; }, true);
+	$('#editor').addEventListener('close', async ev => {
+		const id = editing && editing.id;
+		await closeEditor(ev);
+		returnFocus(id);
+	});
 	// drag and drop anywhere on the page
 	let depth = 0;
 	const drop = $('#drop');
