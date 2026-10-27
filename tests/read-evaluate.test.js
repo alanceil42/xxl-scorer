@@ -480,3 +480,45 @@ test('evaluate: a CP read exactly as one form\'s beats one that only looks like 
 	const both = evaluate({ ...reading, cp: n.cp }, ctx2);
 	assert.ok(both.issues.some(i => i.code === 'form'), JSON.stringify(both.issues));
 });
+
+test('evaluate: without the bars, the score is the middle of every IV set CP and HP allow', async () => {
+	const { solveIVs } = await import('../src/core/ivs.js');
+	const { score } = await import('../src/core/score.js');
+	const row = gm.species.TESTMON.f[''];
+	const { cp, hp } = shown(row, { a: 9, d: 4, s: 12 }, 25);
+	const r = { species: 'Testmon', hp, cp, height_m: 1.6, weight_kg: 30, bars: null };
+	const e = evaluate(r, ctx);
+	const totals = solveIVs(row, cp, hp, gm.cpm).map(c => score(row, gm.coef, 1.6, 30, c.a + c.d + c.s, true).total);
+	assert.ok(totals.length > 1, 'the test needs several IV sets');
+	const lo = Math.min(...totals), hi = Math.max(...totals);
+	assert.equal(e.score.lo, lo);
+	assert.equal(e.score.hi, hi);
+	assert.equal(e.score.total, (lo + hi) / 2);
+	assert.ok(e.score.band >= (hi - lo) / 2);
+	assert.ok(e.issues.some(i => i.code === 'ivs'), 'still asks for the IVs');
+	// an in-game score anywhere in the range fits
+	assert.ok(!evaluate(r, ctx, { inGame: Math.round(lo) + 1 }).issues.some(i => i.code === 'ingame'));
+	// IVs known: one score
+	assert.equal(evaluate(r, ctx, { ivs: { a: 9, d: 4, s: 12 } }).score.hi, undefined);
+	assert.equal(evaluate({ ...r, bars: { a: 9, d: 4, s: 12 } }, ctx).score.hi, undefined);
+});
+
+test('evaluate: without the bars, forms the readings cannot tell apart all count for the range', () => {
+	// a second form with the same stats (same CP/HP solutions) but a heavier average weight
+	const gm2 = structuredClone(gm);
+	const normal = gm2.species.FAKEON.f[''];
+	const heavy = normal.slice();
+	heavy[ROW.W] = normal[ROW.W] * 1.5;
+	heavy[ROW.WSD] = normal[ROW.WSD] * 1.5;
+	gm2.species.FAKEON.f.HEAVY = heavy;
+	const ctx2 = makeContext(gm2, en);
+	const { cp, hp } = shown(normal, { a: 5, d: 5, s: 5 }, 20);
+	const r = { species: 'Fakeon', hp, cp, height_m: 0.5, weight_kg: 9, bars: null };
+	const e = evaluate(r, ctx2);
+	assert.ok(e.issues.some(i => i.code === 'form'));
+	const only = f => evaluate(r, ctx2, { form: f }).score;
+	const n = only(''), h = only('HEAVY');
+	assert.equal(e.score.lo, Math.min(n.lo, h.lo));
+	assert.equal(e.score.hi, Math.max(n.hi, h.hi));
+	assert.ok(h.hi < n.lo || n.hi < h.lo || e.score.hi - e.score.lo > n.hi - n.lo, 'wider than one form');
+});

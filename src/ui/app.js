@@ -480,18 +480,28 @@ function fitRows() {
  * that one (the list is sorted by it), with the computed one below.
  */
 function scoreCell(e) {
-	const calc = e.score ? [el('span', { class: 'score' }, e.score.total.toFixed(1)), el('span', { class: 'pm' }, `±${e.score.band.toFixed(1)}`)] : null;
+	const sc = e.score;
+	const calc = sc ? [el('span', { class: 'score', title: sc.hi != null ? RANGE_TITLE : null }, scoreText(sc)), el('span', { class: 'pm' }, `±${bandText(sc)}`)] : null;
 	if (e.inGame == null) return calc || ['–'];
 	return [el('span', { class: 'score', title: 'Score shown in game, entered by hand' }, String(e.inGame)), el('span', { class: 'pm' }, 'game'),
-		e.score ? el('div', { class: 'pm', title: 'Computed score' }, `calc ${e.score.total.toFixed(1)}`) : null];
+		sc ? el('div', { class: 'pm', title: 'Computed score' }, `calc ${scoreText(sc)}${sc.hi != null ? ' ±' + bandText(sc) : ''}`) : null];
 }
+
+/**
+ * A score with its ±: to a tenth where the IVs are known, so ± is the display rounding of the
+ * height and weight; in whole points where they aren't, and ± spans every IV set that fits.
+ */
+const scoreText = sc => sc.total.toFixed(sc.hi != null ? 0 : 1);
+const bandText = sc => sc.band.toFixed(sc.hi != null ? 0 : 1);
+const RANGE_TITLE = 'IVs not known (no appraisal): the middle of every score the IVs that fit CP and HP give';
 
 /** Places 1 to TOP get a tinted rank badge, so the end of the top ten stands out. */
 const TOP = 10;
 const ordinal = n => `${n}${[11, 12, 13].includes(n % 100) ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th'}`;
 
 function renderRow({ row, e, dup }) {
-	const ivs = e.ivs ? `${e.ivs.a}/${e.ivs.d}/${e.ivs.s}` : '–';
+	// no appraisal and several IV sets fit: the one used is a guess, so none is shown
+	const ivs = e.score && e.score.hi != null ? '?' : e.ivs ? `${e.ivs.a}/${e.ivs.d}/${e.ivs.s}` : '–';
 	const status = dup ? el('span', { class: 'chip dup', title: 'Same species, catch date, height and weight as another row' }, 'duplicate')
 		: problems(e).length ? el('span', { class: 'chip check', title: problems(e).map(i => i.msg).join('\n') }, 'check')
 			: el('span', { class: 'chip ok' }, 'ok');
@@ -680,7 +690,9 @@ function openEditor(id) {
 	const r = row.reading, ed = row.edits;
 	$('#ed-thumb').src = row.thumb || '';
 	$('#ed-title').textContent = `${e.name || '?'}${e.formName ? ' ' + e.formName : ''}${e.xxl ? ' · XXL' : ''}`;
-	$('#ed-score').textContent = e.score
+	$('#ed-score').textContent = e.score && e.score.hi != null
+		? `${scoreText(e.score)} ± ${bandText(e.score)}  (${Math.floor(e.score.lo)} to ${Math.ceil(e.score.hi)}: the IVs aren't known, pick them below)`
+		: e.score
 		? `${e.score.total.toFixed(1)} ± ${e.score.band.toFixed(1)}  (height ${e.score.hPart.toFixed(1)} + weight ${e.score.wPart.toFixed(1)} + IV ${e.score.ivPart.toFixed(1)} + XXL ${e.score.bonus})`
 		: 'No score yet: see below';
 	$('#ed-issues').replaceChildren(...e.issues.map(i => el('li', { class: i.info ? 'info' : null }, i.msg)));
@@ -694,7 +706,8 @@ function openEditor(id) {
 	$('#ed-hp').value = val('hp', e.hp);
 	$('#ed-height').value = val('height_m', e.height_m);
 	$('#ed-weight').value = val('weight_kg', e.weight_kg);
-	const iv = ed.ivs || e.ivs || {};
+	// a guess (no appraisal, several IV sets fit) isn't filled in: the fields stay empty to pick
+	const iv = ed.ivs || (e.score && e.score.hi != null ? {} : e.ivs) || {};
 	$('#ed-a').value = iv.a ?? '';
 	$('#ed-d').value = iv.d ?? '';
 	$('#ed-s').value = iv.s ?? '';
@@ -765,8 +778,11 @@ async function closeEditor(ev) {
 	const caught = $('#ed-caught').value.trim();
 	if (caught && caught !== r.caught) edits.caught = caught;
 	const a = numOrNull($('#ed-a').value, true), d = numOrNull($('#ed-d').value, true), s = numOrNull($('#ed-s').value, true);
-	const auto = evaluateSafely(r, state.ctx, { ...edits, ivs: undefined }).ivs;
-	if ([a, d, s].every(x => x != null && x >= 0 && x <= 15) && !(auto && auto.a === a && auto.d === d && auto.s === s)) edits.ivs = { a, d, s };
+	const autoE = evaluateSafely(r, state.ctx, { ...edits, ivs: undefined });
+	const auto = autoE.ivs;
+	// IVs picked where they were only a guess count even when they are the guess
+	const guessed = !!(autoE.score && autoE.score.hi != null);
+	if ([a, d, s].every(x => x != null && x >= 0 && x <= 15) && (guessed || !(auto && auto.a === a && auto.d === d && auto.s === s))) edits.ivs = { a, d, s };
 	const x = $('#ed-xxl').value;
 	if (x) edits.xxl = x === '1';
 	const ig = numOrNull($('#ed-ingame').value);

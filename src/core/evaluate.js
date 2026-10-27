@@ -129,8 +129,7 @@ export function evaluate(reading, ctx, edits = {}) {
 	const withHits = tried.filter(t => t.hits.length && t.plausible)
 		.sort((a, b) => b.typesMatch - a.typesMatch || a.cpForced - b.cpForced || b.cpExact - a.cpExact || a.best - b.best);
 	let pick = withHits[0] || tried.find(t => t.plausible) || tried[0];
-	if (withHits.length > 1 && withHits[1].typesMatch === withHits[0].typesMatch && withHits[1].cpForced === withHits[0].cpForced &&
-		withHits[1].cpExact === withHits[0].cpExact && withHits[1].best - withHits[0].best < 1 && edits.form == null) {
+	if (withHits.length > 1 && sameRank(withHits[1], withHits[0]) && edits.form == null) {
 		issues.push({ code: 'form', msg: `Form unclear: ${withHits.map(t => formLabel(t.form) || 'normal').join(' / ')}` });
 	}
 	res.form = pick.form;
@@ -214,6 +213,16 @@ export function evaluate(reading, ctx, edits = {}) {
 	// Score
 	if (res.ivs && h != null && w != null && res.xxl !== null) {
 		res.score = score(row, gm.coef, h, w, res.ivs.a + res.ivs.d + res.ivs.s, res.xxl);
+		// Without the bars, CP and HP leave several IV sets (and maybe forms) open, and the
+		// one above is just the highest: the score is the middle of all they give, ± half
+		// their spread. The true one is anywhere in it, the middle no likelier than the ends.
+		if (!bars && !edits.ivs) {
+			const range = scoreRange(withHits.filter(t => t === pick || (edits.form == null && sameRank(t, pick))), gm, edits.xxl, byBadge);
+			if (range && range.hi > range.lo) {
+				Object.assign(res.score, { lo: range.lo, hi: range.hi, total: (range.lo + range.hi) / 2,
+					band: (range.hi - range.lo) / 2 + res.score.band });
+			}
+		}
 		if (res.inGame != null) {
 			res.inGameDiff = res.inGame - res.score.total;
 			// the game shows a whole number
@@ -224,6 +233,30 @@ export function evaluate(reading, ctx, edits = {}) {
 	}
 	res.key = duplicateKey(res);
 	return res;
+}
+
+/** Two forms the readings can't tell apart (types, CP and bars fit both as well). */
+const sameRank = (t, u) => t.typesMatch === u.typesMatch && t.cpForced === u.cpForced && t.cpExact === u.cpExact &&
+	Math.abs(t.best - u.best) < 1;
+
+/**
+ * Lowest and highest score over every IV set of these forms that fits CP and HP, each form
+ * with its own sizes and XXL bound (as for the row: an edit, else the height, else the badge).
+ * A form whose XXL stays open leaves the range open: null.
+ */
+function scoreRange(forms, gm, xxlEdit, xxlBadge) {
+	let lo = Infinity, hi = -Infinity;
+	for (const t of forms) {
+		const h = t.size.h ? t.size.h.value : null, w = t.size.w ? t.size.w.value : null;
+		if (h == null || w == null) continue;
+		const xxl = xxlEdit ?? isXXLByHeight(t.row, h) ?? xxlBadge;
+		if (xxl == null) return null;
+		for (const c of t.hits) {
+			const v = score(t.row, gm.coef, h, w, c.a + c.d + c.s, xxl).total;
+			lo = Math.min(lo, v); hi = Math.max(hi, v);
+		}
+	}
+	return hi >= lo ? { lo, hi } : null;
 }
 
 /** Pokédex number of a reading: the "was caught" line's species, else a name line that is one. */

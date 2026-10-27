@@ -20,6 +20,12 @@ test('an entered in-game score replaces the computed one', () => {
 	assert.equal(formatName('XX{score}', nameValues({ ...e, inGame: null })).text, 'XX1060');
 });
 
+test('IVs not known: the middle of the score range, as the list shows it; an in-game score still first', () => {
+	const range = { ...e, score: { total: 1040, lo: 1021.2, hi: 1058.8, band: 19 } };
+	assert.equal(formatName('XX{score}', nameValues(range)).text, 'XX1040');
+	assert.equal(formatName('XX{score}', nameValues({ ...range, inGame: 1033 })).text, 'XX1033');
+});
+
 test('styles: superscript IV percent, circled level', () => {
 	const r = formatName('XX{iv:sup}{lvl:circ}', nameValues(e));
 	assert.equal(r.text, 'XX⁶⁰㉙');
