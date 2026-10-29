@@ -73,21 +73,50 @@ function pick(src, schema) {
 }
 
 /**
- * The settings a backup carries: the "Name to copy" template and when it was set. An import
- * takes the template only when it was set later than the one in the browser, as rows go by
- * "updated"; -1 stands for one never set (the default), so any template set anywhere beats it.
- * The page only ever uses the template as text (formatName), so any string will do; the cap
- * keeps a made-up file from storing megabytes.
+ * The settings a backup carries, each with the time it was set: the "Name to copy" template
+ * and the backup's own file name. An import takes one only when it was set later than the one
+ * in the browser, as rows go by "updated"; -1 stands for one never set (the default), so any
+ * value set anywhere beats it. The page uses both only as text (formatName, backupFileName),
+ * so any string will do; the caps keep a made-up file from storing megabytes.
  * @param {unknown} s
  * @param {number} [now]
- * @returns {{nameTemplate?: string, nameTemplateAt?: number}}
+ * @returns {{nameTemplate?: string, nameTemplateAt?: number, fileName?: string, fileNameAt?: number}}
  */
 export function cleanSettings(s, now = Date.now()) {
 	if (!s || typeof s !== 'object' || Array.isArray(s)) return {};
-	const t = str(s.nameTemplate, 500);
-	if (!t || !t.trim()) return {};
+	const out = {};
 	// a backup from before the time was kept: as old as can be, but newer than never set
-	return { nameTemplate: t.trim(), nameTemplateAt: Math.min(num(s.nameTemplateAt, 0, 8.64e15) ?? 0, now) };
+	const at = v => Math.min(num(v, 0, 8.64e15) ?? 0, now);
+	const t = str(s.nameTemplate, 500);
+	if (t && t.trim()) Object.assign(out, { nameTemplate: t.trim(), nameTemplateAt: at(s.nameTemplateAt) });
+	const f = str(s.fileName, FILE_NAME_MAX);
+	if (f && f.trim()) Object.assign(out, { fileName: f.trim(), fileNameAt: at(s.fileNameAt) });
+	return out;
+}
+
+/** The backup's file name when none is set: the local date, so backups of different days differ. */
+export const DEFAULT_FILE_NAME = 'xxl-scorer-{date}';
+export const FILE_NAME_MAX = 100;
+
+/**
+ * The backup's file name from the name set in Settings: {date} becomes the local date
+ * (2026-10-29), characters that Files, the Finder or Windows refuse or treat specially
+ * become "-", and ".json" is added. A fixed name lets "Save to Files" find the same file
+ * every time, e.g. one file per game account in a shared iCloud folder.
+ * @param {string} [pattern]
+ * @param {Date} [d]
+ * @returns {string}
+ */
+export function backupFileName(pattern, d = new Date()) {
+	const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+	const make = p => p.replaceAll('{date}', date)
+		.replace(/[\\/:*?"<>|\u0000-\u001f\u007f]/g, '-')
+		.replace(/\.json$/i, '')
+		.slice(0, FILE_NAME_MAX)
+		// a leading dot hides the file; trailing dots and spaces Windows drops
+		.replace(/^[\s.]+|[\s.]+$/g, '');
+	const base = make(typeof pattern === 'string' ? pattern.trim() : '') || make(DEFAULT_FILE_NAME);
+	return `${base}.json`;
 }
 
 /**
