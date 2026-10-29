@@ -1,7 +1,7 @@
 // Backup files are untrusted input: known fields and types only.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cleanRow, cleanSettings, safeThumb } from '../src/core/backup.js';
+import { cleanRow, cleanSettings, safeThumb, backupFileName } from '../src/core/backup.js';
 
 const good = {
 	id: 'a1', created: 1, updated: 2, scanned: 2, scanIdx: 4, file: 'IMG_1.PNG', thumb: 'data:image/jpeg;base64,/9j/AAAA',
@@ -120,4 +120,33 @@ test('settings: anything else is dropped', () => {
 		assert.deepEqual(cleanSettings(s), {}, JSON.stringify(s));
 	}
 	assert.deepEqual(cleanSettings({ nameTemplate: 'XX', nameTemplateAt: 'soon', mode: 'xxs', evil: 1 }), { nameTemplate: 'XX', nameTemplateAt: 0 });
+});
+
+test('settings: the backup file name, with its own time, next to the template or alone', () => {
+	const s = { nameTemplate: 'XX', nameTemplateAt: 3, fileName: 'TalimeeZero', fileNameAt: 4 };
+	assert.deepEqual(cleanSettings(s), s);
+	assert.deepEqual(cleanSettings({ fileName: ' TalimeeOne ' }), { fileName: 'TalimeeOne', fileNameAt: 0 });
+	assert.equal(cleanSettings({ fileName: 'X', fileNameAt: 8e15 }, 5).fileNameAt, 5);
+	// one bad setting doesn't take the other with it
+	assert.deepEqual(cleanSettings({ nameTemplate: 'XX', nameTemplateAt: 3, fileName: 'x'.repeat(101) }), { nameTemplate: 'XX', nameTemplateAt: 3 });
+	assert.deepEqual(cleanSettings({ nameTemplate: '', fileName: 'T', fileNameAt: 2 }), { fileName: 'T', fileNameAt: 2 });
+	for (const f of ['', '  ', 42, ['T'], null]) assert.deepEqual(cleanSettings({ fileName: f }), {}, JSON.stringify(f));
+});
+
+test('backup file name: {date} is the local date, .json added once, unsafe characters replaced', () => {
+	const d = new Date(2026, 9, 29, 23, 59);	// local time: a backup before midnight is that day's
+	assert.equal(backupFileName(undefined, d), 'xxl-scorer-2026-10-29.json');
+	assert.equal(backupFileName('', d), 'xxl-scorer-2026-10-29.json');
+	assert.equal(backupFileName('xxl-scorer-{date}', d), 'xxl-scorer-2026-10-29.json');
+	assert.equal(backupFileName('TalimeeZero', d), 'TalimeeZero.json');
+	assert.equal(backupFileName(' TalimeeZero.JSON ', d), 'TalimeeZero.json');
+	assert.equal(backupFileName('{date} TalimeeOne {date}', d), '2026-10-29 TalimeeOne 2026-10-29.json');
+	assert.equal(backupFileName('a/b\\c:d*e?f"g<h>i|j\u0000k\nl', d), 'a-b-c-d-e-f-g-h-i-j-k-l.json');
+	assert.equal(backupFileName('Pokémon ⓿㉚', d), 'Pokémon ⓿㉚.json');
+	// hidden (leading dot) or nothing left: the default
+	assert.equal(backupFileName('.hidden', d), 'hidden.json');
+	assert.equal(backupFileName('...', d), 'xxl-scorer-2026-10-29.json');
+	assert.equal(backupFileName('.json', d), 'xxl-scorer-2026-10-29.json');
+	assert.equal(backupFileName('x'.repeat(300), d), `${'x'.repeat(100)}.json`);
+	assert.equal(backupFileName(42, d), 'xxl-scorer-2026-10-29.json');
 });

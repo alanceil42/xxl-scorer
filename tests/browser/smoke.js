@@ -405,6 +405,60 @@ test('a backup carries the "Name to copy" template; the newer one wins on import
 	}
 });
 
+test('the backup file name: set in Settings, used by Export, carried by the backup', { timeout: 60_000 }, async () => {
+	const a = await open(1280);
+	const b = await open(1280);
+	const exportFrom = async page => {
+		await page.click('#backup > summary');
+		const [download] = await Promise.all([page.waitForEvent('download'), page.click('#export')]);
+		return { name: download.suggestedFilename(), data: JSON.parse((await readFile(await download.path())).toString()) };
+	};
+	try {
+		// nothing set: the dated default, and the backup carries no file name
+		await boot(a.page);
+		await a.page.click('#settings-btn');
+		assert.equal(await a.page.inputValue('#file-name'), '');
+		assert.match(await a.page.textContent('#file-example'), /^xxl-scorer-\d{4}-\d\d-\d\d\.json$/);
+		let out = await exportFrom(a.page);
+		assert.match(out.name, /^xxl-scorer-\d{4}-\d\d-\d\d\.json$/);
+		assert.equal(out.data.settings, undefined);
+
+		// set: the example follows, the Backup dot lights, Export uses it
+		await a.page.fill('#file-name', 'TalimeeZero');
+		await a.page.press('#file-name', 'Tab');
+		assert.equal(await a.page.textContent('#file-example'), 'TalimeeZero.json');
+		await a.page.waitForFunction(() => !document.querySelector('#export-dot').hidden);
+		out = await exportFrom(a.page);
+		assert.equal(out.name, 'TalimeeZero.json');
+		assert.equal(out.data.settings.fileName, 'TalimeeZero');
+		assert.ok(out.data.settings.fileNameAt > 0);
+		assert.equal(out.data.settings.nameTemplate, undefined, 'the template only once set');
+
+		// restored into a browser with none; the import says so
+		await boot(b.page);
+		await b.page.click('#backup > summary');
+		await b.page.setInputFiles('#import', { name: 'TalimeeZero.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(out.data)) });
+		await b.page.waitForFunction(() => /Backup file name: TalimeeZero\.json/.test(document.querySelector('#banners').textContent));
+		assert.equal(await b.page.inputValue('#file-name'), 'TalimeeZero');
+		// an older one doesn't replace it; kept across visits
+		const older = { app: 'xxl-scorer', v: 1, rows: [], settings: { fileName: 'TalimeeOne', fileNameAt: 1 } };
+		await b.page.setInputFiles('#import', { name: 'older.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(older)) });
+		await b.page.waitForFunction(() => /Imported: 0 new, 0 updated, 0 already up to date\.$/m.test(document.querySelector('#banners').innerText));
+		await boot(b.page);
+		assert.equal(await b.page.inputValue('#file-name'), 'TalimeeZero');
+
+		// emptied: back to the dated default
+		await a.page.fill('#file-name', '');
+		await a.page.press('#file-name', 'Tab');
+		out = await exportFrom(a.page);
+		assert.match(out.name, /^xxl-scorer-\d{4}-\d\d-\d\d\.json$/);
+		assert.deepEqual([...a.problems, ...b.problems], []);
+	} finally {
+		await a.context.close();
+		await b.context.close();
+	}
+});
+
 test('a row that can\'t be scored, a hostile backup, a failed import, copying without the clipboard API', { timeout: 60_000 }, async () => {
 	const { context, page, problems } = await open(1280);
 	try {

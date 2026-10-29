@@ -124,6 +124,11 @@
 		<p class="muted small">The Copy button in each row puts this on the clipboard, for pasting as the nickname in the game (12 characters at most).
 			Placeholders: <code>{score}</code> <code>{iv}</code> (percent) <code>{ivsum}</code> <code>{a}</code> <code>{d}</code> <code>{s}</code> <code>{lvl}</code> <code>{name}</code> <code>{xxl}</code> <code>{xxs}</code> <code>{size}</code> (XXL or XXS).
 			Styles: <code>:sup</code> superscript digits, <code>:circ</code> a circled number, <code>:dcirc</code> a dark circled number (a half level adds ½: ⑳½). The default <code>XX{score}{iv:sup}{a:dcirc}{lvl:circ}</code> gives XX1063¹⁸⓿㉚. Example now: <strong id="name-example">–</strong></p>
+		<label class="field">Backup file name
+			<input id="file-name" autocomplete="off" spellcheck="false" maxlength="100" placeholder="xxl-scorer-{date}">
+		</label>
+		<p class="muted small">The name Backup → Export gives its file. <code>{date}</code> is today's date; empty is the default <code>xxl-scorer-{date}</code>.
+			A fixed name saves over the same file each time, e.g. one file per game account in a shared folder. Export saves: <strong id="file-example">–</strong></p>
 		<div class="row-btns">
 			<button class="btn" id="gm-refresh" type="button">Check for new game data</button>
 			<label class="btn">
