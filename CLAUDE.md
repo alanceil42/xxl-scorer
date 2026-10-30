@@ -9,7 +9,8 @@ Read the private decision log first (project knowledge). docs/HOW-IT-WORKS.md ha
   when the maintainer asks to amend it.
 - Commits: repo-local `git config user.name Claude` and `user.email noreply@anthropic.com`;
   end each message with `Co-Authored-By: Claude <model> <noreply@anthropic.com>`. No
-  `Claude-Session:` line and no session links, in commits or pull request texts.
+  `Claude-Session:` line and no session links in commits; pull request texts may carry the
+  session link.
 - Before pushing: `npm test` and `bash tools/vendor.sh --check`. For changes to reading or
   merging screenshots, say in the pull request that the maintainer's real-screenshot tests
   (log X09) have to run before the merge.
