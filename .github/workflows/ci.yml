@@ -53,7 +53,7 @@ jobs:
         with:
           node-version: lts/*
       - name: playwright-core, pinned, not saved, without install scripts
-        run: npm install --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.64.0
+        run: npm install --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.64.1
       - name: Smoke test in Chrome
         run: node --test tests/browser/smoke.js
 
