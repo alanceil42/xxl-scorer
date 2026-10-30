@@ -1003,7 +1003,9 @@ function renderSettings() {
 	const sample = state.ctx && state.rows.length ? evaluateRow(state.rows[0].reading, state.ctx, state.rows[0].edits) : { name: 'Chansey', ivs: { a: 15, d: 14, s: 14 }, level: 20, xxl: true, score: { total: 1104.6 } };
 	const n = formatName(state.nameTemplate, nameValues(sample));
 	setStatus('#name-example', `${n.text}${n.tooLong ? ` (${n.length} characters: too long for the game)` : ''}`);
-	showFileExample(state.fileName);
+	// from the field, not state: a render while typing (an export or import finishing) would
+	// otherwise show the stored name until the typed one is kept
+	showFileExample($('#file-name').value);
 }
 
 function showFileExample(pattern) {
