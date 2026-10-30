@@ -8,6 +8,11 @@ collect under "Unreleased".
 
 ## Unreleased
 
+
+## 1.8 - 2026-10-30
+
+Backups can be saved under a name you choose.
+
 - Settings → "Backup file name" sets the name of the exported file (`{date}` for the date), so
   "Save to Files" can save over the same file each time, e.g. one file per game account. Empty
   keeps the dated default; a backup brings the name back like the "Name to copy" pattern.
