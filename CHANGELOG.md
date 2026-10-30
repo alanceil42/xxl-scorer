@@ -8,6 +8,9 @@ collect under "Unreleased".
 
 ## Unreleased
 
+- While typing a backup file name, the example below the field no longer jumps back to the
+  saved name for a moment when an export or import finishes
+
 
 ## 1.8 - 2026-10-30
 
