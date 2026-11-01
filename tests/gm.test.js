@@ -5,7 +5,7 @@ import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { compactGameMaster, formsOf, dexIndex, isCompactGm } from '../src/core/gm.js';
+import { compactGameMaster, formsOf, dexIndex, isCompactGm, familyOf, GM_VERSION } from '../src/core/gm.js';
 import { compactText } from '../src/core/text.js';
 import { syntheticGameMaster, syntheticText, CPM } from './synthetic.js';
 
@@ -47,11 +47,11 @@ function edgeGameMaster() {
 	const mon = (tid, p) => ({ templateId: tid, data: { pokemonSettings: { pokedexHeightM: 1.2, pokedexWeightKg: 30, type: 'POKEMON_TYPE_ROCK', stats: { baseAttack: 120, baseDefense: 110, baseStamina: 130 }, ...p } } });
 	const ext = (id, sizeSettings) => ({ templateId: `EXTENDED_V0000_POKEMON_${id}`, data: { pokemonExtendedSettings: { uniqueId: id, sizeSettings } } });
 	return [
-		mon('V9004_POKEMON_EDGEMON_NORMAL', { pokemonId: 'EDGEMON', form: 'EDGEMON_NORMAL' }),
-		mon('V9004_POKEMON_EDGEMON_COSTUME', { pokemonId: 'EDGEMON', form: 'EDGEMON_COSTUME' }),
-		mon('V9004_POKEMON_EDGEMON_ZETA', { pokemonId: 'EDGEMON', form: 'EDGEMON_ZETA', pokedexHeightM: 1.4 }),
-		mon('V9004_POKEMON_EDGEMON_ALPHA', { pokemonId: 'EDGEMON', form: 'EDGEMON_ALPHA', pokedexHeightM: 1.3 }),
-		mon('V9005_POKEMON_STATLESS', { pokemonId: 'STATLESS', stats: { baseAttack: 90 } }),
+		mon('V9004_POKEMON_EDGEMON_NORMAL', { pokemonId: 'EDGEMON', form: 'EDGEMON_NORMAL', familyId: 'FAMILY_EDGEMON' }),
+		mon('V9004_POKEMON_EDGEMON_COSTUME', { pokemonId: 'EDGEMON', form: 'EDGEMON_COSTUME', familyId: 'FAMILY_EDGEMON' }),
+		mon('V9004_POKEMON_EDGEMON_ZETA', { pokemonId: 'EDGEMON', form: 'EDGEMON_ZETA', pokedexHeightM: 1.4, familyId: 'FAMILY_EDGEMON' }),
+		mon('V9004_POKEMON_EDGEMON_ALPHA', { pokemonId: 'EDGEMON', form: 'EDGEMON_ALPHA', pokedexHeightM: 1.3, familyId: 'FAMILY_EDGEMON' }),
+		mon('V9005_POKEMON_STATLESS', { pokemonId: 'STATLESS', stats: { baseAttack: 90 }, familyId: 'FAMILY_EDGEMON' }),
 		mon('V9006_POKEMON_NOHEIGHT', { pokemonId: 'NOHEIGHT', pokedexHeightM: undefined }),
 		mon('V9007_POKEMON_NOSTATS', { pokemonId: 'NOSTATS', stats: undefined }),
 		{ templateId: 'V9008_POKEMON_NOSETTINGS', data: {} },
@@ -72,6 +72,17 @@ test('a species listed only by its forms: NORMAL stands in for the base, its cos
 	assert.deepEqual(Object.keys(gm.species.EDGEMON.f).sort(), ['ALPHA', 'NORMAL', 'ZETA']);
 	assert.deepEqual(formsOf(gm, 'EDGEMON').map(f => f.form), ['ALPHA', 'NORMAL', 'ZETA'], 'no base entry: forms by name');
 	assert.equal(gm.species.EDGEMON.dex, 9004);
+});
+
+test('evolution families: from familyId without "FAMILY_"; a species without one is its own', () => {
+	const gm = compactGameMaster(edgeGameMaster(), { minSpecies: 1 });
+	assert.equal(gm.v, GM_VERSION);
+	assert.equal(gm.species.EDGEMON.fam, 'EDGEMON');
+	assert.equal(gm.species.STATLESS.fam, 'EDGEMON', 'an evolution: the family of its base');
+	assert.equal(gm.species.ZEROMON.fam, undefined);
+	assert.equal(familyOf(gm, 'STATLESS'), 'EDGEMON');
+	assert.equal(familyOf(gm, 'ZEROMON'), '#ZEROMON');
+	assert.equal(familyOf(gm, 'constructor'), '#constructor');
 });
 
 test('templates without height, weight or attack are skipped; missing defence and stamina are 0', () => {
@@ -103,7 +114,8 @@ test('not a game master: refused', () => {
 test('a compact file from storage or a server: shape check', () => {
 	const gm = compactGameMaster(syntheticGameMaster(), { minSpecies: 1 });
 	assert.ok(isCompactGm(gm));
-	for (const bad of [null, {}, { ...gm, v: 2 }, { ...gm, coef: null }, { ...gm, cpm: gm.cpm.slice(0, 49) }, { ...gm, species: 'x' }]) {
+	assert.ok(isCompactGm({ ...gm, v: 1 }), 'a copy from before evolution families');
+	for (const bad of [null, {}, { ...gm, v: GM_VERSION + 1 }, { ...gm, v: '2' }, { ...gm, coef: null }, { ...gm, cpm: gm.cpm.slice(0, 49) }, { ...gm, species: 'x' }]) {
 		assert.equal(isCompactGm(bad), false, JSON.stringify(bad)?.slice(0, 40));
 	}
 });

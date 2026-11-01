@@ -141,6 +141,27 @@ test('the source unreachable: the stored copy of any age, with the error; none s
 	assert.match((await loadGameData({}, { force: true })).info.error, /only 0 species/, 'a changed format is an error too');
 });
 
+test('a stored copy compacted by an older version (no families): compacted again at once', async () => {
+	net = upstream();
+	await loadGameData({});
+	const stored = idb.stores.get('kv');
+	const old = stored.get('gm');
+	delete old.data.species.TESTMON.fam;
+	stored.set('gm', { ...old, data: { ...old.data, v: 1 } });
+	fetched.length = 0;
+	const r = await loadGameData({});
+	assert.equal(r.info.state, 'updated', 'though fresh and unchanged upstream');
+	assert.equal(r.gm.v, 2);
+	assert.deepEqual(fetched.map(f => f.url), [GM_URL]);
+	// the source unreachable: the old copy beats none, also offline
+	stored.set('gm', { ...old, data: { ...old.data, v: 1 } });
+	net = { [GM_URL]: new Error('offline') };
+	const s = await loadGameData({}, { force: true });
+	assert.equal(s.info.state, 'stale');
+	assert.equal(s.gm.v, 1);
+	assert.equal((await loadGameData({ gm: 'off' })).gm.v, 1);
+});
+
 test('"gm": "off": no request at all, the stored copy of any age, or a request to import', async () => {
 	await assert.rejects(loadGameData({ gm: 'off' }), /No game data stored yet; import a file/);
 	assert.equal(fetched.length, 0);

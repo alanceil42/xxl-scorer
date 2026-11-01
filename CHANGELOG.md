@@ -8,6 +8,9 @@ collect under "Unreleased".
 
 ## Unreleased
 
+- The search finds evolution families as in the game: `+pumpkaboo` or `+pump` shows Pumpkaboo
+  and Gourgeist. Game data stored by an older version is fetched again once for this. A
+  self-hosted gm.json needs a new build (tools/build-gm.sh); until then `+` finds one species
 - While typing a backup file name, the example below the field no longer jumps back to the
   saved name for a moment when an export or import finishes
 

@@ -2,6 +2,8 @@
 // search syntax, in English.
 //
 //   cranidos  char      name or form contains it (accents and case ignored)
+//   +pumpkaboo  +pump   evolution family: every species whose name starts with it, and their
+//                       families (as the game: the start of the name, not any part of it)
 //   25  1-151  387-     Pokédex number or range
 //   cp713  cp700-800  cp-500  cp2500-        CP; the same for hp…  (and score…, not in the game)
 //   xxl  xxs            XXL, XXS
@@ -18,6 +20,8 @@
 //   & |  space          and
 import { TYPES } from './read.js';
 import { rowScore } from './score.js';
+import { familyOf } from './gm.js';
+import { normalizeName } from './text.js';
 
 const STARS = [[0, 22], [23, 29], [30, 36], [37, 44], [45, 45]];
 /** The game's per-stat IV groups: 0attack = 0, 1attack = 1-5, …, 4attack = 15 (Find in game uses them too). */
@@ -53,9 +57,36 @@ export const caughtYear = e => {
 /** A row with an issue to look at; notes (info) don't count. */
 export const needsCheck = e => e.issues.some(i => !i.info);
 
-/** One term (no operators) → predicate over an evaluated row (evaluate()'s result). */
-function term(word) {
+/** Per game data context: Pokédex number → evolution family. */
+const famIndex = new WeakMap();
+function familiesByDex(ctx) {
+	let m = famIndex.get(ctx);
+	if (!m) {
+		m = new Map();
+		for (const [id, sp] of Object.entries(ctx.gm.species)) if (!m.has(sp.dex)) m.set(sp.dex, familyOf(ctx.gm, id));
+		famIndex.set(ctx, m);
+	}
+	return m;
+}
+
+/**
+ * "+name": the families of every species whose name starts with it. Without game data, rows
+ * whose species name starts with it; null for a lone "+".
+ */
+function family(word, ctx) {
+	const n = normalizeName(word);
+	if (!n) return null;
+	if (!ctx || !ctx.gm || !ctx.names) return e => normalizeName(e.name).startsWith(n);
+	const byDex = familiesByDex(ctx);
+	const fam = dex => byDex.get(dex) ?? `#${dex}`;
+	const want = new Set(ctx.names.list.filter(([name]) => name.startsWith(n)).map(([, dex]) => fam(dex)));
+	return e => e.dex != null && want.has(fam(e.dex));
+}
+
+/** One term (no operators) → predicate over an evaluated row (evaluate()'s result), or null. */
+function term(word, ctx) {
 	let m;
+	if (word.startsWith('+')) return family(word.slice(1), ctx);
 	if (word === 'xxl') return e => e.xxl === true;
 	if (word === 'xxs') return e => e.xxs === true;
 	if (word === 'lucky') return e => e.lucky === true;
@@ -84,14 +115,15 @@ function term(word) {
 /**
  * Compile a search into a predicate over evaluated rows; null for an empty search (show all).
  * Unknown words are free text, so a typo finds nothing rather than raising an error.
+ * ctx (makeContext's) gives the species names and evolution families for "+name".
  */
-export function compileSearch(query) {
+export function compileSearch(query, ctx = null) {
 	const groups = fold(query).split(/[&|]/).map(g => g.split(/[,;:]/)
 		.map(alt => alt.trim().split(/\s+/).filter(w => w && w !== '!').map(w => {
 			const neg = w.startsWith('!');
-			const p = term(neg ? w.slice(1) : w);
-			return neg ? e => !p(e) : p;
-		}))
+			const p = term(neg ? w.slice(1) : w, ctx);
+			return p && neg ? e => !p(e) : p;
+		}).filter(Boolean))
 		.filter(words => words.length))
 		.filter(alts => alts.length);
 	if (!groups.length) return null;

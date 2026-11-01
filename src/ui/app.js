@@ -145,6 +145,8 @@ async function loadData(force) {
 	try {
 		const { gm, text, info } = await loadGameData(state.config, { force });
 		state.ctx = makeContext(gm, text);
+		// "+name" in the search reads the species names and families of the game data
+		state.search = compileSearch($('#search').value, state.ctx);
 		state.rules = makeRules(text);
 		state.gmInfo = info;
 		const list = $('#species-list');
@@ -606,7 +608,7 @@ function findButton(id, e) {
 		ev.stopPropagation();
 		const ok = await copyText(q);
 		// the page's search reads the game's syntax: what else in the list would it find?
-		const p = compileSearch(q);
+		const p = compileSearch(q, state.ctx);
 		const others = evaluated().filter(x => x.e && x.row.id !== id && p(x.e)).length;
 		b.replaceChildren(icon(ok ? 'check' : 'scan-search'));
 		b.classList.toggle('done', ok);
@@ -1061,7 +1063,7 @@ function wire() {
 		render();
 	});
 	const setSearch = q => {
-		state.search = compileSearch(q);
+		state.search = compileSearch(q, state.ctx);
 		$('#search-clear').hidden = q === '';
 		render();
 	};
