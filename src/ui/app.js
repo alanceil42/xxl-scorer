@@ -13,7 +13,7 @@ import { readerFor, startWorkers, poolSize, warmUp } from './ocr.js';
 import { evaluateRow } from './evalcache.js';
 import rulesEn from '../rules/en.js';
 import { phoneElement } from './help.js';
-import { cleanRow, cleanSettings, backupFileName, notInFile, filedAfterImport, DEFAULT_FILE_NAME } from '../core/backup.js';
+import { cleanRow, cleanSettings, backupFileName, notInFile, filedAfterImport, remindExport, DEFAULT_FILE_NAME } from '../core/backup.js';
 import { imprintLink } from '../core/imprint.js';
 import { readBuild, buildLink } from '../core/buildinfo.js';
 
@@ -68,9 +68,9 @@ const state = {
 	findNext: null,	// the row whose nickname is the next tap, after its Find
 	lastExport: null,
 	inFile: null,	// what imports brought in since the last export, at the file's times (notInFile)
+	nagDismissed: 0,	// when the export reminder was dismissed; changes after it bring it back
 };
 
-const DAY = 24 * 3600 * 1000;
 const EXPORT_NAG_DAYS = 6;	// Safari may delete site data after 7 days without a visit
 const TEMPLATE_PAUSE = 400;	// ms without a keystroke before a new nickname template is taken
 
@@ -88,6 +88,7 @@ async function boot() {
 	state.fileNameAt = (await kv.get('fileNameAt')) ?? -1;
 	state.lastExport = (await kv.get('lastExport')) || null;
 	state.inFile = (await kv.get('inFile')) || null;
+	state.nagDismissed = (await kv.get('nagDismissed')) || 0;
 	state.mode = (await kv.get('mode')) === 'xxs' ? 'xxs' : 'xxl';
 	state.minHintSeen = !!(await kv.get('minHintSeen'));
 	state.sort = { key: 'score', dir: MODES[state.mode].best };
@@ -968,15 +969,16 @@ async function renderBanners() {
 	}
 	// Changes in no backup file yet (neither exported nor imported): a dot on the Export
 	// button. A banner only once a change has waited long enough that Safari's 7-day rule could
-	// take it.
+	// take it; dismissed, it stays away until a later change has waited as long (the dot stays).
 	const { rows: pending, settings } = notInFile(state, state.lastExport || 0, state.inFile);
 	const changes = pending.length + settings;	// new settings count too
 	$('#export-dot').hidden = changes === 0;
 	$('#backup > summary').title = changes ? `${changes} change${changes > 1 ? 's' : ''} not exported yet` : 'Export or import a backup';
-	const oldest = pending.length ? Math.min(...pending.map(r => r.updated || 0)) : Infinity;
-	if (Date.now() - oldest > EXPORT_NAG_DAYS * DAY) {
+	if (remindExport(pending, state.nagDismissed, EXPORT_NAG_DAYS)) {
+		const dismiss = async () => { state.nagDismissed = Date.now(); await kv.set('nagDismissed', state.nagDismissed); renderBanners(); };
 		out.push(el('div', { class: 'banner' }, el('p', {}, `Some changes are ${EXPORT_NAG_DAYS}+ days old and not exported. Safari deletes a site's data after 7 days without a visit.`),
-			el('button', { class: 'btn', type: 'button', onclick: exportRows }, 'Export')));
+			el('button', { class: 'btn', type: 'button', onclick: exportRows }, 'Export'),
+			el('button', { class: 'btn ghost', type: 'button', onclick: dismiss }, 'OK')));
 	}
 	box.replaceChildren(...out);
 }

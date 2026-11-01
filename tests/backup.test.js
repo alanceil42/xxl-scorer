@@ -1,7 +1,7 @@
 // Backup files are untrusted input: known fields and types only.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cleanRow, cleanSettings, safeThumb, backupFileName, notInFile, filedAfterImport } from '../src/core/backup.js';
+import { cleanRow, cleanSettings, safeThumb, backupFileName, notInFile, filedAfterImport, remindExport } from '../src/core/backup.js';
 
 const good = {
 	id: 'a1', created: 1, updated: 2, scanned: 2, scanIdx: 4, file: 'IMG_1.PNG', thumb: 'data:image/jpeg;base64,/9j/AAAA',
@@ -186,4 +186,17 @@ test('after an import: the file\'s times, the later of old and new, for rows sti
 	assert.deepEqual(bare, { rows: new Map([['a', 1]]) });
 	// it fits what notInFile reads
 	assert.deepEqual(notInFile({ rows: [{ id: '__proto__', updated: 2 }], nameTemplateAt: 3, fileNameAt: 12 }, 0, out), { rows: [], settings: 0 });
+});
+
+test('the export reminder: a change 6+ days in no file; once dismissed, only later changes', () => {
+	const day = 24 * 3600 * 1000, now = 100 * day;
+	const old = { updated: now - 7 * day }, fresh = { updated: now - day };
+	assert.equal(remindExport([], 0, 6, now), false);
+	assert.equal(remindExport([fresh], 0, 6, now), false);
+	assert.equal(remindExport([fresh, old], 0, 6, now), true);
+	// dismissed after the old change: gone, the fresh one isn't old enough yet
+	assert.equal(remindExport([fresh, old], now - 2 * day, 6, now), false);
+	// a change after the dismissal, now old enough itself: back
+	assert.equal(remindExport([fresh, old], now - 8 * day, 6, now), true);
+	assert.equal(remindExport([fresh], now - 2 * day, 6, now + 6 * day), true);
 });

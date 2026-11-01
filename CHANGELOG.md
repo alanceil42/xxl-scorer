@@ -16,6 +16,8 @@ collect under "Unreleased".
 - A backup imported into a browser that never exported, e.g. after Safari deleted the site's
   data, no longer lights the Backup dot or asks to export changes "6+ days old": what came
   from a file is backed up. Changes made after the import still count
+- The reminder to export ("Some changes are 6+ days old") has an OK button. Dismissed, it
+  comes back only for changes made after that; the dot on Backup stays until you export
 
 
 ## 1.8 - 2026-10-30

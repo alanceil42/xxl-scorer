@@ -139,6 +139,19 @@ export function filedAfterImport(old, rows, settings, ids) {
 	return out;
 }
 
+/**
+ * Whether to show the reminder banner: some change in no file has waited `days` or more, close
+ * to Safari's 7-day deletion. Once the banner is dismissed, only changes made after that bring
+ * it back: it informs about a risk once, it doesn't push to export (the Backup dot stays).
+ * @param {{updated?: number}[]} pending	rows in no file (notInFile)
+ * @param {number} dismissedAt	when the banner was last dismissed, 0 for never
+ * @param {number} days
+ * @param {number} [now]
+ */
+export function remindExport(pending, dismissedAt, days, now = Date.now()) {
+	return pending.some(r => (r.updated || 0) > dismissedAt && now - (r.updated || 0) > days * 24 * 3600 * 1000);
+}
+
 /** The backup's file name when none is set: the local date, so backups of different days differ. */
 export const DEFAULT_FILE_NAME = 'xxl-scorer-{date}';
 export const FILE_NAME_MAX = 100;

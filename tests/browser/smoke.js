@@ -461,6 +461,29 @@ test('the backup file name: set in Settings, used by Export, carried by the back
 	}
 });
 
+test('the export reminder informs and can be dismissed; the Backup dot stays', { timeout: 60_000 }, async () => {
+	const { context, page, problems } = await open(402);
+	const nag = () => page.$('#banners .banner:has-text("not exported")');
+	try {
+		// changes made here days ago, never exported: the reminder
+		await boot(page);
+		await page.evaluate(async rows => (await import('/src/ui/db.js')).rows.putMany(rows), ROWS);
+		await boot(page);
+		await page.waitForSelector('#banners .banner:has-text("not exported")');
+		// OK: gone, also after a reload; the dot still says there is something to export
+		await page.click('#banners .banner:has-text("not exported") >> text=OK');
+		// drawn again once the dismissal is stored
+		await page.waitForSelector('#banners .banner:has-text("not exported")', { state: 'detached' });
+		await boot(page);
+		await page.waitForSelector('#rows tr >> nth=2');
+		assert.equal(await nag(), null);
+		assert.equal(await page.isHidden('#export-dot'), false);
+		assert.deepEqual(problems, []);
+	} finally {
+		await context.close();
+	}
+});
+
 test('what an import read from a file counts as backed up; changes made here after it don\'t', { timeout: 60_000 }, async () => {
 	const { context, page, problems } = await open(402);
 	const noDot = () => page.waitForFunction(() => document.querySelector('#export-dot').hidden);
