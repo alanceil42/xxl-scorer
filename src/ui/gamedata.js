@@ -1,5 +1,5 @@
 // Game data in the browser: fetch from PokeMiners (or the host's gm.json), compact, cache.
-import { compactGameMaster, isCompactGm, GM_URL } from '../core/gm.js';
+import { compactGameMaster, isCompactGm, GM_URL, GM_VERSION } from '../core/gm.js';
 import { compactText, textUrl } from '../core/text.js';
 import { kv } from './db.js';
 
@@ -30,11 +30,14 @@ async function fetchText(url) {
 	return r.text();
 }
 
-async function cached(key, url, compact, { force = false, offline = false, maxAge = DEFAULT_CHECK_DAYS * DAY } = {}) {
+async function cached(key, url, compact, { force = false, offline = false, maxAge = DEFAULT_CHECK_DAYS * DAY, usable = () => true } = {}) {
 	// a copy from another source (config.json's "gm" changed to another gm.json) counts as none,
-	// fresh or not: it is not what the site is set to use
+	// fresh or not: it is not what the site is set to use. So does one compacted by an older
+	// version of the page that lacks what this one needs (usable), unless there is nothing else
 	const stored = await kv.get(key);
-	const c = stored && stored.url === url ? stored : null;
+	const same = stored && stored.url === url ? stored : null;
+	const c = same && usable(same.data) ? same : null;
+	if (offline && !c && same) return { ...same, state: 'stale' };
 	if (c && !force && Date.now() - c.checked < maxAge) return { ...c, state: 'fresh' };
 	if (offline) return c ? { ...c, state: 'stale' } : null;
 	try {
@@ -49,9 +52,10 @@ async function cached(key, url, compact, { force = false, offline = false, maxAg
 		const data = compact(JSON.parse(body));
 		const next = { data, fp, url, checked: now, changed: now };
 		await kv.set(key, next);
-		return { ...next, state: c ? 'updated' : 'new' };
+		return { ...next, state: same ? 'updated' : 'new' };
 	} catch (err) {
-		if (c) return { ...c, state: 'stale', error: String(err.message || err) };
+		// an older copy beats none
+		if (same) return { ...(c || same), state: 'stale', error: String(err.message || err) };
 		throw err;
 	}
 }
@@ -77,7 +81,7 @@ export async function loadGameData(config, { force = false } = {}) {
 	}
 	const imported = await kv.get('gm-import');
 	const g = imported && !force ? { ...imported, state: 'imported' }
-		: await cached('gm', GM_URL, x => compactGameMaster(x), { force, offline, maxAge });
+		: await cached('gm', GM_URL, x => compactGameMaster(x), { force, offline, maxAge, usable: d => d && d.v === GM_VERSION });
 	const t = await cached(`text-${lang}`, textUrl(lang), x => compactText(x), { force, offline, maxAge });
 	if (!g || !t) throw new Error(offline ? 'No game data stored yet; import a file' : 'Game data unavailable');
 	const text = (g.data.text && g.data.text[lang]) || t.data;

@@ -4,8 +4,14 @@
 export const GM_URL = 'https://raw.githubusercontent.com/PokeMiners/game_masters/master/latest/latest.json';
 export const XXL_BONUS = 178;	// not in the game master
 export const MIN_SPECIES = 900;	// format change guard
+/** Version of the compact shape. 2 added each species' evolution family (fam). */
+export const GM_VERSION = 2;
 
 /**
+ * species: {POKEMONID: {dex, fam, f: {form: Row}}}; fam is the evolution family as the game
+ * master names it, without "FAMILY_" (Gourgeist: "PUMPKABOO"). A copy from before version 2
+ * lacks it; use familyOf().
+ *
  * Row layout, one per species form:
  * [heightM, weightKg, weightStdDevKg, xxlMaxM, baseAtk, baseDef, baseSta, "TYPE/TYPE2", xlMaxM, xsMinM]
  * xlMaxM is the XXL floor, xsMinM the XXS ceiling (xsLowerBound: below it, XXS). A stored copy
@@ -54,6 +60,7 @@ export function compactGameMaster(all, opt = {}) {
 			sz.xsLowerBound || p.pokedexHeightM * 0.5,
 		];
 		const sp = species[pid] || (species[pid] = { dex: Number(t.templateId.slice(1, 5)), f: {} });
+		if (p.familyId && !sp.fam) sp.fam = String(p.familyId).replace(/^FAMILY_/, '');
 		sp.f[form] = row;
 	}
 	// Drop forms identical to the base (costumes etc.)
@@ -76,7 +83,7 @@ export function compactGameMaster(all, opt = {}) {
 	const rankings = [...new Set(((cs && cs.data.contestSettings.contestLimits) || [])
 		.map(l => l.contestMetric).filter(m => m && m.pokemonMetric === 'POKEMON_SIZE').map(m => m.rankingStandard))].sort();
 	return {
-		v: 1,
+		v: GM_VERSION,
 		generated: opt.now || new Date().toISOString(),
 		source: opt.source || { url: GM_URL, etag: '' },
 		coef: {
@@ -112,7 +119,10 @@ export function formsOf(gm, id) {
 		.map(([form, row]) => ({ form, row }));
 }
 
-/** Basic shape check for a compact file read from storage or a server. */
+/** A species' evolution family; the species itself when the game data doesn't say. */
+export const familyOf = (gm, id) => (Object.hasOwn(gm.species, id) && gm.species[id].fam) || `#${id}`;
+
+/** Basic shape check for a compact file read from storage or a server (any version so far). */
 export function isCompactGm(x) {
-	return !!(x && x.v === 1 && x.coef && Array.isArray(x.cpm) && x.cpm.length >= 50 && x.species && typeof x.species === 'object');
+	return !!(x && Number.isInteger(x.v) && x.v >= 1 && x.v <= GM_VERSION && x.coef && Array.isArray(x.cpm) && x.cpm.length >= 50 && x.species && typeof x.species === 'object');
 }

@@ -180,6 +180,8 @@ for (const width of [402, 1280]) {
 			assert.equal(await page.textContent('#search-count'), '1 of 3');
 			await page.fill('#search', 'xxl');
 			assert.deepEqual(await ids(page), ['tm']);
+			await page.fill('#search', '+fake');
+			assert.deepEqual((await ids(page)).sort(), ['fk', 'tm'], 'the evolution family: Fakeon and Testmon');
 			await page.click('#search-clear');
 			assert.equal((await ids(page)).length, 3);
 

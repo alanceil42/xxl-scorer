@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { compileSearch, parseRange } from '../src/core/search.js';
+import { nameIndex } from '../src/core/text.js';
 
 const mon = (name, o = {}) => ({ name, formName: '', dex: 1, types: 'NORMAL', cp: 500, hp: 80, xxl: false,
 	ivs: { a: 10, d: 10, s: 10 }, caught: '10/10/2026', score: { total: 600 }, ...o });
@@ -85,4 +86,29 @@ test('score search: an entered in-game score counts instead of the computed one'
 	const e = mon('Meditite', { score: { total: 1115.5 }, inGame: 1112 });
 	assert.equal(compileSearch('score1113-')(e), false);
 	assert.equal(compileSearch('score1110-1112')(e), true);
+});
+
+test('+name: the evolution family, by the start of a species name, as in the game', () => {
+	const gm = { species: {
+		PUMPKABOO: { dex: 710, fam: 'PUMPKABOO', f: {} }, GOURGEIST: { dex: 711, fam: 'PUMPKABOO', f: {} },
+		GEODUDE: { dex: 74, fam: 'GEODUDE', f: {} }, GOLEM: { dex: 76, fam: 'GEODUDE', f: {} },
+		CRANIDOS: { dex: 408, f: {} },	// a copy from before families: its own family
+	} };
+	const ctx = { gm, names: nameIndex({ names: { 710: 'Pumpkaboo', 711: 'Gourgeist', 74: 'Geodude', 76: 'Golem', 408: 'Cranidos' } }) };
+	const rows = [
+		mon('Pumpkaboo', { dex: 710, formName: 'Super' }), mon('Gourgeist', { dex: 711 }), mon('Geodude', { dex: 74 }),
+		mon('Golem', { dex: 76 }), mon('Cranidos', { dex: 408 }), mon('', { dex: null }),
+	];
+	const names = (q, c = ctx) => rows.filter(compileSearch(q, c)).map(e => e.name);
+	assert.deepEqual(names('+pumpk'), ['Pumpkaboo', 'Gourgeist']);
+	assert.deepEqual(names('+Gourgeist'), ['Pumpkaboo', 'Gourgeist'], 'from an evolution too');
+	assert.deepEqual(names('+kaboo'), [], 'the start of the name, not any part');
+	assert.deepEqual(names('+g'), ['Pumpkaboo', 'Gourgeist', 'Geodude', 'Golem'], 'every family a name starts it');
+	assert.deepEqual(names('+cran'), ['Cranidos']);
+	assert.deepEqual(names('!+pumpk&!+geo'), ['Cranidos', '']);
+	assert.deepEqual(names('+pumpk,+golem&xxl'), [], 'and with the other terms');
+	assert.deepEqual(names('+pumpk,cranidos'), ['Pumpkaboo', 'Gourgeist', 'Cranidos']);
+	assert.equal(compileSearch('+', ctx), null, 'a lone + is ignored');
+	assert.equal(compileSearch('!+'), null);
+	assert.deepEqual(names('+pumpk', null), ['Pumpkaboo'], 'no game data: the start of the row\'s name');
 });

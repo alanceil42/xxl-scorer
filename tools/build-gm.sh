@@ -80,6 +80,7 @@ jq -c --arg now "$now" --arg etag "$etag" --arg url "$GM_URL" --argjson min "$MI
 		| {
 			id: $pid,
 			dex: ($tid[1:5] | tonumber),
+			fam: (.familyId // null | if . then tostring | ltrimstr("FAMILY_") else null end),
 			form: (if .form then (.form | tostring | ltrimstr($pid) | ltrimstr("_")) else "" end),
 			row: [
 				.pokedexHeightM,
@@ -98,6 +99,7 @@ jq -c --arg now "$now" --arg etag "$etag" --arg url "$GM_URL" --argjson min "$MI
 	# Group by species; drop forms identical to the base (costumes etc.)
 	| (reduce $rows[] as $r ({};
 		.[$r.id].dex = $r.dex
+		| (if $r.fam and (.[$r.id].fam == null) then .[$r.id].fam = $r.fam else . end)
 		| .[$r.id].f[$r.form] = $r.row)
 	| with_entries(
 		.value.f as $f
@@ -118,7 +120,7 @@ jq -c --arg now "$now" --arg etag "$etag" --arg url "$GM_URL" --argjson min "$MI
 		| select(.pokemonMetric == "POKEMON_SIZE") | .rankingStandard ] | unique) as $rankings
 
 	| {
-		v: 1,
+		v: 2,
 		generated: $now,
 		source: { url: $url, etag: $etag },
 		coef: {

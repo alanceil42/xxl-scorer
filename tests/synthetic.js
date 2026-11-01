@@ -24,14 +24,14 @@ const ext = (dex, id, form, xl, xxl, xs) => ({
 	data: { pokemonExtendedSettings: { uniqueId: id, ...(form ? { form } : {}), sizeSettings: { ...(xs ? { xsLowerBound: xs } : {}), xlUpperBound: xl, xxlUpperBound: xxl } } },
 });
 
-/** A synthetic latest.json: three species, forms, a costume to drop, size bounds, levels, coefficients. */
+/** A synthetic latest.json: three species (Fakeon an evolution of Testmon), forms, a costume to drop, size bounds, levels, coefficients. */
 export function syntheticGameMaster() {
 	return [
 		{ templateId: 'SOME_OTHER_SETTINGS', data: { other: true } },
-		mon(9001, 'TESTMON', null, 1.0, 20.0, [150, 120, 140], ['NORMAL'], { weightStdDev: 2.5 }),
-		mon(9001, 'TESTMON', 'TESTMON_COSTUME', 1.0, 20.0, [150, 120, 140], ['NORMAL'], { weightStdDev: 2.5 }),
-		mon(9001, 'TESTMON', 'TESTMON_GIANT', 2.0, 50.0, [200, 150, 160], ['NORMAL', 'FLYING'], { weightStdDev: 6.25 }),
-		mon(9002, 'FAKEON', null, 0.5, 8.0, [100, 100, 100], ['WATER']),
+		mon(9001, 'TESTMON', null, 1.0, 20.0, [150, 120, 140], ['NORMAL'], { weightStdDev: 2.5, familyId: 'FAMILY_TESTMON' }),
+		mon(9001, 'TESTMON', 'TESTMON_COSTUME', 1.0, 20.0, [150, 120, 140], ['NORMAL'], { weightStdDev: 2.5, familyId: 'FAMILY_TESTMON' }),
+		mon(9001, 'TESTMON', 'TESTMON_GIANT', 2.0, 50.0, [200, 150, 160], ['NORMAL', 'FLYING'], { weightStdDev: 6.25, familyId: 'FAMILY_TESTMON' }),
+		mon(9002, 'FAKEON', null, 0.5, 8.0, [100, 100, 100], ['WATER'], { familyId: 'FAMILY_TESTMON' }),
 		mon(9003, 'MR_FAKE', null, 1.3, 55.0, [180, 170, 120], ['PSYCHIC', 'FAIRY']),
 		ext(9001, 'TESTMON', null, 1.5, 1.75),
 		ext(9001, 'TESTMON', 'TESTMON_GIANT', 3.0, 3.1, 0.9),
