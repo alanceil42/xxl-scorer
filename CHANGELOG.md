@@ -9,6 +9,17 @@ collect under "Unreleased".
 ## Unreleased
 
 
+## 1.9.1 - 2026-11-01
+
+The backup reminder no longer nags.
+
+- A backup imported into a browser that never exported, e.g. after Safari deleted the site's
+  data, no longer lights the Backup dot or asks to export changes "6+ days old": what came
+  from a file is backed up. Changes made after the import still count
+- The reminder to export ("Some changes are 6+ days old") has an OK button. Dismissed, it
+  comes back only for changes made after that; the dot on Backup stays until you export
+
+
 ## 1.9 - 2026-11-01
 
 The search knows the game's `+` for evolution families.
@@ -18,11 +29,6 @@ The search knows the game's `+` for evolution families.
   self-hosted gm.json needs a new build (tools/build-gm.sh); until then `+` finds one species
 - While typing a backup file name, the example below the field no longer jumps back to the
   saved name for a moment when an export or import finishes
-- A backup imported into a browser that never exported, e.g. after Safari deleted the site's
-  data, no longer lights the Backup dot or asks to export changes "6+ days old": what came
-  from a file is backed up. Changes made after the import still count
-- The reminder to export ("Some changes are 6+ days old") has an OK button. Dismissed, it
-  comes back only for changes made after that; the dot on Backup stays until you export
 
 
 ## 1.8 - 2026-10-30
