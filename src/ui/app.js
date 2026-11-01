@@ -13,7 +13,7 @@ import { readerFor, startWorkers, poolSize, warmUp } from './ocr.js';
 import { evaluateRow } from './evalcache.js';
 import rulesEn from '../rules/en.js';
 import { phoneElement } from './help.js';
-import { cleanRow, cleanSettings, backupFileName, DEFAULT_FILE_NAME } from '../core/backup.js';
+import { cleanRow, cleanSettings, backupFileName, notInFile, filedAfterImport, DEFAULT_FILE_NAME } from '../core/backup.js';
 import { imprintLink } from '../core/imprint.js';
 import { readBuild, buildLink } from '../core/buildinfo.js';
 
@@ -67,6 +67,7 @@ const state = {
 	selected: new Set(),
 	findNext: null,	// the row whose nickname is the next tap, after its Find
 	lastExport: null,
+	inFile: null,	// what imports brought in since the last export, at the file's times (notInFile)
 };
 
 const DAY = 24 * 3600 * 1000;
@@ -86,6 +87,7 @@ async function boot() {
 	state.fileName = (await kv.get('fileName')) || DEFAULT_FILE_NAME;
 	state.fileNameAt = (await kv.get('fileNameAt')) ?? -1;
 	state.lastExport = (await kv.get('lastExport')) || null;
+	state.inFile = (await kv.get('inFile')) || null;
 	state.mode = (await kv.get('mode')) === 'xxs' ? 'xxs' : 'xxl';
 	state.minHintSeen = !!(await kv.get('minHintSeen'));
 	state.sort = { key: 'score', dir: MODES[state.mode].best };
@@ -837,6 +839,9 @@ async function exportRows() {
 	}
 	state.lastExport = Date.now();
 	await kv.set('lastExport', state.lastExport);
+	// everything is in this file now
+	state.inFile = null;
+	await kv.set('inFile', null);
 	render();
 }
 
@@ -854,6 +859,7 @@ async function importRows(file) {
 		const byKey = new Map(state.rows.map(r => [keyOf(r), r]).filter(([k]) => k));
 		let added = 0, updated = 0, bad = 0;
 		const put = [];
+		const filed = new Map();	// id here -> the file's "updated": that version is in a file
 		// only known fields of the expected types: a backup file can come from anywhere
 		for (const raw of data.rows.slice(0, 50_000)) {
 			const r = cleanRow(raw);
@@ -861,10 +867,14 @@ async function importRows(file) {
 			const mine = byId.get(r.id) || byKey.get(state.ctx ? evaluateSafely(r.reading, state.ctx, r.edits).key : null);
 			if (!mine) { put.push(r); added++; }
 			else if ((r.updated || 0) > (mine.updated || 0)) { put.push({ ...r, id: mine.id }); updated++; }
+			const id = mine ? mine.id : r.id;
+			filed.set(id, Math.max(filed.get(id) ?? 0, r.updated || 0));
 		}
 		await rowStore.putMany(put);
 		state.rows = await rowStore.all();
 		const took = await importSettings(data.settings);
+		state.inFile = filedAfterImport(state.inFile, filed, cleanSettings(data.settings), state.rows.map(r => r.id));
+		await kv.set('inFile', state.inFile);
 		banner('info', `Imported: ${added} new, ${updated} updated, ${data.rows.length - added - updated - bad} already up to date${bad ? `, ${bad} not readable` : ''}.${took}`);
 	} catch (err) {
 		// storage full or refused, or anything else: say so rather than fail silently
@@ -956,11 +966,11 @@ async function renderBanners() {
 		transient.push({ kind: 'bad', text: `Could not read: ${errs.join('; ')}` });
 		return renderBanners();
 	}
-	// Unexported changes: a dot on the Export button. A banner only once a change has waited
-	// long enough that Safari's 7-day rule could take it.
-	const last = state.lastExport || 0;
-	const pending = state.rows.filter(r => (r.updated || 0) > last);
-	const changes = pending.length + (state.nameTemplateAt > last ? 1 : 0) + (state.fileNameAt > last ? 1 : 0);	// new settings count too
+	// Changes in no backup file yet (neither exported nor imported): a dot on the Export
+	// button. A banner only once a change has waited long enough that Safari's 7-day rule could
+	// take it.
+	const { rows: pending, settings } = notInFile(state, state.lastExport || 0, state.inFile);
+	const changes = pending.length + settings;	// new settings count too
 	$('#export-dot').hidden = changes === 0;
 	$('#backup > summary').title = changes ? `${changes} change${changes > 1 ? 's' : ''} not exported yet` : 'Export or import a backup';
 	const oldest = pending.length ? Math.min(...pending.map(r => r.updated || 0)) : Infinity;

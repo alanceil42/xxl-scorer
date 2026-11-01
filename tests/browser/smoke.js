@@ -461,6 +461,47 @@ test('the backup file name: set in Settings, used by Export, carried by the back
 	}
 });
 
+test('what an import read from a file counts as backed up; changes made here after it don\'t', { timeout: 60_000 }, async () => {
+	const { context, page, problems } = await open(402);
+	const noDot = () => page.waitForFunction(() => document.querySelector('#export-dot').hidden);
+	const dot = () => page.waitForFunction(() => !document.querySelector('#export-dot').hidden);
+	try {
+		// a fresh browser (never exported) restores a backup with days-old rows and settings:
+		// no dot, no reminder to export what was just read from a file, also after a reload
+		await boot(page);
+		const file = { app: 'xxl-scorer', v: 1, rows: ROWS, settings: { fileName: 'TalimeeZero', fileNameAt: 1000, nameTemplate: 'XX{score}', nameTemplateAt: 1000 } };
+		await page.click('#backup > summary');
+		await page.setInputFiles('#import', { name: 'TalimeeZero.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(file)) });
+		await page.waitForSelector('#rows tr >> nth=2');
+		await noDot();
+		assert.doesNotMatch(await page.textContent('#banners'), /not exported/);
+		await boot(page);
+		await page.waitForSelector('#rows tr >> nth=2');
+		await noDot();
+		assert.doesNotMatch(await page.textContent('#banners'), /not exported/);
+
+		// a change here is in no file: the dot again; importing the older file doesn't hide it
+		await page.click('tr[data-id="fk"] .c-name');
+		await page.waitForSelector('#editor[open]');
+		await page.fill('#ed-weight', '9.5');
+		await page.click('#ed-save');
+		await page.waitForFunction(() => !document.querySelector('#editor').open);
+		await dot();
+		await page.click('#backup > summary');
+		await page.setInputFiles('#import', { name: 'TalimeeZero.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(file)) });
+		await page.waitForFunction(() => /Imported: 0 new, 0 updated, 3 already up to date/.test(document.querySelector('#banners').textContent));
+		await dot();
+		assert.equal(await page.getAttribute('#backup > summary', 'title'), '1 change not exported yet');
+
+		// exported: nothing left (the menu is still open from the import)
+		await Promise.all([page.waitForEvent('download'), page.click('#export')]);
+		await noDot();
+		assert.deepEqual(problems, []);
+	} finally {
+		await context.close();
+	}
+});
+
 test('a row that can\'t be scored, a hostile backup, a failed import, copying without the clipboard API', { timeout: 60_000 }, async () => {
 	const { context, page, problems } = await open(1280);
 	try {

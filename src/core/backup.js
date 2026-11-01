@@ -94,6 +94,51 @@ export function cleanSettings(s, now = Date.now()) {
 	return out;
 }
 
+/**
+ * What the browser holds that is in no backup file yet, for the Backup dot and the reminder
+ * banner. Everything up to the last export is in a file; so is what an import brought in, at
+ * the time the file had (`inFile`: per row id, and per setting). Without the second, a list
+ * restored into a fresh browser, e.g. after Safari deleted the site's data, would count as
+ * never exported, with times days old: the reminder would ask to export what was just read
+ * from a file.
+ * @param {{rows: {id: string, updated?: number}[], nameTemplateAt: number, fileNameAt: number}} state
+ * @param {number} lastExport	0 for never
+ * @param {{rows?: Map<string, number>, nameTemplateAt?: number, fileNameAt?: number} | null} [inFile]
+ * @returns {{rows: {id: string, updated?: number}[], settings: number}} the rows, and how many settings
+ */
+export function notInFile(state, lastExport, inFile) {
+	const filed = inFile?.rows instanceof Map ? inFile.rows : new Map();
+	const has = (at, fileAt) => at <= lastExport || (typeof fileAt === 'number' && fileAt >= at);
+	const rows = state.rows.filter(r => !has(r.updated || 0, filed.get(r.id)));
+	const settings = (has(state.nameTemplateAt, inFile?.nameTemplateAt) ? 0 : 1) + (has(state.fileNameAt, inFile?.fileNameAt) ? 0 : 1);
+	return { rows, settings };
+}
+
+/**
+ * The `inFile` record of notInFile after an import: the times the file had for the rows it
+ * brought in or matched (by the ids they have here) and for its settings, the later of old and
+ * new. Entries for rows no longer here are dropped, so the record stays as big as the list.
+ * A Map, not an object: ids come from files, and an id like "__proto__" must stay an id.
+ * @param {{rows?: Map<string, number>, nameTemplateAt?: number, fileNameAt?: number} | null} old
+ * @param {Map<string, number>} rows	id here -> the file's "updated" of that row
+ * @param {{nameTemplate?: string, nameTemplateAt?: number, fileName?: string, fileNameAt?: number}} settings	cleaned (cleanSettings)
+ * @param {Iterable<string>} ids	the ids of the rows here after the import
+ */
+export function filedAfterImport(old, rows, settings, ids) {
+	const later = (a, b) => (typeof a === 'number' ? (typeof b === 'number' ? Math.max(a, b) : a) : b);
+	const prev = old?.rows instanceof Map ? old.rows : new Map();
+	const out = { rows: new Map() };
+	for (const id of ids) {
+		const t = later(prev.get(id), rows.get(id));
+		if (t !== undefined) out.rows.set(id, t);
+	}
+	const tpl = later(old?.nameTemplateAt, settings.nameTemplate ? settings.nameTemplateAt : undefined);
+	if (tpl !== undefined) out.nameTemplateAt = tpl;
+	const fn = later(old?.fileNameAt, settings.fileName ? settings.fileNameAt : undefined);
+	if (fn !== undefined) out.fileNameAt = fn;
+	return out;
+}
+
 /** The backup's file name when none is set: the local date, so backups of different days differ. */
 export const DEFAULT_FILE_NAME = 'xxl-scorer-{date}';
 export const FILE_NAME_MAX = 100;

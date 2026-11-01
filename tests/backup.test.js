@@ -1,7 +1,7 @@
 // Backup files are untrusted input: known fields and types only.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cleanRow, cleanSettings, safeThumb, backupFileName } from '../src/core/backup.js';
+import { cleanRow, cleanSettings, safeThumb, backupFileName, notInFile, filedAfterImport } from '../src/core/backup.js';
 
 const good = {
 	id: 'a1', created: 1, updated: 2, scanned: 2, scanIdx: 4, file: 'IMG_1.PNG', thumb: 'data:image/jpeg;base64,/9j/AAAA',
@@ -149,4 +149,41 @@ test('backup file name: {date} is the local date, .json added once, unsafe chara
 	assert.equal(backupFileName('.json', d), 'xxl-scorer-2026-10-29.json');
 	assert.equal(backupFileName('x'.repeat(300), d), `${'x'.repeat(100)}.json`);
 	assert.equal(backupFileName(42, d), 'xxl-scorer-2026-10-29.json');
+});
+
+test('not in a file: what came after the last export, unless an import brought that version', () => {
+	const state = { rows: [{ id: 'a', updated: 5 }, { id: 'b', updated: 20 }, { id: 'c', updated: 30 }, { id: 'd' }], nameTemplateAt: 25, fileNameAt: -1 };
+	// exported at 10: b, c and the template since
+	let out = notInFile(state, 10, null);
+	assert.deepEqual(out.rows.map(r => r.id), ['b', 'c']);
+	assert.equal(out.settings, 1);
+	// never exported, all of it imported at these times (a restore into a fresh browser): nothing
+	const all = { rows: new Map([['a', 5], ['b', 20], ['c', 30], ['d', 0]]), nameTemplateAt: 25 };
+	out = notInFile(state, 0, all);
+	assert.deepEqual(out.rows, []);
+	assert.equal(out.settings, 0);
+	// changed here after the import: that row and the template again
+	out = notInFile({ ...state, rows: [...state.rows.slice(0, 2), { id: 'c', updated: 31 }], nameTemplateAt: 26 }, 0, all);
+	assert.deepEqual(out.rows.map(r => r.id), ['c']);
+	assert.equal(out.settings, 1);
+	// a file with an older version of a row here doesn't count for the newer one
+	out = notInFile(state, 10, { rows: new Map([['b', 20], ['c', 29]]) });
+	assert.deepEqual(out.rows.map(r => r.id), ['c']);
+	// an id the file named oddly is just an id
+	out = notInFile({ rows: [{ id: '__proto__', updated: 3 }, { id: 'constructor', updated: 3 }], nameTemplateAt: -1, fileNameAt: -1 }, 0, null);
+	assert.equal(out.rows.length, 2);
+});
+
+test('after an import: the file\'s times, the later of old and new, for rows still here', () => {
+	const old = { rows: new Map([['a', 5], ['gone', 9], ['b', 30]]), nameTemplateAt: 7 };
+	const out = filedAfterImport(old, new Map([['b', 20], ['c', 40], ['__proto__', 2]]),
+		{ nameTemplate: 'X{score}', nameTemplateAt: 3, fileName: 'Zero', fileNameAt: 12 }, ['a', 'b', 'c', '__proto__']);
+	assert.deepEqual([...out.rows], [['a', 5], ['b', 30], ['c', 40], ['__proto__', 2]]);
+	assert.equal(out.nameTemplateAt, 7);
+	assert.equal(out.fileNameAt, 12);
+	// no settings in the file, nothing before: no times for them
+	const bare = filedAfterImport(null, new Map([['a', 1]]), {}, ['a']);
+	assert.deepEqual(bare, { rows: new Map([['a', 1]]) });
+	// it fits what notInFile reads
+	assert.deepEqual(notInFile({ rows: [{ id: '__proto__', updated: 2 }], nameTemplateAt: 3, fileNameAt: 12 }, 0, out), { rows: [], settings: 0 });
 });
