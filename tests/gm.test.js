@@ -47,9 +47,11 @@ function edgeGameMaster() {
 	const mon = (tid, p) => ({ templateId: tid, data: { pokemonSettings: { pokedexHeightM: 1.2, pokedexWeightKg: 30, type: 'POKEMON_TYPE_ROCK', stats: { baseAttack: 120, baseDefense: 110, baseStamina: 130 }, ...p } } });
 	const ext = (id, sizeSettings) => ({ templateId: `EXTENDED_V0000_POKEMON_${id}`, data: { pokemonExtendedSettings: { uniqueId: id, sizeSettings } } });
 	return [
-		mon('V9004_POKEMON_EDGEMON_NORMAL', { pokemonId: 'EDGEMON', form: 'EDGEMON_NORMAL', familyId: 'FAMILY_EDGEMON' }),
+		mon('V9004_POKEMON_EDGEMON_NORMAL', { pokemonId: 'EDGEMON', form: 'EDGEMON_NORMAL', familyId: 'FAMILY_EDGEMON',
+			evolutionBranch: [{ evolution: 'STATLESS', form: 'STATLESS_NORMAL' }, { temporaryEvolution: 'TEMP_EVOLUTION_MEGA' }] }),
 		mon('V9004_POKEMON_EDGEMON_COSTUME', { pokemonId: 'EDGEMON', form: 'EDGEMON_COSTUME', familyId: 'FAMILY_EDGEMON' }),
-		mon('V9004_POKEMON_EDGEMON_ZETA', { pokemonId: 'EDGEMON', form: 'EDGEMON_ZETA', pokedexHeightM: 1.4, familyId: 'FAMILY_EDGEMON' }),
+		mon('V9004_POKEMON_EDGEMON_ZETA', { pokemonId: 'EDGEMON', form: 'EDGEMON_ZETA', pokedexHeightM: 1.4, familyId: 'FAMILY_EDGEMON',
+			evolutionBranch: [{ evolution: 'STATLESS', form: 'STATLESS_ZETA' }, { evolution: 'STATLESS', form: 'STATLESS_ZETA' }, { evolution: 'ZEROMON' }] }),
 		mon('V9004_POKEMON_EDGEMON_ALPHA', { pokemonId: 'EDGEMON', form: 'EDGEMON_ALPHA', pokedexHeightM: 1.3, familyId: 'FAMILY_EDGEMON' }),
 		mon('V9005_POKEMON_STATLESS', { pokemonId: 'STATLESS', stats: { baseAttack: 90 }, familyId: 'FAMILY_EDGEMON' }),
 		mon('V9006_POKEMON_NOHEIGHT', { pokemonId: 'NOHEIGHT', pokedexHeightM: undefined }),
@@ -62,10 +64,21 @@ function edgeGameMaster() {
 		ext('ZEROBOUND', { xxlUpperBound: 0, xlUpperBound: 1.9 }),
 		mon('V9012_POKEMON_ZEROHEIGHT', { pokemonId: 'ZEROHEIGHT', pokedexHeightM: 0 }),
 		mon('V9013_POKEMON_ZEROWEIGHT', { pokemonId: 'ZEROWEIGHT', pokedexWeightKg: 0 }),
+		mon('V9015_POKEMON_TWINMON', { pokemonId: 'TWINMON', evolutionBranch: [{ evolution: 'ZEROMON', form: 'ZEROMON_NORMAL' }] }),
+		mon('V9015_POKEMON_TWINMON_NORMAL', { pokemonId: 'TWINMON', form: 'TWINMON_NORMAL', evolutionBranch: [{ evolution: 'ZEROMON', form: 'ZEROMON_NORMAL' }] }),
+		mon('V9015_POKEMON_TWINMON_ODD', { pokemonId: 'TWINMON', form: 'TWINMON_ODD', evolutionBranch: [{ evolution: 'ZEROBOUND' }] }),
 		mon('V9014_POKEMON_ZEROATTACK', { pokemonId: 'ZEROATTACK', stats: { baseAttack: 0, baseDefense: 110, baseStamina: 130 } }),
 		{ templateId: 'PLAYER_LEVEL_SETTINGS', data: { playerLevel: { cpMultiplier: CPM } } },
 	];
 }
+
+test('evolutions per form: species, "/FORM" for other forms, no megas, no doubles', () => {
+	const gm = compactGameMaster(edgeGameMaster(), { minSpecies: 1 });
+	assert.deepEqual(gm.species.EDGEMON.evo, { NORMAL: ['STATLESS'], ZETA: ['STATLESS/ZETA', 'ZEROMON'] });
+	assert.deepEqual(gm.species.TWINMON.evo, { '': ['ZEROMON'], ODD: ['ZEROBOUND'] }, 'the base once, though its template comes twice');
+	assert.equal(gm.species.STATLESS.evo, undefined, 'a form that doesn\'t evolve: no evo');
+	assert.ok(isCompactGm(gm));
+});
 
 test('a species listed only by its forms: NORMAL stands in for the base, its costume is dropped', () => {
 	const gm = compactGameMaster(edgeGameMaster(), { minSpecies: 1 });
@@ -87,7 +100,7 @@ test('evolution families: from familyId without "FAMILY_"; a species without one
 
 test('templates without height, weight or attack are skipped; missing defence and stamina are 0', () => {
 	const gm = compactGameMaster(edgeGameMaster(), { minSpecies: 1 });
-	assert.deepEqual(Object.keys(gm.species).sort(), ['EDGEMON', 'STATLESS', 'ZEROBOUND', 'ZEROMON'], 'a height, weight or attack of 0 too');
+	assert.deepEqual(Object.keys(gm.species).sort(), ['EDGEMON', 'STATLESS', 'TWINMON', 'ZEROBOUND', 'ZEROMON'], 'a height, weight or attack of 0 too');
 	assert.deepEqual(gm.species.STATLESS.f[''].slice(4, 8), [90, 0, 0, 'ROCK']);
 });
 

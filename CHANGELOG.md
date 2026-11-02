@@ -8,6 +8,9 @@ collect under "Unreleased".
 
 ## Unreleased
 
+- The game data file (gm.json, from the page or tools/build-gm.sh) also lists what each
+  species and form evolves into, for other tools that read it. The page itself doesn't use
+  it, so nothing is fetched again and an older self-hosted gm.json keeps working
 
 ## 1.9.1 - 2026-11-01
 
