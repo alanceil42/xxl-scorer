@@ -82,6 +82,12 @@ jq -c --arg now "$now" --arg etag "$etag" --arg url "$GM_URL" --argjson min "$MI
 			dex: ($tid[1:5] | tonumber),
 			fam: (.familyId // null | if . then tostring | ltrimstr("FAMILY_") else null end),
 			form: (if .form then (.form | tostring | ltrimstr($pid) | ltrimstr("_")) else "" end),
+			# what this form evolves into, as gm.js: "SPECIES" or "SPECIES/FORM"; no megas
+			evo: (reduce ((.evolutionBranch // [])[] | select(.evolution)
+				| .evolution as $e
+				| (if .form then (.form | tostring | ltrimstr($e) | ltrimstr("_")) else "" end) as $tf
+				| if $tf != "" and $tf != "NORMAL" then "\($e)/\($tf)" else $e end) as $t
+				([]; if any(.[]; . == $t) then . else . + [$t] end)),
 			row: [
 				.pokedexHeightM,
 				.pokedexWeightKg,
@@ -100,12 +106,15 @@ jq -c --arg now "$now" --arg etag "$etag" --arg url "$GM_URL" --argjson min "$MI
 	| (reduce $rows[] as $r ({};
 		.[$r.id].dex = $r.dex
 		| (if $r.fam and (.[$r.id].fam == null) then .[$r.id].fam = $r.fam else . end)
-		| .[$r.id].f[$r.form] = $r.row)
+		| .[$r.id].f[$r.form] = $r.row
+		| (if ($r.evo | length) > 0 then .[$r.id].evo[$r.form] = $r.evo else . end))
 	| with_entries(
 		.value.f as $f
 		| ($f[""] // $f["NORMAL"]) as $base
 		| .value.f = ($f | with_entries(select(
 			.key == "" or (.key == "NORMAL" and ($f[""] == null)) or .value != $base)))
+		# the base template comes twice (X and X_NORMAL): one copy of its evolutions
+		| if .value.evo.NORMAL != null and .value.evo.NORMAL == .value.evo[""] then del(.value.evo.NORMAL) else . end
 	)) as $species
 
 	| if ($species | length) < $min then

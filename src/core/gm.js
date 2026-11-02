@@ -4,13 +4,20 @@
 export const GM_URL = 'https://raw.githubusercontent.com/PokeMiners/game_masters/master/latest/latest.json';
 export const XXL_BONUS = 178;	// not in the game master
 export const MIN_SPECIES = 900;	// format change guard
-/** Version of the compact shape. 2 added each species' evolution family (fam). */
+/**
+ * Version of the compact shape. 2 added each species' evolution family (fam). Each species'
+ * evolutions (evo) came later without a new version: the page doesn't use them, and a copy
+ * without them stays as good for it; a reader that needs them checks that they are there.
+ */
 export const GM_VERSION = 2;
 
 /**
- * species: {POKEMONID: {dex, fam, f: {form: Row}}}; fam is the evolution family as the game
- * master names it, without "FAMILY_" (Gourgeist: "PUMPKABOO"). A copy from before version 2
- * lacks it; use familyOf().
+ * species: {POKEMONID: {dex, fam, f: {form: Row}, evo?: {form: [target]}}}; fam is the evolution
+ * family as the game master names it, without "FAMILY_" (Gourgeist: "PUMPKABOO"). A copy from
+ * before version 2 lacks it; use familyOf(). evo: what each form evolves into, only forms that
+ * evolve; a target is the species, plus "/FORM" when it is a form other than the base
+ * (Meowth: {"": ["PERSIAN"], ALOLA: ["PERSIAN/ALOLA"], GALARIAN: ["PERRSERKER"]}). Mega
+ * evolutions are not in it. Not used by the page; there for other tools reading gm.json.
  *
  * Row layout, one per species form:
  * [heightM, weightKg, weightStdDevKg, xxlMaxM, baseAtk, baseDef, baseSta, "TYPE/TYPE2", xlMaxM, xsMinM]
@@ -24,6 +31,21 @@ export const ROW = Object.freeze({ H: 0, W: 1, WSD: 2, XXL_MAX: 3, ATK: 4, DEF: 
 export const xsMin = row => row[ROW.XS_MIN] ?? row[ROW.H] * 0.5;
 
 const round8 = x => Math.round(x * 1e8) / 1e8;
+
+/** A form's name without its species ("MEOWTH_ALOLA" → "ALOLA"), "" for none. */
+const formName = (pid, f) => (f && f.startsWith(pid) ? f.slice(pid.length) : f || '').replace(/^_/, '');
+
+/** One form's evolutions as evo stores them, in the game master's order. */
+function evolutions(p) {
+	const out = [];
+	for (const b of p.evolutionBranch || []) {
+		if (!b.evolution) continue;	// a mega evolution
+		const form = formName(b.evolution, b.form ? String(b.form) : '');
+		const t = form && form !== 'NORMAL' ? `${b.evolution}/${form}` : b.evolution;
+		if (!out.includes(t)) out.push(t);
+	}
+	return out;
+}
 
 /**
  * @param {Array<{templateId: string, data: any}>} all  parsed latest.json
@@ -62,6 +84,8 @@ export function compactGameMaster(all, opt = {}) {
 		const sp = species[pid] || (species[pid] = { dex: Number(t.templateId.slice(1, 5)), f: {} });
 		if (p.familyId && !sp.fam) sp.fam = String(p.familyId).replace(/^FAMILY_/, '');
 		sp.f[form] = row;
+		const evo = evolutions(p);
+		if (evo.length) (sp.evo || (sp.evo = {}))[form] = evo;
 	}
 	// Drop forms identical to the base (costumes etc.)
 	for (const sp of Object.values(species)) {
@@ -71,6 +95,8 @@ export function compactGameMaster(all, opt = {}) {
 			const keep = k === '' || (k === 'NORMAL' && sp.f[''] === undefined) || !same(sp.f[k]);
 			if (!keep) delete sp.f[k];
 		}
+		// the base's template comes twice (POKEMON_X and POKEMON_X_NORMAL): one copy of its evo
+		if (sp.evo && sp.evo.NORMAL && sp.evo[''] && JSON.stringify(sp.evo.NORMAL) === JSON.stringify(sp.evo[''])) delete sp.evo.NORMAL;
 	}
 	const count = Object.keys(species).length;
 	const min = opt.minSpecies ?? MIN_SPECIES;
