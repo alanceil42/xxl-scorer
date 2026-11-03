@@ -82,6 +82,10 @@ jq -c --arg now "$now" --arg etag "$etag" --arg url "$GM_URL" --argjson min "$MI
 			dex: ($tid[1:5] | tonumber),
 			fam: (.familyId // null | if . then tostring | ltrimstr("FAMILY_") else null end),
 			form: (if .form then (.form | tostring | ltrimstr($pid) | ltrimstr("_")) else "" end),
+			# its mega and primal evolutions, as gm.js: "MEGA", "MEGA_X", "PRIMAL"
+			mega: ([ ((.tempEvoOverrides // [])[] | .tempEvoId? // empty),
+				((.evolutionBranch // [])[] | .temporaryEvolution // empty) ]
+				| map(tostring | ltrimstr("TEMP_EVOLUTION_"))),
 			# what this form evolves into, as gm.js: "SPECIES" or "SPECIES/FORM"; no megas
 			evo: (reduce ((.evolutionBranch // [])[] | select(.evolution)
 				| .evolution as $e
@@ -107,7 +111,8 @@ jq -c --arg now "$now" --arg etag "$etag" --arg url "$GM_URL" --argjson min "$MI
 		.[$r.id].dex = $r.dex
 		| (if $r.fam and (.[$r.id].fam == null) then .[$r.id].fam = $r.fam else . end)
 		| .[$r.id].f[$r.form] = $r.row
-		| (if ($r.evo | length) > 0 then .[$r.id].evo[$r.form] = $r.evo else . end))
+		| (if ($r.evo | length) > 0 then .[$r.id].evo[$r.form] = $r.evo else . end)
+		| (if ($r.mega | length) > 0 then .[$r.id].mega = ((.[$r.id].mega // []) + $r.mega | unique) else . end))
 	| with_entries(
 		.value.f as $f
 		| ($f[""] // $f["NORMAL"]) as $base

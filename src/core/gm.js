@@ -17,7 +17,9 @@ export const GM_VERSION = 2;
  * before version 2 lacks it; use familyOf(). evo: what each form evolves into, only forms that
  * evolve; a target is the species, plus "/FORM" when it is a form other than the base
  * (Meowth: {"": ["PERSIAN"], ALOLA: ["PERSIAN/ALOLA"], GALARIAN: ["PERRSERKER"]}). Mega
- * evolutions are not in it. Not used by the page; there for other tools reading gm.json.
+ * evolutions are not in it; mega: the species' mega and primal evolutions, from any of its
+ * forms, without "TEMP_EVOLUTION_" and sorted (Charizard: ["MEGA_X", "MEGA_Y"], Groudon:
+ * ["PRIMAL"]). Neither is used by the page; they are there for other tools reading gm.json.
  *
  * Row layout, one per species form:
  * [heightM, weightKg, weightStdDevKg, xxlMaxM, baseAtk, baseDef, baseSta, "TYPE/TYPE2", xlMaxM, xsMinM]
@@ -34,6 +36,12 @@ const round8 = x => Math.round(x * 1e8) / 1e8;
 
 /** A form's name without its species ("MEOWTH_ALOLA" → "ALOLA"), "" for none. */
 const formName = (pid, f) => (f && f.startsWith(pid) ? f.slice(pid.length) : f || '').replace(/^_/, '');
+
+/** A form's mega and primal evolutions, as mega stores them ("MEGA", "MEGA_X", "PRIMAL"). */
+function megas(p) {
+	const ids = [...(p.tempEvoOverrides || []).map(o => o && o.tempEvoId), ...(p.evolutionBranch || []).map(b => b.temporaryEvolution)];
+	return ids.filter(Boolean).map(x => String(x).replace(/^TEMP_EVOLUTION_/, ''));
+}
 
 /** One form's evolutions as evo stores them, in the game master's order. */
 function evolutions(p) {
@@ -86,6 +94,8 @@ export function compactGameMaster(all, opt = {}) {
 		sp.f[form] = row;
 		const evo = evolutions(p);
 		if (evo.length) (sp.evo || (sp.evo = {}))[form] = evo;
+		const mega = megas(p);
+		if (mega.length) sp.mega = [...new Set([...(sp.mega || []), ...mega])].sort();
 	}
 	// Drop forms identical to the base (costumes etc.)
 	for (const sp of Object.values(species)) {
