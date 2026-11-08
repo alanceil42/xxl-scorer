@@ -8,6 +8,11 @@ collect under "Unreleased".
 
 ## Unreleased
 
+- Settings → Save debug report: a file for bug reports with your settings, recent error
+  messages (the last 50, kept over a reload), how your browser lays out the page, and the
+  readings of the ticked Pokémon, or all of them when none is ticked. No screenshots or
+  pictures; nothing is sent, you choose where the file goes. Delete all rows clears the errors
+  too. A new issue template ("Something else is wrong") asks for it
 - gm.json also lists each species' mega and primal evolutions (mega), for other tools that read
   it; as with evo, the page doesn't use it and nothing is fetched again
 - The game data file (gm.json, from the page or tools/build-gm.sh) also lists what each

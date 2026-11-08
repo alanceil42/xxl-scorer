@@ -8,6 +8,8 @@ body:
         Thanks! Before attaching a screenshot, **black out the catch location** in the line
         "This … was caught on … around …" (and anything else you don't want public).
         Keep the rest unchanged and uncompressed if you can: reading depends on the pixels.
+        A debug report helps too: tick the misread Pokémon in select mode, then Settings → Save
+        debug report, and drag the file in with the screenshot.
   - type: input
     id: version
     attributes:

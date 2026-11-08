@@ -135,9 +135,11 @@
 				<input type="file" id="gm-import" accept="application/json,.json" hidden>
 				Import game data file
 			</label>
+			<button class="btn" id="debug-report" type="button">Save debug report</button>
 			<button class="btn danger" id="clear" type="button">Delete all rows</button>
 		</div>
 		<p class="muted small">Game data is fetched by your browser from PokeMiners' public repositories on GitHub, at most once a week, and kept on this device. "Import game data file" takes a <code>latest.json</code> game master or a <code>gm.json</code> built with <code>tools/build-gm.sh</code>.</p>
+		<p class="muted small">"Save debug report" makes a file for a bug report: your settings, recent errors, how this browser lays out the page, and the readings of <strong id="debug-scope">all Pokémon</strong> (tick some in select mode for just those). No screenshots or pictures. Nothing is sent: you decide where the file goes.</p>
 	</section>
 
 	<div id="banners" aria-live="polite"></div>

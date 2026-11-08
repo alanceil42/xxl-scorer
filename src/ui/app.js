@@ -16,6 +16,8 @@ import { phoneElement } from './help.js';
 import { cleanRow, cleanSettings, backupFileName, notInFile, filedAfterImport, remindExport, DEFAULT_FILE_NAME } from '../core/backup.js';
 import { imprintLink } from '../core/imprint.js';
 import { readBuild, buildLink } from '../core/buildinfo.js';
+import { makeReport, pickRows, reportFileName } from '../core/debugreport.js';
+import { startErrorLog, environment, jsFeatures, layoutFacts, saveFile } from './debug.js';
 
 const $ = sel => document.querySelector(sel);
 const el = (tag, attrs = {}, ...kids) => {
@@ -69,7 +71,12 @@ const state = {
 	lastExport: null,
 	inFile: null,	// what imports brought in since the last export, at the file's times (notInFile)
 	nagDismissed: 0,	// when the export reminder was dismissed; changes after it bring it back
+	build: null,	// src/build.js's fields, for the debug report
 };
+
+// Errors for the debug report, kept with the rows (kv) so they survive a reload; started before
+// anything else so that boot's own errors are caught too
+const errorLog = startErrorLog({ load: () => kv.get('errorLog'), save: log => kv.set('errorLog', log) });
 
 const EXPORT_NAG_DAYS = 6;	// Safari may delete site data after 7 days without a visit
 const TEMPLATE_PAUSE = 400;	// ms without a keystroke before a new nickname template is taken
@@ -135,7 +142,8 @@ function showStats(text) {
 async function showBuild() {
 	try {
 		const r = await fetch('src/build.js', { cache: 'no-cache' });
-		const link = r.ok ? buildLink(readBuild(await r.text())) : null;
+		state.build = r.ok ? readBuild(await r.text()) : null;
+		const link = buildLink(state.build);
 		const a = $('#version');
 		if (!link || !a) return;
 		a.href = link.href;
@@ -157,6 +165,7 @@ async function loadData(force) {
 	} catch (err) {
 		state.ctx = null;
 		state.gmInfo = { error: String(err.message || err) };
+		errorLog.add('gamedata', state.gmInfo.error);
 	}
 	render();
 }
@@ -807,6 +816,73 @@ function confirmDelete(row) {
 	return window.confirm(`Delete this row${row.file ? ` (${row.file})` : ''}?`);
 }
 
+// ---------- debug report ----------
+
+// What the report measures of the layout: the parts a bug report is most often about
+const LAYOUT_ELEMENTS = ['header.top', 'nav.actions', '#settings', '#banners', '#queue', '#list-bar', '.table-wrap', '#table', '#table tbody tr', '#editor', 'footer.foot'];
+const CSS_FEATURES = ['selector(:has(a))', 'height: 100dvh', 'color: color-mix(in srgb, red, blue)', 'padding: env(safe-area-inset-top)', 'inset: 0', 'selector(:focus-visible)'];
+
+/** The text with the backup file name (as set, and as saved) replaced: it may name an account. */
+function hideFileName(text) {
+	let t = String(text);
+	if (state.fileNameAt < 0) return t;
+	for (const n of [backupFileName(state.fileName), state.fileName].filter(n => n && n.length > 2)) t = t.split(n).join('[backup file name]');
+	return t;
+}
+
+/** Settings → Save debug report: one JSON file of what the page saw, saved where the user says. */
+async function saveDebugReport() {
+	const now = new Date();
+	const section = f => { try { return f(); } catch (err) { return { failed: String(err && err.message || err) }; } };
+	const { included, total, list } = pickRows(state.rows, state.selecting ? state.selected : []);
+	const report = makeReport({
+		app: 'xxl-scorer',
+		now,
+		build: state.build,
+		env: { ...(await environment()), features: jsFeatures({ ocrWorkers: () => poolSize(state.config.ocrWorkers) }) },
+		layout: layoutFacts({ elements: LAYOUT_ELEMENTS, css: CSS_FEATURES }),
+		errors: errorLog.entries(),
+		drop: ['thumb'],
+		sections: {
+			config: state.config,
+			settings: section(() => ({
+				mode: state.mode,
+				nameTemplate: state.nameTemplate,
+				nameTemplateSet: state.nameTemplateAt >= 0,
+				fileNameSet: state.fileNameAt >= 0,	// the name itself may name a game account
+				sort: state.sort,
+				search: $('#search').value,
+				lastExport: state.lastExport,
+				nagDismissed: state.nagDismissed,
+				minHintSeen: state.minHintSeen,
+			})),
+			gameData: section(() => ({
+				info: state.gmInfo,
+				loaded: !!state.ctx,
+				species: state.ctx ? Object.keys(state.ctx.gm.species).length : 0,
+				coef: state.ctx ? state.ctx.gm.coef : null,
+			})),
+			page: section(() => ({
+				busy: state.busy,
+				queue: state.run ? { files: state.run.files.length, taken: state.run.taken, started: state.run.started } : null,
+				selecting: state.selecting,
+				ticked: state.selected.size,
+				shown: state.shown.length,
+				pendingDuplicates: state.pendingDup.length,
+				// the import banner names the backup file name, which may name a game account
+				banners: [...document.querySelectorAll('#banners .banner p')].map(p => hideFileName(p.textContent)),
+				editorOpen: !!$('#editor').open,
+			})),
+			rows: {
+				included, total,
+				list: list.map(r => ({ ...r, shown: section(() => (state.ctx ? evaluateRow(r.reading, state.ctx, r.edits) : null)) })),
+			},
+		},
+	});
+	const file = new File([JSON.stringify(report, null, '\t')], reportFileName('xxl-scorer', now), { type: 'application/json' });
+	await saveFile(file);
+}
+
 // ---------- backup ----------
 
 async function exportRows() {
@@ -818,26 +894,7 @@ async function exportRows() {
 	if (Object.keys(settings).length) data.settings = settings;
 	const name = backupFileName(state.fileName);	// {date}: the local date, after midnight the new day's
 	const file = new File([JSON.stringify(data)], name, { type: 'application/json' });
-	let done = false;
-	try {
-		// The share sheet on phones and tablets ("Save to Files"); a plain download elsewhere: on
-		// the Mac the share sheet's Copy pasted the file twice into the Finder.
-		const touch = matchMedia('(pointer: coarse)').matches;
-		if (touch && navigator.canShare && navigator.canShare({ files: [file] })) {
-			await navigator.share({ files: [file] });
-			done = true;
-		}
-	} catch (err) {
-		if (err && err.name === 'AbortError') return;	// user closed the share sheet
-	}
-	if (!done) {
-		const url = URL.createObjectURL(file);
-		const a = el('a', { href: url, download: name });
-		document.body.append(a);
-		a.click();
-		a.remove();
-		setTimeout(() => URL.revokeObjectURL(url), 10000);
-	}
+	if (!(await saveFile(file))) return;	// user closed the share sheet
 	state.lastExport = Date.now();
 	await kv.set('lastExport', state.lastExport);
 	// everything is in this file now
@@ -931,6 +988,7 @@ async function setTemplate(t, at) {
 
 const transient = [];
 function banner(kind, text, action = null) {
+	if (kind === 'bad') errorLog.add('banner', text);
 	transient.push({ kind, text, action });
 	renderBanners();
 }
@@ -965,6 +1023,7 @@ async function renderBanners() {
 	if (state.errors.length) {
 		const errs = state.errors.splice(0);
 		transient.push({ kind: 'bad', text: `Could not read: ${errs.join('; ')}` });
+		errorLog.add('banner', `Could not read: ${errs.join('; ')}`);
 		return renderBanners();
 	}
 	// Changes in no backup file yet (neither exported nor imported): a dot on the Export
@@ -1013,6 +1072,8 @@ function renderSettings() {
 		setStatus('#gm-status', `${n} species from ${i.source}, changed ${date}, checked ${checked}${i.error ? ` (last check failed: ${i.error})` : ''}`);
 	} else if (i && i.error) setStatus('#gm-status', `not loaded: ${i.error}`);
 	setStatus('#store-status', `${state.rows.length} Pokémon`);
+	const ticked = state.selecting ? state.selected.size : 0;
+	setStatus('#debug-scope', ticked ? `the ${ticked} ticked Pokémon` : `all ${state.rows.length} Pokémon`);
 	setStatus('#export-status', state.lastExport ? new Date(state.lastExport).toLocaleString() : 'never');
 	const sample = state.ctx && state.rows.length ? evaluateRow(state.rows[0].reading, state.ctx, state.rows[0].edits) : { name: 'Chansey', ivs: { a: 15, d: 14, s: 14 }, level: 20, xxl: true, score: { total: 1104.6 } };
 	const n = formatName(state.nameTemplate, nameValues(sample));
@@ -1144,9 +1205,11 @@ function wire() {
 		if (!f) return;
 		try { await importGameData(f); await loadData(false); banner('info', 'Game data imported.'); } catch (err) { banner('bad', `Game data import failed: ${err.message}`); }
 	});
+	$('#debug-report').addEventListener('click', saveDebugReport);
 	$('#clear').addEventListener('click', async () => {
 		if (!window.confirm(`Delete all ${state.rows.length} rows? Export first if you want to keep them.`)) return;
 		await rowStore.clear();
+		await errorLog.clear();	// the debug report's errors could name the deleted rows' files
 		state.rows = [];
 		render();
 	});
