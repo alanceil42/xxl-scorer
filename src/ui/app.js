@@ -822,6 +822,14 @@ function confirmDelete(row) {
 const LAYOUT_ELEMENTS = ['header.top', 'nav.actions', '#settings', '#banners', '#queue', '#list-bar', '.table-wrap', '#table', '#table tbody tr', '#editor', 'footer.foot'];
 const CSS_FEATURES = ['selector(:has(a))', 'height: 100dvh', 'color: color-mix(in srgb, red, blue)', 'padding: env(safe-area-inset-top)', 'inset: 0', 'selector(:focus-visible)'];
 
+/** The text with the backup file name (as set, and as saved) replaced: it may name an account. */
+function hideFileName(text) {
+	let t = String(text);
+	if (state.fileNameAt < 0) return t;
+	for (const n of [backupFileName(state.fileName), state.fileName].filter(n => n && n.length > 2)) t = t.split(n).join('[backup file name]');
+	return t;
+}
+
 /** Settings → Save debug report: one JSON file of what the page saw, saved where the user says. */
 async function saveDebugReport() {
 	const now = new Date();
@@ -861,7 +869,8 @@ async function saveDebugReport() {
 				ticked: state.selected.size,
 				shown: state.shown.length,
 				pendingDuplicates: state.pendingDup.length,
-				banners: [...document.querySelectorAll('#banners .banner p')].map(p => p.textContent),
+				// the import banner names the backup file name, which may name a game account
+				banners: [...document.querySelectorAll('#banners .banner p')].map(p => hideFileName(p.textContent)),
 				editorOpen: !!$('#editor').open,
 			})),
 			rows: {

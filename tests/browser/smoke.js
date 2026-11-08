@@ -851,6 +851,12 @@ for (const width of [402, 1280]) {
 			assert.equal(r.settings.mode, 'xxl');
 			assert.equal(r.config.gm, 'local/data/gm.json');
 
+			// a backup file name naming an account, brought by a backup: its import banner names it
+			await page.click('#backup > summary');
+			await page.setInputFiles('#import', { name: 'backup.json', mimeType: 'application/json',
+				buffer: Buffer.from(JSON.stringify({ app: 'xxl-scorer', v: 1, rows: ROWS, settings: { fileName: 'TalimeeTest', fileNameAt: Date.now() + 1000 } })) });
+			await page.waitForFunction(() => /Backup file name: TalimeeTest/.test(document.querySelector('#banners').textContent));
+
 			// one ticked: just that one
 			await page.click('#select-btn');
 			await page.click('tr[data-id="mf"] .c-name');
@@ -858,6 +864,7 @@ for (const width of [402, 1280]) {
 			r = await debugReport(page);
 			assert.deepEqual([r.rows.included, r.rows.total, r.rows.list.map(x => x.id)], ['ticked', 3, ['mf']]);
 			assert.equal(r.page.selecting, true);
+			assert.doesNotMatch(JSON.stringify(r), /TalimeeTest/, 'the backup file name stays out');
 			assert.ok(await noSideScroll(page), 'Settings with the new button: no sideways scrolling');
 			await page.click('#select-done');
 			assert.equal(await page.textContent('#debug-scope'), 'all 3 Pokémon');
