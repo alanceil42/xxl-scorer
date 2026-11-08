@@ -819,7 +819,7 @@ function confirmDelete(row) {
 // ---------- debug report ----------
 
 // What the report measures of the layout: the parts a bug report is most often about
-const LAYOUT_ELEMENTS = ['header', '.actions', '#settings', '#banners', '#queue', '#list-bar', '.table-wrap', '#table', '#table tbody tr', '#editor', 'footer'];
+const LAYOUT_ELEMENTS = ['header.top', 'nav.actions', '#settings', '#banners', '#queue', '#list-bar', '.table-wrap', '#table', '#table tbody tr', '#editor', 'footer.foot'];
 const CSS_FEATURES = ['selector(:has(a))', 'height: 100dvh', 'color: color-mix(in srgb, red, blue)', 'padding: env(safe-area-inset-top)', 'inset: 0', 'selector(:focus-visible)'];
 
 /** Settings → Save debug report: one JSON file of what the page saw, saved where the user says. */

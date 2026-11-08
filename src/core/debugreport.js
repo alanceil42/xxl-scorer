@@ -67,7 +67,9 @@ function isEntry(e) {
  */
 export function scrub(value, opts = {}) {
 	const drop = new Set(opts.drop || []);
-	const seen = new WeakSet();
+	// only the objects on the path from the root: one object shared by two fields (a row's
+	// reading and what the page showed both hold the same bars) is copied twice, a cycle is cut
+	const path = new WeakSet();
 	const walk = v => {
 		if (typeof v === 'string') {
 			if (DATA_URL.test(v)) return '[data URL removed]';
@@ -77,17 +79,20 @@ export function scrub(value, opts = {}) {
 		if (typeof v === 'number') return Number.isFinite(v) ? v : String(v);
 		if (v === null || typeof v === 'boolean') return v;
 		if (typeof v !== 'object') return undefined;
-		if (seen.has(v)) return '[repeated]';
-		seen.add(v);
-		if (v instanceof Set) return [...v].map(walk);
-		if (v instanceof Map) v = Object.fromEntries(v);
-		if (Array.isArray(v)) return v.map(x => { const w = walk(x); return w === undefined ? null : w; });
-		const out = {};
-		for (const [k, x] of Object.entries(v)) {
-			if (drop.has(k)) continue;
-			const w = walk(x);
-			if (w !== undefined) out[k] = w;
+		if (path.has(v)) return '[cycle]';
+		path.add(v);
+		let out;
+		if (v instanceof Set) out = [...v].map(walk);
+		else if (Array.isArray(v)) out = v.map(x => { const w = walk(x); return w === undefined ? null : w; });
+		else {
+			out = {};
+			for (const [k, x] of Object.entries(v instanceof Map ? Object.fromEntries(v) : v)) {
+				if (drop.has(k)) continue;
+				const w = walk(x);
+				if (w !== undefined) out[k] = w;
+			}
 		}
+		path.delete(v);
 		return out;
 	};
 	return walk(value);

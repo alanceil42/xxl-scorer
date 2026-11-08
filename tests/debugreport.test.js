@@ -46,9 +46,17 @@ test('scrub: JSON-safe copy; Sets, Maps, cycles, functions, NaN', () => {
 	assert.equal('f' in out, false);
 	assert.equal('u' in out, false);
 	assert.equal(out.n, 'NaN');
-	assert.equal(out.cyc.self, '[repeated]');
+	assert.equal(out.cyc.self, '[cycle]');
 	assert.equal(out.long.length, 2001);
 	assert.doesNotThrow(() => JSON.stringify(out));
+});
+
+test('scrub: an object shared by two fields is copied into both (not a cycle)', () => {
+	const bars = { a: 9.93, d: 14.93, s: 13.94 };
+	const out = scrub({ reading: { bars }, shown: { bars, list: [bars, bars] } });
+	assert.deepEqual(out.shown.bars, bars);
+	assert.deepEqual(out.shown.list, [bars, bars]);
+	assert.deepEqual(out.reading.bars, bars);
 });
 
 test('error messages: one line, no data: URLs, cut short', () => {
