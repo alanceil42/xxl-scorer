@@ -8,6 +8,10 @@ collect under "Unreleased".
 
 ## Unreleased
 
+## 1.10 - 2026-11-08
+
+Save a debug report for bug reports.
+
 - Settings → Save debug report: a file for bug reports with your settings, recent error
   messages (the last 50, kept over a reload), how your browser lays out the page, and the
   readings of the ticked Pokémon, or all of them when none is ticked. No screenshots or
