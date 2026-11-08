@@ -792,3 +792,87 @@ test('closing the editor: no focus ring after a tap, the row focused after the k
 	await context.close();
 });
 
+
+// ---------- the debug report: errors kept over a reload, the ticked rows or all, no pictures ----------
+
+/** Settings → Save debug report, as the saved file's JSON (a download: no touch screen here). */
+async function debugReport(page) {
+	if (!(await page.isVisible('#settings'))) await page.click('#settings-btn');
+	const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#debug-report')]);
+	assert.match(dl.suggestedFilename(), /^xxl-scorer-debug-\d{4}-\d\d-\d\d\.json$/);
+	const { readFile: read } = await import('node:fs/promises');
+	return JSON.parse(await read(await dl.path(), 'utf8'));
+}
+
+for (const width of [402, 1280]) {
+	test(`at ${width} px: the debug report`, { timeout: 60_000 }, async () => {
+		const { context, page, problems } = await open(width);
+		try {
+			await boot(page);
+			await page.click('#backup > summary');
+			await page.setInputFiles('#import', { name: 'backup.json', mimeType: 'application/json', buffer: Buffer.from(BACKUP) });
+			await page.waitForSelector('#rows tr >> nth=2');
+
+			// an uncaught error and a red banner, then a reload: both still in the log
+			await page.evaluate(() => setTimeout(() => { throw new Error('boom from the test'); }));
+			await page.waitForTimeout(100);
+			await page.click('#backup > summary');
+			await page.setInputFiles('#import', { name: 'junk.json', mimeType: 'application/json', buffer: Buffer.from('{"app":"other"}') });
+			await page.waitForFunction(() => /Import failed/.test(document.querySelector('#banners').textContent));
+			await page.waitForTimeout(200);	// the log is written after the banner
+			await boot(page);
+			await page.waitForSelector('#rows tr >> nth=2');
+
+			// nothing ticked: all rows
+			await page.click('#settings-btn');
+			assert.equal(await page.textContent('#debug-scope'), 'all 3 Pokémon');
+			let r = await debugReport(page);
+			assert.equal(r.app, 'xxl-scorer');
+			assert.equal(r.kind, 'debug-report');
+			assert.equal(r.v, 1);
+			assert.deepEqual([r.rows.included, r.rows.total, r.rows.list.length], ['all', 3, 3]);
+			assert.doesNotMatch(JSON.stringify(r), /\bdata:/i, 'no thumbnail or other embedded picture');
+			assert.ok(r.rows.list.every(x => !('thumb' in x) && x.reading && x.shown), 'readings and what the page showed');
+			const msgs = r.errors.map(e => `${e.source}: ${e.message}`);
+			assert.ok(msgs.some(m => /^error: .*boom from the test/.test(m)), msgs.join('\n'));
+			assert.ok(msgs.some(m => /^banner: Import failed: not an xxl-scorer export/.test(m)), msgs.join('\n'));
+			// the browser's facts and its layout
+			assert.equal(r.layout.viewport.width, width);
+			assert.ok(r.layout.pixelRatio > 0);
+			assert.ok(['light', 'dark'].includes(r.layout.colorScheme));
+			assert.ok(r.layout.safeArea && 'top' in r.layout.safeArea, JSON.stringify(r.layout.safeArea));
+			assert.ok(r.layout.elements['#table'].w > 0, JSON.stringify(r.layout.elements));
+			assert.equal(r.layout.elements['#table tbody tr'].count, 3);
+			assert.equal(r.layout.css['inset: 0'], true);
+			assert.match(r.env.userAgent, /Chrome/);
+			assert.equal(r.env.features.IndexedDB, true);
+			assert.equal(r.gameData.loaded, true);
+			assert.equal(r.gameData.species, 3);
+			assert.equal(r.settings.mode, 'xxl');
+			assert.equal(r.config.gm, 'local/data/gm.json');
+
+			// one ticked: just that one
+			await page.click('#select-btn');
+			await page.click('tr[data-id="mf"] .c-name');
+			assert.equal(await page.textContent('#debug-scope'), 'the 1 ticked Pokémon');
+			r = await debugReport(page);
+			assert.deepEqual([r.rows.included, r.rows.total, r.rows.list.map(x => x.id)], ['ticked', 3, ['mf']]);
+			assert.equal(r.page.selecting, true);
+			assert.ok(await noSideScroll(page), 'Settings with the new button: no sideways scrolling');
+			await page.click('#select-done');
+			assert.equal(await page.textContent('#debug-scope'), 'all 3 Pokémon');
+
+			// Delete all rows clears the log too
+			await page.click('#clear');
+			await page.waitForFunction(() => document.querySelectorAll('#rows tr').length === 0);
+			r = await debugReport(page);
+			assert.deepEqual(r.errors, []);
+			assert.deepEqual([r.rows.included, r.rows.total], ['all', 0]);
+
+			const expectedProblems = problems.filter(p => !/boom from the test/.test(p));
+			assert.deepEqual(expectedProblems, []);
+		} finally {
+			await context.close();
+		}
+	});
+}

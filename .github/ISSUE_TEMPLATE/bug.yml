@@ -1,0 +1,40 @@
+name: Something else is wrong
+description: The page breaks, looks wrong, or does something it shouldn't
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks! A debug report helps most: Settings → **Save debug report** saves a file you can
+        drag in below. It holds your settings, recent error messages, how your browser lays out
+        the page, and the readings of your Pokémon (only the ticked ones, if you tick some in
+        select mode): species, CP, HP, size, IVs, catch date, nickname, screenshot file name.
+        No screenshots or pictures. Look it over before attaching; nothing is sent by the page.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: xxl-scorer version
+      description: In the page's footer ("version 1.0"), or the commit if you run main.
+      placeholder: "1.0"
+    validations:
+      required: false
+  - type: input
+    id: device
+    attributes:
+      label: Device and browser
+      placeholder: "iPhone 15, Safari"
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: Debug report (optional)
+      description: Drag the .json file in here. A screenshot of the page helps too.
+    validations:
+      required: false
