@@ -86,12 +86,14 @@ jq -c --arg now "$now" --arg etag "$etag" --arg url "$GM_URL" --argjson min "$MI
 			mega: ([ ((.tempEvoOverrides // [])[] | .tempEvoId? // empty),
 				((.evolutionBranch // [])[] | .temporaryEvolution // empty) ]
 				| map(tostring | ltrimstr("TEMP_EVOLUTION_"))),
-			# what this form evolves into, as gm.js: "SPECIES" or "SPECIES/FORM"; no megas
-			evo: (reduce ((.evolutionBranch // [])[] | select(.evolution)
+			# what this form evolves into, as gm.js: "SPECIES" or "SPECIES/FORM"; no megas; and the
+			# candy each costs (null: an item instead); a target listed twice: its first entry
+			evo2: (reduce ((.evolutionBranch // [])[] | select(.evolution)
 				| .evolution as $e
 				| (if .form then (.form | tostring | ltrimstr($e) | ltrimstr("_")) else "" end) as $tf
-				| if $tf != "" and $tf != "NORMAL" then "\($e)/\($tf)" else $e end) as $t
-				([]; if any(.[]; . == $t) then . else . + [$t] end)),
+				| { t: (if $tf != "" and $tf != "NORMAL" then "\($e)/\($tf)" else $e end),
+					c: ((.candyCost | nz) // null) }) as $b
+				([]; if any(.[]; .t == $b.t) then . else . + [$b] end)),
 			row: [
 				.pokedexHeightM,
 				.pokedexWeightKg,
@@ -111,7 +113,8 @@ jq -c --arg now "$now" --arg etag "$etag" --arg url "$GM_URL" --argjson min "$MI
 		.[$r.id].dex = $r.dex
 		| (if $r.fam and (.[$r.id].fam == null) then .[$r.id].fam = $r.fam else . end)
 		| .[$r.id].f[$r.form] = $r.row
-		| (if ($r.evo | length) > 0 then .[$r.id].evo[$r.form] = $r.evo else . end)
+		| (if ($r.evo2 | length) > 0 then .[$r.id].evo[$r.form] = ($r.evo2 | map(.t))
+			| .[$r.id].evoCandy[$r.form] = ($r.evo2 | map(.c)) else . end)
 		| (if ($r.mega | length) > 0 then .[$r.id].mega = ((.[$r.id].mega // []) + $r.mega | unique) else . end))
 	| with_entries(
 		.value.f as $f
@@ -119,7 +122,9 @@ jq -c --arg now "$now" --arg etag "$etag" --arg url "$GM_URL" --argjson min "$MI
 		| .value.f = ($f | with_entries(select(
 			.key == "" or (.key == "NORMAL" and ($f[""] == null)) or .value != $base)))
 		# the base template comes twice (X and X_NORMAL): one copy of its evolutions
-		| if .value.evo.NORMAL != null and .value.evo.NORMAL == .value.evo[""] then del(.value.evo.NORMAL) else . end
+		| if .value.evo.NORMAL != null and .value.evo.NORMAL == .value.evo[""]
+			and .value.evoCandy.NORMAL == .value.evoCandy[""]
+		then del(.value.evo.NORMAL) | del(.value.evoCandy.NORMAL) else . end
 	)) as $species
 
 	| if ($species | length) < $min then
