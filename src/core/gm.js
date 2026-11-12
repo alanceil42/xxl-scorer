@@ -12,14 +12,18 @@ export const MIN_SPECIES = 900;	// format change guard
 export const GM_VERSION = 2;
 
 /**
- * species: {POKEMONID: {dex, fam, f: {form: Row}, evo?: {form: [target]}}}; fam is the evolution
+ * species: {POKEMONID: {dex, fam, f: {form: Row}, evo?: {form: [target]}, evoCandy?: {form: [n]},
+ * mega?: [id]}}; fam is the evolution
  * family as the game master names it, without "FAMILY_" (Gourgeist: "PUMPKABOO"). A copy from
  * before version 2 lacks it; use familyOf(). evo: what each form evolves into, only forms that
  * evolve; a target is the species, plus "/FORM" when it is a form other than the base
  * (Meowth: {"": ["PERSIAN"], ALOLA: ["PERSIAN/ALOLA"], GALARIAN: ["PERRSERKER"]}). Mega
  * evolutions are not in it; mega: the species' mega and primal evolutions, from any of its
  * forms, without "TEMP_EVOLUTION_" and sorted (Charizard: ["MEGA_X", "MEGA_Y"], Groudon:
- * ["PRIMAL"]). Neither is used by the page; they are there for other tools reading gm.json.
+ * ["PRIMAL"]). evoCandy: the candy each of evo's evolutions costs, in evo's order (Stufful:
+ * {"": [400]}); null where the game asks for an item instead of candy (Gimmighoul's coins); a copy
+ * from before evoCandy lacks it. None of these is used by the page; they are there for other
+ * tools reading gm.json.
  *
  * Row layout, one per species form:
  * [heightM, weightKg, weightStdDevKg, xxlMaxM, baseAtk, baseDef, baseSta, "TYPE/TYPE2", xlMaxM, xsMinM]
@@ -43,16 +47,21 @@ function megas(p) {
 	return ids.filter(Boolean).map(x => String(x).replace(/^TEMP_EVOLUTION_/, ''));
 }
 
-/** One form's evolutions as evo stores them, in the game master's order. */
+/**
+ * One form's evolutions as evo stores them, in the game master's order, and their candy costs as
+ * evoCandy does (a target listed twice: its first entry).
+ */
 function evolutions(p) {
-	const out = [];
+	const out = [], candy = [];
 	for (const b of p.evolutionBranch || []) {
 		if (!b.evolution) continue;	// a mega evolution
 		const form = formName(b.evolution, b.form ? String(b.form) : '');
 		const t = form && form !== 'NORMAL' ? `${b.evolution}/${form}` : b.evolution;
-		if (!out.includes(t)) out.push(t);
+		if (out.includes(t)) continue;
+		out.push(t);
+		candy.push(b.candyCost || null);
 	}
-	return out;
+	return { out, candy };
 }
 
 /**
@@ -93,7 +102,10 @@ export function compactGameMaster(all, opt = {}) {
 		if (p.familyId && !sp.fam) sp.fam = String(p.familyId).replace(/^FAMILY_/, '');
 		sp.f[form] = row;
 		const evo = evolutions(p);
-		if (evo.length) (sp.evo || (sp.evo = {}))[form] = evo;
+		if (evo.out.length) {
+			(sp.evo || (sp.evo = {}))[form] = evo.out;
+			(sp.evoCandy || (sp.evoCandy = {}))[form] = evo.candy;
+		}
 		const mega = megas(p);
 		if (mega.length) sp.mega = [...new Set([...(sp.mega || []), ...mega])].sort();
 	}
@@ -106,7 +118,11 @@ export function compactGameMaster(all, opt = {}) {
 			if (!keep) delete sp.f[k];
 		}
 		// the base's template comes twice (POKEMON_X and POKEMON_X_NORMAL): one copy of its evo
-		if (sp.evo && sp.evo.NORMAL && sp.evo[''] && JSON.stringify(sp.evo.NORMAL) === JSON.stringify(sp.evo[''])) delete sp.evo.NORMAL;
+		if (sp.evo && sp.evo.NORMAL && sp.evo[''] && JSON.stringify(sp.evo.NORMAL) === JSON.stringify(sp.evo[''])
+			&& JSON.stringify(sp.evoCandy.NORMAL) === JSON.stringify(sp.evoCandy[''])) {
+			delete sp.evo.NORMAL;
+			delete sp.evoCandy.NORMAL;
+		}
 	}
 	const count = Object.keys(species).length;
 	const min = opt.minSpecies ?? MIN_SPECIES;
