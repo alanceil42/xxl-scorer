@@ -578,12 +578,31 @@ function setSelecting(on) {
 	render();
 }
 
+/**
+ * Deletes rows at once, without a question first: the note at the bottom says how many went and
+ * offers Undo, which stores them again.
+ */
+async function deleteRows(gone) {
+	if (!gone.length) return;
+	const ids = new Set(gone.map(r => r.id));
+	await rowStore.delMany([...ids]);
+	state.rows = state.rows.filter(r => !ids.has(r.id));
+	render();
+	toast(gone.length === 1 ? `Deleted ${(gone[0].edits && gone[0].edits.name) || (gone[0].reading && gone[0].reading.species) || '1 Pokémon'}.` : `Deleted ${gone.length} Pokémon.`, null, false, async () => {
+		const have = new Set(state.rows.map(r => r.id));
+		const back = gone.filter(r => !have.has(r.id));
+		await rowStore.putMany(back);
+		state.rows = [...state.rows, ...back];
+		render();
+	});
+}
+
 async function deleteSelected() {
-	const n = state.selected.size;
-	if (!n || !window.confirm(`Delete ${n} Pokémon? Export first if you might want them back.`)) return;
-	await rowStore.delMany([...state.selected]);
-	state.rows = state.rows.filter(r => !state.selected.has(r.id));
-	setSelecting(false);
+	const gone = state.rows.filter(r => state.selected.has(r.id));
+	if (!gone.length) return;
+	state.selecting = false;
+	state.selected.clear();
+	await deleteRows(gone);
 }
 
 // ---------- find in game, then copy the nickname ----------
@@ -643,16 +662,27 @@ function findButton(id, e) {
 }
 
 let toastTimer = null;
-/** A note at the bottom of the screen, gone after a few seconds (longer for a warning) or a tap. */
-function toast(msg, code, warn) {
+/**
+ * A note at the bottom of the screen, gone after a few seconds (longer for a warning) or a tap.
+ * With undo, a function that takes back what was just deleted, the note has an Undo button and
+ * stays about 8 s, or until the next tap anywhere else: this replaces a question before deleting.
+ */
+function toast(msg, code, warn, undo = null) {
 	const t = $('#toast');
 	t.onclick = () => { t.hidden = true; };
-	t.replaceChildren(icon(warn ? 'triangle-alert' : 'check'), el('div', {}, el('b', {}, msg), code ? el('code', {}, code) : null));
+	const btn = undo ? el('button', { class: 'btn', type: 'button', id: 'toast-undo', onclick: () => { t.hidden = true; undo(); } }, 'Undo') : null;
+	t.replaceChildren(icon(warn ? 'triangle-alert' : 'check'), el('div', {}, el('b', {}, msg), code ? el('code', {}, code) : null), ...(btn ? [btn] : []));
 	t.classList.toggle('warn', !!warn);
+	t.classList.toggle('withundo', !!undo);
 	t.hidden = false;
 	clearTimeout(toastTimer);
-	toastTimer = setTimeout(() => { t.hidden = true; }, warn ? 6000 : 3000);
+	toastTimer = setTimeout(() => { t.hidden = true; }, undo ? 8000 : warn ? 6000 : 3000);
 }
+// an offered Undo ends with the next tap elsewhere (the tap that made the note has passed by then)
+document.addEventListener('click', ev => {
+	const t = $('#toast');
+	if (!t.hidden && t.classList.contains('withundo') && !t.contains(ev.target)) t.hidden = true;
+}, true);
 
 async function copyText(text) {
 	try {
@@ -771,10 +801,7 @@ async function closeEditor(ev) {
 	editing = null;
 	if (!row) return;
 	if (action === 'delete') {
-		if (!confirmDelete(row)) return;
-		await rowStore.del(row.id);
-		state.rows = state.rows.filter(r => r.id !== row.id);
-		render();
+		await deleteRows([row]);
 		return;
 	}
 	if (action !== 'save') return;
@@ -810,10 +837,6 @@ async function closeEditor(ev) {
 	await rowStore.put(next);
 	state.rows = state.rows.map(q => (q.id === row.id ? next : q));
 	render();
-}
-
-function confirmDelete(row) {
-	return window.confirm(`Delete this row${row.file ? ` (${row.file})` : ''}?`);
 }
 
 // ---------- debug report ----------
@@ -1207,11 +1230,10 @@ function wire() {
 	});
 	$('#debug-report').addEventListener('click', saveDebugReport);
 	$('#clear').addEventListener('click', async () => {
-		if (!window.confirm(`Delete all ${state.rows.length} rows? Export first if you want to keep them.`)) return;
-		await rowStore.clear();
+		// no question first: Undo in the note brings the rows back (not the error log)
+		const gone = state.rows;
 		await errorLog.clear();	// the debug report's errors could name the deleted rows' files
-		state.rows = [];
-		render();
+		await deleteRows(gone);
 	});
 	for (const th of document.querySelectorAll('th[data-sort]')) {
 		th.tabIndex = 0;
