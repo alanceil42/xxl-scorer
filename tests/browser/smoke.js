@@ -113,7 +113,8 @@ async function open(width, opts = {}) {
 		if (/^(data|blob):/.test(url)) return;	// not a request to anywhere
 		if (!url.startsWith(base) && !url.startsWith(PM)) problems.push(`request: ${url}`);
 	});
-	page.on('dialog', d => d.accept());	// "Delete n Pokémon?"
+	// the page asks nothing in a dialog: deleting acts at once and offers Undo
+	page.on('dialog', d => { problems.push(`dialog: ${d.message()}`); d.dismiss(); });
 	return { context, page, problems };
 }
 
@@ -211,6 +212,22 @@ for (const width of [402, 1280]) {
 			await page.waitForFunction(() => document.querySelectorAll('#rows tr').length === 2);
 			assert.deepEqual((await ids(page)).sort(), ['fk', 'tm']);
 			assert.equal(await page.isVisible('#list-bar'), false, 'select mode ends');
+			// no question: the note says what went, Undo brings it back (stored again, too)
+			assert.match(await page.textContent('#toast'), /^Deleted .*Undo$/);
+			assert.ok(await noSideScroll(page));
+			await page.click('#toast-undo');
+			await page.waitForFunction(() => document.querySelectorAll('#rows tr').length === 3);
+			await page.reload();
+			await boot(page);
+			await page.waitForSelector('#rows tr >> nth=2');
+			assert.deepEqual((await ids(page)).sort(), ['fk', 'mf', 'tm'], 'Undo stored the row again');
+			// and again, for good: a tap elsewhere ends the offer
+			await page.click('#select-btn');
+			await page.click('tr[data-id="mf"] .c-name');
+			await page.click('#select-delete');
+			await page.waitForFunction(() => document.querySelectorAll('#rows tr').length === 2);
+			await page.click('header');
+			assert.equal(await page.isVisible('#toast'), false, 'another tap ends the Undo');
 			assert.ok(await noSideScroll(page));
 
 			assert.deepEqual(problems, []);

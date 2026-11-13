@@ -4,7 +4,7 @@
 // time. The DOM code in app.js is not tested here.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { poolSize, getWorkers, getWorker, startWorkers, warmUp, readerFor, MODEL, dropOldModel } from '../src/ui/ocr.js';
@@ -437,4 +437,11 @@ test('reader worker that doesn\'t start or stops: reads waiting fail, the next o
 		await assert.rejects(b.read(shot('b'), null, rules), /the reader worker stopped/);
 		assert.deepEqual((await b.read(shot('c'), null, rules)).size, [W, H], 'the next one on the page');
 	});
+});
+
+test('no alert(), confirm() or prompt(): deleting acts at once and offers Undo', () => {
+	for (const f of readdirSync(join(root, 'src/ui')).filter(f => f.endsWith('.js'))) {
+		const code = readFileSync(join(root, 'src/ui', f), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+		assert.doesNotMatch(code, /(^|[^.\w$])(window\.)?(alert|confirm|prompt)\s*\(/m, f);
+	}
 });
