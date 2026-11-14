@@ -87,12 +87,14 @@ jq -c --arg now "$now" --arg etag "$etag" --arg url "$GM_URL" --argjson min "$MI
 				((.evolutionBranch // [])[] | .temporaryEvolution // empty) ]
 				| map(tostring | ltrimstr("TEMP_EVOLUTION_"))),
 			# what this form evolves into, as gm.js: "SPECIES" or "SPECIES/FORM"; no megas; and the
-			# candy each costs (null: an item instead); a target listed twice: its first entry
+			# candy each costs (null: an item instead) and the gender it needs (null: either); a
+			# target listed twice: its first entry
 			evo2: (reduce ((.evolutionBranch // [])[] | select(.evolution)
 				| .evolution as $e
 				| (if .form then (.form | tostring | ltrimstr($e) | ltrimstr("_")) else "" end) as $tf
 				| { t: (if $tf != "" and $tf != "NORMAL" then "\($e)/\($tf)" else $e end),
-					c: ((.candyCost | nz) // null) }) as $b
+					c: ((.candyCost | nz) // null),
+					g: (.genderRequirement // null | if . then tostring else null end) }) as $b
 				([]; if any(.[]; .t == $b.t) then . else . + [$b] end)),
 			row: [
 				.pokedexHeightM,
@@ -114,7 +116,9 @@ jq -c --arg now "$now" --arg etag "$etag" --arg url "$GM_URL" --argjson min "$MI
 		| (if $r.fam and (.[$r.id].fam == null) then .[$r.id].fam = $r.fam else . end)
 		| .[$r.id].f[$r.form] = $r.row
 		| (if ($r.evo2 | length) > 0 then .[$r.id].evo[$r.form] = ($r.evo2 | map(.t))
-			| .[$r.id].evoCandy[$r.form] = ($r.evo2 | map(.c)) else . end)
+			| .[$r.id].evoCandy[$r.form] = ($r.evo2 | map(.c))
+			| (if any($r.evo2[]; .g != null) then .[$r.id].evoGender[$r.form] = ($r.evo2 | map(.g))
+				else . end) else . end)
 		| (if ($r.mega | length) > 0 then .[$r.id].mega = ((.[$r.id].mega // []) + $r.mega | unique) else . end))
 	| with_entries(
 		.value.f as $f
@@ -124,8 +128,26 @@ jq -c --arg now "$now" --arg etag "$etag" --arg url "$GM_URL" --argjson min "$MI
 		# the base template comes twice (X and X_NORMAL): one copy of its evolutions
 		| if .value.evo.NORMAL != null and .value.evo.NORMAL == .value.evo[""]
 			and .value.evoCandy.NORMAL == .value.evoCandy[""]
-		then del(.value.evo.NORMAL) | del(.value.evoCandy.NORMAL) else . end
-	)) as $species
+			and .value.evoGender.NORMAL == .value.evoGender[""]
+		then del(.value.evo.NORMAL) | del(.value.evoCandy.NORMAL)
+			| if .value.evoGender then del(.value.evoGender.NORMAL) else . end
+		else . end
+	)) as $species0
+
+	# forms an evolution picks by gender, apart by their moves alone (as gm.js: movesApart)
+	| (reduce ($all[] | select(.templateId | test("^V[0-9]{4}_POKEMON_")) | .data.pokemonSettings? // empty
+			| select(.pokemonId)) as $p ({};
+		.[($p.form // $p.pokemonId | tostring)] = ([ ($p.quickMoves // [])[], ($p.cinematicMoves // [])[],
+			($p.eliteQuickMove // [])[], ($p.eliteCinematicMove // [])[] ] | map(tostring) | sort | join(",")))) as $moves
+	| (reduce ($all[] | select(.templateId | test("^V[0-9]{4}_POKEMON_")) | .data.pokemonSettings? // empty
+			| (.evolutionBranch // []) | map(select(.evolution and .genderRequirement))
+			| group_by(.evolution)[]
+			| .[0].evolution as $id
+			| (reduce (.[] | (.form // $id | tostring)) as $k ([]; if index([$k]) then . else . + [$k] end)) as $keys
+			| select(($keys | length) > 1 and $species0[$id] != null)
+			| $keys[1:][] | select($moves[.] != $moves[$keys[0]])
+			| { id: $id, form: (ltrimstr($id) | ltrimstr("_") | if . == "NORMAL" then "" else . end) }) as $a
+		($species0; .[$a.id].movesApart = ((.[$a.id].movesApart // []) + [$a.form] | unique))) as $species
 
 	| if ($species | length) < $min then
 		error("only \($species | length) species parsed (expected ≥ \($min)); format changed?")

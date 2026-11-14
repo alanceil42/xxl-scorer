@@ -11,6 +11,10 @@ collect under "Unreleased".
 - gm.json also lists the candy each evolution costs (evoCandy, in evo's order; null where the
   game asks for an item instead), for other tools that read it; as with evo and mega, the page
   doesn't use it and nothing is fetched again
+- gm.json also lists the gender an evolution needs (evoGender, in evo's order: "MALE", "FEMALE"
+  or null for either; only for the families that have such an evolution, e.g. Kirlia to Gallade),
+  and the forms a gender picks that differ in moves alone (movesApart, e.g. female Meowstic), for
+  other tools that read it; the page doesn't use them
 - Deleting (a row in the editor, the ticked rows, all rows) no longer asks in a dialog first: it
   acts at once, and the note at the bottom offers Undo for about 8 seconds
 
