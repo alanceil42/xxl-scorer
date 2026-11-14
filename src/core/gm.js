@@ -25,7 +25,10 @@ export const GM_VERSION = 2;
  * from before evoCandy lacks it. evoGender: the gender each of evo's evolutions needs, in evo's
  * order, "MALE", "FEMALE" or null for either (Kirlia: {"": [null, "MALE"]}: Gardevoir from
  * either, Gallade from males only); only forms with at least one such evolution have it, and a
- * copy from before evoGender lacks it. movesApart: where one form evolves by gender into two forms
+ * copy from before evoGender lacks it. evoItem: the item each of evo's evolutions needs besides candy
+ * (or a lure module nearby), in evo's order, without "ITEM_" ("GEN4_EVOLUTION_STONE" for a
+ * Sinnoh Stone, "TROY_DISK_GLACIAL"), null for none; only forms with at least one such evolution.
+ * movesApart: where one form evolves by gender into two forms
  * of one species (Espurr: Meowstic, Meowstic/FEMALE), the forms among them whose moves differ
  * from the first's ("" for the base), sorted (Meowstic: ["FEMALE"]); forms that differ in stats
  * have their own row anyway. None of these is used by the page; they are there for other
@@ -62,7 +65,7 @@ function megas(p) {
  * entry).
  */
 function evolutions(p) {
-	const out = [], candy = [], gender = [];
+	const out = [], candy = [], gender = [], item = [];
 	for (const b of p.evolutionBranch || []) {
 		if (!b.evolution) continue;	// a mega evolution
 		const form = formName(b.evolution, b.form ? String(b.form) : '');
@@ -71,8 +74,10 @@ function evolutions(p) {
 		out.push(t);
 		candy.push(b.candyCost || null);
 		gender.push(b.genderRequirement ? String(b.genderRequirement) : null);
+		const it = b.evolutionItemRequirement || b.lureItemRequirement;
+		item.push(it ? String(it).replace(/^ITEM_/, '') : null);
 	}
-	return { out, candy, gender };
+	return { out, candy, gender, item };
 }
 
 /**
@@ -117,6 +122,7 @@ export function compactGameMaster(all, opt = {}) {
 			(sp.evo || (sp.evo = {}))[form] = evo.out;
 			(sp.evoCandy || (sp.evoCandy = {}))[form] = evo.candy;
 			if (evo.gender.some(Boolean)) (sp.evoGender || (sp.evoGender = {}))[form] = evo.gender;
+			if (evo.item.some(Boolean)) (sp.evoItem || (sp.evoItem = {}))[form] = evo.item;
 		}
 		const mega = megas(p);
 		if (mega.length) sp.mega = [...new Set([...(sp.mega || []), ...mega])].sort();
@@ -132,10 +138,12 @@ export function compactGameMaster(all, opt = {}) {
 		// the base's template comes twice (POKEMON_X and POKEMON_X_NORMAL): one copy of its evo
 		if (sp.evo && sp.evo.NORMAL && sp.evo[''] && JSON.stringify(sp.evo.NORMAL) === JSON.stringify(sp.evo[''])
 			&& JSON.stringify(sp.evoCandy.NORMAL) === JSON.stringify(sp.evoCandy[''])
-			&& JSON.stringify(sp.evoGender && sp.evoGender.NORMAL) === JSON.stringify(sp.evoGender && sp.evoGender[''])) {
+			&& JSON.stringify(sp.evoGender && sp.evoGender.NORMAL) === JSON.stringify(sp.evoGender && sp.evoGender[''])
+			&& JSON.stringify(sp.evoItem && sp.evoItem.NORMAL) === JSON.stringify(sp.evoItem && sp.evoItem[''])) {
 			delete sp.evo.NORMAL;
 			delete sp.evoCandy.NORMAL;
 			if (sp.evoGender) delete sp.evoGender.NORMAL;
+			if (sp.evoItem) delete sp.evoItem.NORMAL;
 		}
 	}
 	// forms an evolution picks by gender, apart by their moves alone

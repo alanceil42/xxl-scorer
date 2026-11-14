@@ -91,6 +91,7 @@ function edgeGameMaster() {
 			{ evolution: 'MOVEMON', form: 'MOVEMON_FEMALE', candyCost: 50, genderRequirement: 'FEMALE' }] }),
 		mon('V9021_POKEMON_SAMEPRE', { pokemonId: 'SAMEPRE', evolutionBranch: [{ evolution: 'MOVEMON', form: 'MOVEMON_NORMAL', candyCost: 50, genderRequirement: 'MALE' },
 			{ evolution: 'MOVEMON', form: 'MOVEMON_SAME', candyCost: 50, genderRequirement: 'FEMALE' }] }),
+		mon('V9022_POKEMON_LUREMON', { pokemonId: 'LUREMON', evolutionBranch: [{ evolution: 'ZEROMON', candyCost: 25, lureItemRequirement: 'ITEM_TROY_DISK_GLACIAL' }] }),
 		mon('V9014_POKEMON_ZEROATTACK', { pokemonId: 'ZEROATTACK', stats: { baseAttack: 0, baseDefense: 110, baseStamina: 130 } }),
 		{ templateId: 'PLAYER_LEVEL_SETTINGS', data: { playerLevel: { cpMultiplier: CPM } } },
 	];
@@ -124,6 +125,14 @@ test('gender per evolution, in evo\'s order: null for either; only where one nee
 	for (const id of ['EDGEMON', 'TWINMON', 'PRICEMON', 'STATLESS']) assert.equal(gm.species[id].evoGender, undefined, `${id}: no gender needed, no field`);
 });
 
+test('the item an evolution needs, in evo\'s order: "ITEM_" dropped, a lure too, null for none', () => {
+	const gm = compactGameMaster(edgeGameMaster(), { minSpecies: 1 });
+	assert.deepEqual(gm.species.EDGEMON.evoItem, { ZETA: [null, 'X'] }, 'the doubled target: its first entry\'s (none)');
+	assert.deepEqual(gm.species.SPLITMON.evoItem, { '': [null, 'X'] }, 'the base once');
+	assert.deepEqual(gm.species.LUREMON.evoItem, { '': ['TROY_DISK_GLACIAL'] });
+	for (const id of ['TWINMON', 'PRICEMON', 'FORMMON', 'STATLESS']) assert.equal(gm.species[id].evoItem, undefined, `${id}: no item, no field`);
+});
+
 test('forms a gender picks that differ in moves alone: movesApart on the target species', () => {
 	const gm = compactGameMaster(edgeGameMaster(), { minSpecies: 1 });
 	assert.deepEqual(Object.keys(gm.species.MOVEMON.f), [''], 'same row: the forms are dropped');
@@ -152,7 +161,7 @@ test('evolution families: from familyId without "FAMILY_"; a species without one
 
 test('templates without height, weight or attack are skipped; missing defence and stamina are 0', () => {
 	const gm = compactGameMaster(edgeGameMaster(), { minSpecies: 1 });
-	assert.deepEqual(Object.keys(gm.species).sort(), ['EDGEMON', 'FORMMON', 'MOVEMON', 'PREMON', 'PRICEMON', 'SAMEPRE', 'SPLITMON', 'STATLESS', 'TWINMON', 'ZEROBOUND', 'ZEROMON'], 'a height, weight or attack of 0 too');
+	assert.deepEqual(Object.keys(gm.species).sort(), ['EDGEMON', 'FORMMON', 'LUREMON', 'MOVEMON', 'PREMON', 'PRICEMON', 'SAMEPRE', 'SPLITMON', 'STATLESS', 'TWINMON', 'ZEROBOUND', 'ZEROMON'], 'a height, weight or attack of 0 too');
 	assert.deepEqual(gm.species.STATLESS.f[''].slice(4, 8), [90, 0, 0, 'ROCK']);
 });
 

@@ -94,7 +94,9 @@ jq -c --arg now "$now" --arg etag "$etag" --arg url "$GM_URL" --argjson min "$MI
 				| (if .form then (.form | tostring | ltrimstr($e) | ltrimstr("_")) else "" end) as $tf
 				| { t: (if $tf != "" and $tf != "NORMAL" then "\($e)/\($tf)" else $e end),
 					c: ((.candyCost | nz) // null),
-					g: (.genderRequirement // null | if . then tostring else null end) }) as $b
+					g: (.genderRequirement // null | if . then tostring else null end),
+					i: ((.evolutionItemRequirement // .lureItemRequirement) // null
+						| if . then tostring | ltrimstr("ITEM_") else null end) }) as $b
 				([]; if any(.[]; .t == $b.t) then . else . + [$b] end)),
 			row: [
 				.pokedexHeightM,
@@ -118,6 +120,8 @@ jq -c --arg now "$now" --arg etag "$etag" --arg url "$GM_URL" --argjson min "$MI
 		| (if ($r.evo2 | length) > 0 then .[$r.id].evo[$r.form] = ($r.evo2 | map(.t))
 			| .[$r.id].evoCandy[$r.form] = ($r.evo2 | map(.c))
 			| (if any($r.evo2[]; .g != null) then .[$r.id].evoGender[$r.form] = ($r.evo2 | map(.g))
+				else . end)
+			| (if any($r.evo2[]; .i != null) then .[$r.id].evoItem[$r.form] = ($r.evo2 | map(.i))
 				else . end) else . end)
 		| (if ($r.mega | length) > 0 then .[$r.id].mega = ((.[$r.id].mega // []) + $r.mega | unique) else . end))
 	| with_entries(
@@ -129,8 +133,10 @@ jq -c --arg now "$now" --arg etag "$etag" --arg url "$GM_URL" --argjson min "$MI
 		| if .value.evo.NORMAL != null and .value.evo.NORMAL == .value.evo[""]
 			and .value.evoCandy.NORMAL == .value.evoCandy[""]
 			and .value.evoGender.NORMAL == .value.evoGender[""]
+			and .value.evoItem.NORMAL == .value.evoItem[""]
 		then del(.value.evo.NORMAL) | del(.value.evoCandy.NORMAL)
 			| if .value.evoGender then del(.value.evoGender.NORMAL) else . end
+			| if .value.evoItem then del(.value.evoItem.NORMAL) else . end
 		else . end
 	)) as $species0
 
