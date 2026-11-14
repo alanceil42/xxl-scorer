@@ -13,7 +13,7 @@ export const GM_VERSION = 2;
 
 /**
  * species: {POKEMONID: {dex, fam, f: {form: Row}, evo?: {form: [target]}, evoCandy?: {form: [n]},
- * mega?: [id]}}; fam is the evolution
+ * evoGender?: {form: [gender]}, mega?: [id]}}; fam is the evolution
  * family as the game master names it, without "FAMILY_" (Gourgeist: "PUMPKABOO"). A copy from
  * before version 2 lacks it; use familyOf(). evo: what each form evolves into, only forms that
  * evolve; a target is the species, plus "/FORM" when it is a form other than the base
@@ -22,7 +22,13 @@ export const GM_VERSION = 2;
  * forms, without "TEMP_EVOLUTION_" and sorted (Charizard: ["MEGA_X", "MEGA_Y"], Groudon:
  * ["PRIMAL"]). evoCandy: the candy each of evo's evolutions costs, in evo's order (Stufful:
  * {"": [400]}); null where the game asks for an item instead of candy (Gimmighoul's coins); a copy
- * from before evoCandy lacks it. None of these is used by the page; they are there for other
+ * from before evoCandy lacks it. evoGender: the gender each of evo's evolutions needs, in evo's
+ * order, "MALE", "FEMALE" or null for either (Kirlia: {"": [null, "MALE"]}: Gardevoir from
+ * either, Gallade from males only); only forms with at least one such evolution have it, and a
+ * copy from before evoGender lacks it. movesApart: where one form evolves by gender into two forms
+ * of one species (Espurr: Meowstic, Meowstic/FEMALE), the forms among them whose moves differ
+ * from the first's ("" for the base), sorted (Meowstic: ["FEMALE"]); forms that differ in stats
+ * have their own row anyway. None of these is used by the page; they are there for other
  * tools reading gm.json.
  *
  * Row layout, one per species form:
@@ -41,6 +47,9 @@ const round8 = x => Math.round(x * 1e8) / 1e8;
 /** A form's name without its species ("MEOWTH_ALOLA" → "ALOLA"), "" for none. */
 const formName = (pid, f) => (f && f.startsWith(pid) ? f.slice(pid.length) : f || '').replace(/^_/, '');
 
+/** A form's moves, all kinds, sorted and joined: equal strings, equal moves. */
+const movesKey = p => [...(p.quickMoves || []), ...(p.cinematicMoves || []), ...(p.eliteQuickMove || []), ...(p.eliteCinematicMove || [])].map(String).sort().join(',');
+
 /** A form's mega and primal evolutions, as mega stores them ("MEGA", "MEGA_X", "PRIMAL"). */
 function megas(p) {
 	const ids = [...(p.tempEvoOverrides || []).map(o => o && o.tempEvoId), ...(p.evolutionBranch || []).map(b => b.temporaryEvolution)];
@@ -48,11 +57,12 @@ function megas(p) {
 }
 
 /**
- * One form's evolutions as evo stores them, in the game master's order, and their candy costs as
- * evoCandy does (a target listed twice: its first entry).
+ * One form's evolutions as evo stores them, in the game master's order, their candy costs as
+ * evoCandy does and the gender each needs as evoGender does (a target listed twice: its first
+ * entry).
  */
 function evolutions(p) {
-	const out = [], candy = [];
+	const out = [], candy = [], gender = [];
 	for (const b of p.evolutionBranch || []) {
 		if (!b.evolution) continue;	// a mega evolution
 		const form = formName(b.evolution, b.form ? String(b.form) : '');
@@ -60,8 +70,9 @@ function evolutions(p) {
 		if (out.includes(t)) continue;
 		out.push(t);
 		candy.push(b.candyCost || null);
+		gender.push(b.genderRequirement ? String(b.genderRequirement) : null);
 	}
-	return { out, candy };
+	return { out, candy, gender };
 }
 
 /**
@@ -105,6 +116,7 @@ export function compactGameMaster(all, opt = {}) {
 		if (evo.out.length) {
 			(sp.evo || (sp.evo = {}))[form] = evo.out;
 			(sp.evoCandy || (sp.evoCandy = {}))[form] = evo.candy;
+			if (evo.gender.some(Boolean)) (sp.evoGender || (sp.evoGender = {}))[form] = evo.gender;
 		}
 		const mega = megas(p);
 		if (mega.length) sp.mega = [...new Set([...(sp.mega || []), ...mega])].sort();
@@ -119,9 +131,32 @@ export function compactGameMaster(all, opt = {}) {
 		}
 		// the base's template comes twice (POKEMON_X and POKEMON_X_NORMAL): one copy of its evo
 		if (sp.evo && sp.evo.NORMAL && sp.evo[''] && JSON.stringify(sp.evo.NORMAL) === JSON.stringify(sp.evo[''])
-			&& JSON.stringify(sp.evoCandy.NORMAL) === JSON.stringify(sp.evoCandy[''])) {
+			&& JSON.stringify(sp.evoCandy.NORMAL) === JSON.stringify(sp.evoCandy[''])
+			&& JSON.stringify(sp.evoGender && sp.evoGender.NORMAL) === JSON.stringify(sp.evoGender && sp.evoGender[''])) {
 			delete sp.evo.NORMAL;
 			delete sp.evoCandy.NORMAL;
+			if (sp.evoGender) delete sp.evoGender.NORMAL;
+		}
+	}
+	// forms an evolution picks by gender, apart by their moves alone
+	const movesOf = {};
+	for (const t of all) {
+		const p = /^V\d{4}_POKEMON_/.test(t.templateId) && t.data && t.data.pokemonSettings;
+		if (p && p.pokemonId) movesOf[p.form || p.pokemonId] = movesKey(p);
+	}
+	for (const t of all) {
+		const p = /^V\d{4}_POKEMON_/.test(t.templateId) && t.data && t.data.pokemonSettings;
+		const by = {};
+		for (const b of (p && p.evolutionBranch) || []) if (b.evolution && b.genderRequirement) (by[b.evolution] || (by[b.evolution] = [])).push(b);
+		for (const [id, bs] of Object.entries(by)) {
+			const keys = [...new Set(bs.map(b => String(b.form || id)))];
+			if (keys.length < 2 || !species[id]) continue;
+			for (const k of keys.slice(1)) {
+				if (movesOf[k] === movesOf[keys[0]]) continue;
+				const f = formName(id, k);
+				const apart = new Set([...(species[id].movesApart || []), f === 'NORMAL' ? '' : f]);
+				species[id].movesApart = [...apart].sort();
+			}
 		}
 	}
 	const count = Object.keys(species).length;

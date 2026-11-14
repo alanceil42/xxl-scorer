@@ -72,6 +72,25 @@ function edgeGameMaster() {
 		// same targets as the base, but another price: kept apart
 		mon('V9016_POKEMON_PRICEMON', { pokemonId: 'PRICEMON', evolutionBranch: [{ evolution: 'ZEROMON', candyCost: 50 }] }),
 		mon('V9016_POKEMON_PRICEMON_NORMAL', { pokemonId: 'PRICEMON', form: 'PRICEMON_NORMAL', evolutionBranch: [{ evolution: 'ZEROMON', candyCost: 25 }] }),
+		// gender: one branch for either, one for one gender; and a gender per form, twice for the base
+		mon('V9017_POKEMON_SPLITMON', { pokemonId: 'SPLITMON', evolutionBranch: [{ evolution: 'ZEROMON', candyCost: 100 },
+			{ evolution: 'ZEROBOUND', candyCost: 100, genderRequirement: 'MALE', evolutionItemRequirement: 'ITEM_X' }] }),
+		mon('V9017_POKEMON_SPLITMON_NORMAL', { pokemonId: 'SPLITMON', form: 'SPLITMON_NORMAL', evolutionBranch: [{ evolution: 'ZEROMON', candyCost: 100 },
+			{ evolution: 'ZEROBOUND', candyCost: 100, genderRequirement: 'MALE', evolutionItemRequirement: 'ITEM_X' }] }),
+		mon('V9018_POKEMON_FORMMON', { pokemonId: 'FORMMON', evolutionBranch: [{ evolution: 'ZEROMON', form: 'ZEROMON_NORMAL', candyCost: 50, genderRequirement: 'MALE' },
+			{ evolution: 'ZEROMON', form: 'ZEROMON_FEMALE', candyCost: 50, genderRequirement: 'FEMALE' }] }),
+		mon('V9018_POKEMON_FORMMON_NORMAL', { pokemonId: 'FORMMON', form: 'FORMMON_NORMAL', evolutionBranch: [{ evolution: 'ZEROMON', form: 'ZEROMON_NORMAL', candyCost: 50, genderRequirement: 'FEMALE' }] }),
+		// a gender picks the form, and the forms differ in moves alone (one pair) or not at all
+		mon('V9019_POKEMON_MOVEMON', { pokemonId: 'MOVEMON', quickMoves: ['A_FAST'], cinematicMoves: ['B'] }),
+		mon('V9019_POKEMON_MOVEMON_NORMAL', { pokemonId: 'MOVEMON', form: 'MOVEMON_NORMAL', quickMoves: ['A_FAST'], cinematicMoves: ['B'] }),
+		mon('V9019_POKEMON_MOVEMON_FEMALE', { pokemonId: 'MOVEMON', form: 'MOVEMON_FEMALE', quickMoves: ['A_FAST'], cinematicMoves: ['C'], eliteCinematicMove: ['B'] }),
+		mon('V9019_POKEMON_MOVEMON_SAME', { pokemonId: 'MOVEMON', form: 'MOVEMON_SAME', cinematicMoves: ['B'], quickMoves: ['A_FAST'] }),
+		mon('V9020_POKEMON_PREMON', { pokemonId: 'PREMON', evolutionBranch: [{ evolution: 'MOVEMON', form: 'MOVEMON_NORMAL', candyCost: 50, genderRequirement: 'MALE' },
+			{ evolution: 'MOVEMON', form: 'MOVEMON_FEMALE', candyCost: 50, genderRequirement: 'FEMALE' }] }),
+		mon('V9020_POKEMON_PREMON_NORMAL', { pokemonId: 'PREMON', form: 'PREMON_NORMAL', evolutionBranch: [{ evolution: 'MOVEMON', form: 'MOVEMON_NORMAL', candyCost: 50, genderRequirement: 'MALE' },
+			{ evolution: 'MOVEMON', form: 'MOVEMON_FEMALE', candyCost: 50, genderRequirement: 'FEMALE' }] }),
+		mon('V9021_POKEMON_SAMEPRE', { pokemonId: 'SAMEPRE', evolutionBranch: [{ evolution: 'MOVEMON', form: 'MOVEMON_NORMAL', candyCost: 50, genderRequirement: 'MALE' },
+			{ evolution: 'MOVEMON', form: 'MOVEMON_SAME', candyCost: 50, genderRequirement: 'FEMALE' }] }),
 		mon('V9014_POKEMON_ZEROATTACK', { pokemonId: 'ZEROATTACK', stats: { baseAttack: 0, baseDefense: 110, baseStamina: 130 } }),
 		{ templateId: 'PLAYER_LEVEL_SETTINGS', data: { playerLevel: { cpMultiplier: CPM } } },
 	];
@@ -96,6 +115,23 @@ test('candy per evolution, in evo\'s order: the first of a doubled target, null 
 	assert.equal(gm.species.STATLESS.evoCandy, undefined, 'a form that doesn\'t evolve: no evoCandy');
 });
 
+test('gender per evolution, in evo\'s order: null for either; only where one needs a gender', () => {
+	const gm = compactGameMaster(edgeGameMaster(), { minSpecies: 1 });
+	assert.deepEqual(gm.species.SPLITMON.evo, { '': ['ZEROMON', 'ZEROBOUND'] }, 'the base once, though its template comes twice');
+	assert.deepEqual(gm.species.SPLITMON.evoGender, { '': [null, 'MALE'] });
+	assert.deepEqual(gm.species.FORMMON.evo, { '': ['ZEROMON', 'ZEROMON/FEMALE'], NORMAL: ['ZEROMON'] }, 'the gender picks the form');
+	assert.deepEqual(gm.species.FORMMON.evoGender, { '': ['MALE', 'FEMALE'], NORMAL: ['FEMALE'] }, 'another gender: the NORMAL copy stays');
+	for (const id of ['EDGEMON', 'TWINMON', 'PRICEMON', 'STATLESS']) assert.equal(gm.species[id].evoGender, undefined, `${id}: no gender needed, no field`);
+});
+
+test('forms a gender picks that differ in moves alone: movesApart on the target species', () => {
+	const gm = compactGameMaster(edgeGameMaster(), { minSpecies: 1 });
+	assert.deepEqual(Object.keys(gm.species.MOVEMON.f), [''], 'same row: the forms are dropped');
+	assert.deepEqual(gm.species.MOVEMON.movesApart, ['FEMALE'], 'FEMALE differs from the first target; SAME (moves in another order) does not');
+	assert.deepEqual(gm.species.PREMON.evo, { '': ['MOVEMON', 'MOVEMON/FEMALE'] });
+	for (const id of ['FORMMON', 'SPLITMON', 'ZEROMON', 'ZEROBOUND', 'PREMON']) assert.equal(gm.species[id].movesApart, undefined, `${id}: no field`);
+});
+
 test('a species listed only by its forms: NORMAL stands in for the base, its costume is dropped', () => {
 	const gm = compactGameMaster(edgeGameMaster(), { minSpecies: 1 });
 	assert.deepEqual(Object.keys(gm.species.EDGEMON.f).sort(), ['ALPHA', 'NORMAL', 'ZETA']);
@@ -116,7 +152,7 @@ test('evolution families: from familyId without "FAMILY_"; a species without one
 
 test('templates without height, weight or attack are skipped; missing defence and stamina are 0', () => {
 	const gm = compactGameMaster(edgeGameMaster(), { minSpecies: 1 });
-	assert.deepEqual(Object.keys(gm.species).sort(), ['EDGEMON', 'PRICEMON', 'STATLESS', 'TWINMON', 'ZEROBOUND', 'ZEROMON'], 'a height, weight or attack of 0 too');
+	assert.deepEqual(Object.keys(gm.species).sort(), ['EDGEMON', 'FORMMON', 'MOVEMON', 'PREMON', 'PRICEMON', 'SAMEPRE', 'SPLITMON', 'STATLESS', 'TWINMON', 'ZEROBOUND', 'ZEROMON'], 'a height, weight or attack of 0 too');
 	assert.deepEqual(gm.species.STATLESS.f[''].slice(4, 8), [90, 0, 0, 'ROCK']);
 });
 
