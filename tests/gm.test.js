@@ -53,8 +53,9 @@ function edgeGameMaster() {
 		mon('V9004_POKEMON_EDGEMON_ZETA', { pokemonId: 'EDGEMON', form: 'EDGEMON_ZETA', pokedexHeightM: 1.4, familyId: 'FAMILY_EDGEMON',
 			evolutionBranch: [{ evolution: 'STATLESS', form: 'STATLESS_ZETA', candyCost: 50 }, { evolution: 'STATLESS', form: 'STATLESS_ZETA', candyCost: 99 },
 				{ evolution: 'ZEROMON', evolutionItemRequirement: 'ITEM_X', evolutionItemRequirementCost: 999 }],
-			tempEvoOverrides: [{ tempEvoId: 'TEMP_EVOLUTION_MEGA_Y' }, { tempEvoId: 'TEMP_EVOLUTION_MEGA' }, { stats: {} }] }),
-		mon('V9004_POKEMON_EDGEMON_ALPHA', { pokemonId: 'EDGEMON', form: 'EDGEMON_ALPHA', pokedexHeightM: 1.3, familyId: 'FAMILY_EDGEMON', pokemonClass: 'POKEMON_CLASS_LEGENDARY' }),
+			tempEvoOverrides: [{ tempEvoId: 'TEMP_EVOLUTION_MEGA_Y', stats: { baseAttack: 250, baseDefense: 180 } }, { tempEvoId: 'TEMP_EVOLUTION_MEGA', stats: { baseAttack: 0, baseDefense: 1, baseStamina: 1 } }, { stats: { baseAttack: 7 } }] }),
+		mon('V9004_POKEMON_EDGEMON_ALPHA', { pokemonId: 'EDGEMON', form: 'EDGEMON_ALPHA', pokedexHeightM: 1.3, familyId: 'FAMILY_EDGEMON', pokemonClass: 'POKEMON_CLASS_LEGENDARY',
+			tempEvoOverrides: [{ tempEvoId: 'TEMP_EVOLUTION_MEGA_Y', stats: { baseAttack: 999, baseDefense: 999, baseStamina: 999 } }, { tempEvoId: 'TEMP_EVOLUTION_MEGA', stats: { baseAttack: 260, baseDefense: 170, baseStamina: 190 } }] }),
 		mon('V9005_POKEMON_STATLESS', { pokemonId: 'STATLESS', stats: { baseAttack: 90 }, familyId: 'FAMILY_EDGEMON' }),
 		mon('V9006_POKEMON_NOHEIGHT', { pokemonId: 'NOHEIGHT', pokedexHeightM: undefined }),
 		mon('V9007_POKEMON_NOSTATS', { pokemonId: 'NOSTATS', stats: undefined }),
@@ -118,6 +119,13 @@ test('evolutions per form: species, "/FORM" for other forms, no megas, no double
 	assert.deepEqual(gm.species.EDGEMON.mega, ['MEGA', 'MEGA_Y'], 'megas from the branches and the overrides of every form, once, sorted');
 	assert.equal(gm.species.TWINMON.mega, undefined, 'no mega: no field');
 	assert.ok(isCompactGm(gm));
+});
+
+test('stats while mega evolved: per mega, the first form that gives them, none without attack', () => {
+	const gm = compactGameMaster(edgeGameMaster(), { minSpecies: 1 });
+	assert.deepEqual(gm.species.EDGEMON.megaStats, { MEGA_Y: [250, 180, 0], MEGA: [260, 170, 190] },
+		'MEGA_Y from ZETA (ALPHA\'s comes later), MEGA from ALPHA (ZETA\'s has no attack), no id: skipped');
+	assert.equal(gm.species.TWINMON.megaStats, undefined, 'no mega: no field');
 });
 
 test('candy per evolution, in evo\'s order: the first of a doubled target, null for an item or 0', () => {

@@ -118,6 +118,11 @@ jq -c --arg now "$now" --arg etag "$etag" --arg url "$GM_URL" --argjson min "$MI
 			mega: ([ ((.tempEvoOverrides // [])[] | .tempEvoId? // empty),
 				((.evolutionBranch // [])[] | .temporaryEvolution // empty) ]
 				| map(tostring | ltrimstr("TEMP_EVOLUTION_"))),
+			# the stats while mega evolved, as gm.js: [atk, def, sta] per mega with stats
+			megaStats: [ (.tempEvoOverrides // [])[]
+				| select(type == "object" and (.tempEvoId | t) and (.stats.baseAttack | t))
+				| { key: (.tempEvoId | tostring | ltrimstr("TEMP_EVOLUTION_")),
+					value: [.stats.baseAttack, (.stats.baseDefense // 0), (.stats.baseStamina // 0)] } ],
 			# what this form evolves into, as gm.js: "SPECIES" or "SPECIES/FORM"; no megas; and the
 			# candy each costs (null: an item instead) and the gender it needs (null: either); a
 			# target listed twice: its first entry
@@ -159,7 +164,9 @@ jq -c --arg now "$now" --arg etag "$etag" --arg url "$GM_URL" --argjson min "$MI
 				else . end)
 			| (if any($r.evo2[]; .k != null) then .[$r.id].evoCond[$r.form] = ($r.evo2 | map(.k))
 				else . end) else . end)
-		| (if ($r.mega | length) > 0 then .[$r.id].mega = ((.[$r.id].mega // []) + $r.mega | unique) else . end))
+		| (if ($r.mega | length) > 0 then .[$r.id].mega = ((.[$r.id].mega // []) + $r.mega | unique) else . end)
+		| reduce $r.megaStats[] as $m (.;
+			if .[$r.id].megaStats[$m.key] == null then .[$r.id].megaStats[$m.key] = $m.value else . end))
 	| with_entries(
 		.value.f as $f
 		| ($f[""] // $f["NORMAL"]) as $base
