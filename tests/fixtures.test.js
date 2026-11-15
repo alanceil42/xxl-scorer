@@ -15,7 +15,7 @@
 //                       "weight_kg", "xxl", "caught" }, "ivs": [a, d, s], "score": { "total" },
 //                       "in_game_score" }, …],
 //     "rows": [{ "files": [1, 24, 25], "species": "Geodude", "cp": 967, "ivs": [8, 0, 15],
-//                "xxl": true }, …],
+//                "xxl": true, "mega": false }, …],
 //     "loose": [7, 12],
 //     "draft": true,
 //     "read": false }
@@ -23,7 +23,8 @@
 // "screenshots" are read one by one and compared field by field. "rows" is the whole folder
 // added in one go, as when swiping through the storage, and the Pokémon it should puzzle into.
 // Files are numbered by the first number in their name ("Library - 26 of 80.png" is 26,
-// "IMG_1234.PNG" 1234); a row may leave out species, cp, ivs, xxl or xxs, the files are always
+// "IMG_1234.PNG" 1234); a row may leave out species, cp, ivs, xxl, xxs or mega (a mega evolved
+// Pokémon's row: true; false where it must not be one), the files are always
 // compared. "loose": screenshots of no Pokémon (an appraisal intro); they may end up in rows of
 // their own, never in a Pokémon's. "draft": truth not checked by eye yet; differences are
 // reported, not failed. "read": false: not screenshots of the game (notes); skipped.
@@ -158,7 +159,7 @@ test('screenshots read and score as expected', { skip, timeout: 3_600_000 }, asy
 				res.rows = rows.map(x => {
 					const e = evaluate(x.reading, ctx);
 					return { files: x.files, species: e.name, cp: e.cp, ivs: e.ivs && [e.ivs.a, e.ivs.d, e.ivs.s], xxl: e.xxl, xxs: e.xxs,
-						issues: (e.issues || []).filter(i => !i.info).map(i => i.code) };
+						...(e.mega ? { mega: true } : {}), issues: (e.issues || []).filter(i => !i.info).map(i => i.code) };
 				});
 				if (tr.rows) {
 					assert.ok(s.files.every(f => fileNumber(f) != null), 'with "rows", every file name needs a number');

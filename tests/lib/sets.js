@@ -34,8 +34,9 @@ export function compareRows(got, want, loose = []) {
 	for (const w of want) {
 		const g = byFiles.get(keyOf(w.files));
 		if (!g) continue;
-		for (const k of ['species', 'cp', 'ivs', 'xxl', 'xxs']) {
-			if (k in w && JSON.stringify(g[k]) !== JSON.stringify(w[k])) fields.push(`${keyOf(w.files)}: ${k} ${JSON.stringify(g[k])}, expected ${JSON.stringify(w[k])}`);
+		for (const k of ['species', 'cp', 'ivs', 'xxl', 'xxs', 'mega']) {
+			const v = k === 'mega' ? g[k] ?? false : g[k];
+			if (k in w && JSON.stringify(v) !== JSON.stringify(w[k])) fields.push(`${keyOf(w.files)}: ${k} ${JSON.stringify(v)}, expected ${JSON.stringify(w[k])}`);
 		}
 	}
 	return { missing, extra, fields };

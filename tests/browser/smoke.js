@@ -378,6 +378,40 @@ for (const width of [402, 1280]) {
 	});
 }
 
+// a mega evolved Pokémon's screenshot: the species, a "mega" chip and the note, no score
+for (const [width, colorScheme] of [[402, 'light'], [1280, 'dark']]) {
+	test(`at ${width} px, ${colorScheme}: a mega evolved row says so`, { timeout: 60_000 }, async () => {
+		const { context, page, problems } = await open(width, { colorScheme });
+		try {
+			await boot(page);
+			const mega = mon('mg', 'Mega Fakeon', 'FAKEON', { a: 1, d: 14, s: 11 }, 30, 0.85, 13.2, '6/21/2026');
+			mega.reading.cp = null;
+			const file = JSON.stringify({ app: 'xxl-scorer', v: 1, rows: [...ROWS, mega] });
+			await page.click('#backup > summary');
+			await page.setInputFiles('#import', { name: 'backup.json', mimeType: 'application/json', buffer: Buffer.from(file) });
+			await page.waitForFunction(() => document.querySelectorAll('#rows tr').length === 4);
+			const row = page.locator('#rows tr[data-id="mg"]');
+			assert.equal(await row.locator('.chip').textContent(), 'mega');
+			assert.match(await row.locator('.chip').getAttribute('title'), /^Mega evolved: .*back to normal/);
+			assert.match(await row.textContent(), /Fakeon/);
+			assert.doesNotMatch(await row.textContent(), /Mega Fakeon|\d m\b|IV /, 'the normal name, no IVs or size');
+			assert.match(await row.textContent(), /screenshot it again when it's back to normal/);
+			assert.ok(await noSideScroll(page));
+			if (process.env.XXL_SHOTS) await page.screenshot({ path: `${process.env.XXL_SHOTS}/mega-${width}-${colorScheme}.png`, fullPage: true });
+			await row.click();
+			assert.match(await page.textContent('#ed-issues'), /Mega evolved/);
+			if (process.env.XXL_SHOTS) await page.screenshot({ path: `${process.env.XXL_SHOTS}/mega-${width}-${colorScheme}-editor.png` });
+			// Save without typing anything keeps it a mega row, without a score
+			await page.click('#ed-save');
+			await page.waitForFunction(() => !document.querySelector('#editor').open);
+			assert.equal(await row.locator('.chip').textContent(), 'mega');
+			assert.deepEqual(problems, []);
+		} finally {
+			await context.close();
+		}
+	});
+}
+
 // rows from outside or from an older version: shown and marked, never breaking the page
 test('a backup carries the "Name to copy" template; the newer one wins on import', { timeout: 60_000 }, async () => {
 	const tpl = 'XX{score}{lvl:circ}';

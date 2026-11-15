@@ -522,10 +522,13 @@ function renderRow({ row, e, dup }) {
 	// no appraisal and several IV sets fit: the one used is a guess, so none is shown
 	const ivs = e.score && e.score.hi != null ? '?' : e.ivs ? `${e.ivs.a}/${e.ivs.d}/${e.ivs.s}` : '–';
 	const status = dup ? el('span', { class: 'chip dup', title: 'Same species, catch date, height and weight as another row' }, 'duplicate')
+		: e.mega ? el('span', { class: 'chip check', title: problems(e).map(i => i.msg).join('\n') }, 'mega')
 		: problems(e).length ? el('span', { class: 'chip check', title: problems(e).map(i => i.msg).join('\n') }, 'check')
 			: el('span', { class: 'chip ok' }, 'ok');
 	// one span per item so a line never breaks inside "2.30 m"
-	const meta = [e.cp != null ? `CP ${e.cp}` : null, e.types.replace('/', ' / '), `IV ${ivs}`, `${fmt(e.height_m)} m`, `${fmt(e.weight_kg)} kg`].filter(Boolean)
+	// a mega evolved Pokémon's IVs and sizes aren't known: what to do instead (phones show no tooltip)
+	const meta = (e.mega ? [e.types.replace('/', ' / '), 'screenshot it again when it\'s back to normal']
+		: [e.cp != null ? `CP ${e.cp}` : null, e.types.replace('/', ' / '), `IV ${ivs}`, `${fmt(e.height_m)} m`, `${fmt(e.weight_kg)} kg`]).filter(Boolean)
 		.flatMap((t, i) => [i ? ' · ' : null, el('span', { class: 'nw' }, t)]);
 	const sel = state.selecting && state.selected.has(row.id);
 	// In select mode the find and copy buttons stay, dimmed and out of reach (a tap marks the

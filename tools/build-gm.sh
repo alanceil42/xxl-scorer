@@ -245,6 +245,9 @@ for lang in "${lang_list[@]}"; do
 		| {
 			names: ($kv | with_entries(select(.key | test("^pokemon_name_[0-9]{4}$")) | select(.value != null and .value != "")
 				| .key |= (.[13:] | tonumber | tostring))),
+			temp: (reduce ($kv | to_entries[] | select(.key | test("^pokemon_name_[0-9]{4}_[0-9]{4}$"))
+				| select(.value != null and .value != "")) as $e
+				({}; .[$e.key[13:17] | tonumber | tostring] += [$e.value])),
 			caught: ($kv | with_entries(select(.key | IN("appraise_v2_caught", "appraise_v2_date_uncached_loc",
 				"appraise_v2_dateless_caught", "appraise_v2_dateless_uncached_loc")))),
 			hp: ($kv.general_hp // "HP"),
