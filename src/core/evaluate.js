@@ -1,6 +1,6 @@
 // Readings + game data → one table row: species, form, IVs, XXL, score, issues.
 import { ROW, formsOf, dexIndex } from './gm.js';
-import { nameIndex, findDex, findDexByName, levenshtein, normalizeName } from './text.js';
+import { nameIndex, findDex, findDexByName, findMegaDex, levenshtein, normalizeName } from './text.js';
 import { dateRelation, pillAsCaught } from './read.js';
 import { solveIVs, rankByBars, roundBars, levelsForHp } from './ivs.js';
 import { score, isXXLByHeight, isXXSByHeight } from './score.js';
@@ -60,7 +60,7 @@ export function evaluate(reading, ctx, edits = {}) {
 		id: null, dex: null, name: reading.species || '', form: null, formName: '', types: '',
 		caught: v.caught ?? null, hp: v.hp ?? null, cp: v.cp ?? null, height_m: v.height_m ?? null, weight_kg: v.weight_kg ?? null,
 		bars: reading.bars ?? null, ivs: null, ivSource: null, level: null, candidates: [], forms: [],
-		cpExpected: null, xxl: null, xxs: null, lucky: reading.lucky ?? null, score: null, inGame: edits.inGame ?? null, inGameDiff: null, issues, key: null,
+		cpExpected: null, xxl: null, xxs: null, lucky: reading.lucky ?? null, score: null, inGame: edits.inGame ?? null, inGameDiff: null, mega: false, issues, key: null,
 	};
 
 	if (reading.merged > 1) issues.push({ code: 'merged', info: true, msg: `Merged from ${reading.merged} screenshots` });
@@ -68,6 +68,14 @@ export function evaluate(reading, ctx, edits = {}) {
 	// Species: from the "was caught" line, else from the name line when that is a species name
 	// (a Pokémon without a nickname; on a 16:9 screen the screenshot without the appraisal has
 	// no "was caught" line)
+	// "This Mega Glalie was caught ...": a mega evolved Pokémon (see megaRow). Saving the
+	// editor stores the species shown ("Glalie") as an edit; only another species, or a height
+	// and a weight typed in (the normal ones), make it an ordinary row.
+	const megaDex = reading.species && findDex(reading.species, ctx.names) == null ? findMegaDex(reading.species, ctx.names) : null;
+	const megaId = megaDex != null ? (ctx.dex.get(megaDex) || [])[0] : null;
+	if (megaId && Object.hasOwn(gm.species, megaId) && (!edits.id || edits.id === megaId) && !(edits.height_m != null && edits.weight_kg != null)) {
+		return megaRow(res, megaId, ctx);
+	}
 	let id = edits.id || null;
 	if (!id) {
 		const dex = speciesDex(reading, ctx);
@@ -125,6 +133,12 @@ export function evaluate(reading, ctx, edits = {}) {
 		const cpExact = cpUse != null && reads.includes(cpUse);
 		return { ...f, size, cpUse, cpForced, cpExact, hits, plausible, typesMatch, best: hits.length ? hits[0].dist : Infinity };
 	});
+	// A CP that no form gives at this HP but a mega's stats do: mega evolved (see megaRow).
+	// Only as read, untouched by the user, and only where no form fits any CP read, so a
+	// misread CP of a normal Pokémon isn't taken for a mega's.
+	if (!userValues(edits) && hp && reads.length && megaFits(gm, id, reads, hp, bars) && !tried.some(t => reads.some(c => fitsRead(t.row, c, hp, bars, gm)))) {
+		return megaRow(res, id, ctx);
+	}
 	// the type icons' labels (ROCK / GROUND) tell Alolan and other forms apart
 	const withHits = tried.filter(t => t.hits.length && t.plausible)
 		.sort((a, b) => b.typesMatch - a.typesMatch || a.cpForced - b.cpForced || b.cpExact - a.cpExact || a.best - b.best);
@@ -232,6 +246,50 @@ export function evaluate(reading, ctx, edits = {}) {
 		}
 	}
 	res.key = duplicateKey(res);
+	return res;
+}
+
+/** Values the user typed in the editor that the readings would otherwise give. */
+const userValues = edits => edits.form != null || ['cp', 'hp', 'height_m', 'weight_kg', 'ivs'].some(k => edits[k] != null && edits[k] !== '');
+
+/** A CP the row gives at this HP, with IVs near the bars where there are bars. */
+function fitsRead(row, cp, hp, bars, gm) {
+	const hits = solveIVs(row, cp, hp, gm.cpm);
+	return bars ? rankByBars(hits, bars).some(x => x.dist <= 1.5) : hits.length > 0;
+}
+
+/**
+ * Whether a CP read fits one of the species' megas or primals at this HP: the mega's attack and
+ * defense (gm.json megaStats), with the mega's stamina or the normal one's (most megas keep
+ * the HP; whether the card shows a changed stamina's HP is untested).
+ */
+function megaFits(gm, id, reads, hp, bars) {
+	const ms = gm.species[id].megaStats;
+	if (!ms) return false;
+	return formsOf(gm, id).some(f => Object.values(ms).some(([a, d, s]) => [s, f.row[ROW.STA]].some(sta => {
+		const row = [...f.row];
+		row[ROW.ATK] = a; row[ROW.DEF] = d; row[ROW.STA] = sta;
+		return reads.some(c => fitsRead(row, c, hp, bars, gm));
+	})));
+}
+
+/**
+ * The row of a mega evolved Pokémon: the screenshot shows the mega's CP, height and weight
+ * (its size scaled to the mega's average), while a showcase scores it as the normal Pokémon. Those can't be computed back reliably yet, so the
+ * row gets the species and a note, no IVs, sizes or score.
+ */
+function megaRow(res, id, ctx) {
+	const { gm, text } = ctx;
+	res.id = id;
+	res.dex = gm.species[id].dex;
+	res.name = text.names[String(res.dex)] || id;
+	res.mega = true;
+	const forms = formsOf(gm, id);
+	res.forms = forms.map(f => f.form);
+	if (forms.length === 1) { res.form = forms[0].form; res.formName = formLabel(res.form); res.types = forms[0].row[ROW.TYPES]; }
+	res.height_m = null;
+	res.weight_kg = null;
+	res.issues.push({ code: 'mega', msg: 'Mega evolved: its CP, height and weight are the mega\'s. Screenshot it again once it\'s back to normal, then delete this row.' });
 	return res;
 }
 

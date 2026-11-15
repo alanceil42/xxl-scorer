@@ -8,6 +8,13 @@ collect under "Unreleased".
 
 ## Unreleased
 
+- A screenshot of a mega evolved Pokémon gets a row that says so ("mega"), with the species and
+  a note to screenshot it again once it's back to normal: its card shows the mega's CP, height
+  and weight, but a showcase scores it as the normal Pokémon. Before, it got "Species not
+  recognised" or a CP to check. It is told by the "was caught" line ("This Mega Glalie ...") or
+  by a CP only the mega's stats give. gm.json's text table also lists the game's mega and primal
+  names (temp)
+
 
 ## 1.11 - 2026-11-16
 

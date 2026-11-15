@@ -58,6 +58,8 @@ export function syntheticText(lang = 'en') {
 		['pokemon_name_9001', 'Testmon'],
 		['pokemon_name_9002', 'Fakeon'],
 		['pokemon_name_9003', 'Mr. Fake'],
+		['pokemon_name_9002_0001', de ? 'Mega-Fakeon' : 'Mega Fakeon'],
+		['pokemon_name_9002_0004', de ? 'Proto-Fakeon' : 'Primal Fakeon'],
 		['appraise_v2_caught', de ? 'Dieses {0} wurde am {1} in der Nähe von {2} gefangen.' : 'This {0} was caught on {1} around {2}.'],
 		['appraise_v2_date_uncached_loc', de ? 'Dieses {0} wurde am {1} gefangen.' : 'This {0} was caught on {1}'],
 		['appraise_v2_dateless_caught', de ? 'Dieses {0} wurde in der Nähe von {1} gefangen.' : 'This {0} was caught around {1}.'],

@@ -44,6 +44,10 @@ test('rows: missing, extra, loose screenshots alone, fields that differ', () => 
 		{ missing: ['3+4'], extra: ['3+4+5'], fields: [] });
 	assert.deepEqual(compareRows([{ ...ok[0], cp: 35 }, ok[1]], want).fields, ['1+2: cp 35, expected 835']);
 	assert.deepEqual(compareRows([ok[0], { files: [3] }, { files: [4] }], want), { missing: ['3+4'], extra: ['3', '4'], fields: [] });
+	// mega: a row without the flag is no mega
+	assert.deepEqual(compareRows(ok, [{ files: [1, 2], mega: true }]).fields, ['1+2: mega false, expected true']);
+	assert.deepEqual(compareRows([{ ...ok[0], mega: true }], [{ files: [1, 2], mega: true }]).fields, []);
+	assert.deepEqual(compareRows(ok, [{ files: [1, 2], mega: false }]).fields, []);
 });
 
 test('cache: asks the engine once per input and reading, keeps the answers in a file per engine', async () => {

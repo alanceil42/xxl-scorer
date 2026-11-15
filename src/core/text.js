@@ -17,24 +17,31 @@ const CAUGHT = Object.freeze({
 
 /**
  * @param {{data: string[]}} i18n  parsed i18n_<language>.json (flat key/value list)
- * @returns {{names: Object<string,string>, caught: Object<string,string>, hp: string, kg: string, m: string}}
+ * @returns {{names: Object<string,string>, temp: Object<string,string[]>, caught: Object<string,string>,
+ *   hp: string, kg: string, m: string}}
+ * temp: the names of each species' mega and primal forms, by Pokédex number, as the game writes
+ * them ("362": ["Mega Glalie"], "6": ["Mega Charizard X", "Mega Charizard Y"]): a mega evolved
+ * Pokémon's "was caught" line names it so. A table stored before temp lacks it.
  */
 export function compactText(i18n) {
 	const list = i18n && i18n.data;
 	if (!Array.isArray(list)) throw new Error('text table: expected {data: [key, value, ...]}');
 	const kv = new Map();
 	for (let i = 0; i + 1 < list.length; i += 2) kv.set(list[i], list[i + 1]);
-	const names = {};
+	const names = {}, temp = {};
 	for (const [k, v] of kv) {
-		const m = /^pokemon_name_(\d{4})$/.exec(k);
-		if (m && v) names[String(Number(m[1]))] = v;
+		const m = /^pokemon_name_(\d{4})(_\d{4})?$/.exec(k);
+		if (!m || !v) continue;
+		const dex = String(Number(m[1]));
+		if (m[2]) (temp[dex] ||= []).push(v);
+		else names[dex] = v;
 	}
 	const caught = {};
 	for (const k of Object.keys(CAUGHT)) if (kv.has(k)) caught[k] = kv.get(k);
 	if (Object.keys(names).length < 100 || !caught.appraise_v2_caught) {
 		throw new Error('text table: species names or caught line missing; format changed?');
 	}
-	return { names, caught, hp: kv.get('general_hp') || 'HP', kg: kv.get('general_kg') || 'kg', m: kv.get('general_m') || 'm' };
+	return { names, temp, caught, hp: kv.get('general_hp') || 'HP', kg: kv.get('general_kg') || 'kg', m: kv.get('general_m') || 'm' };
 }
 
 const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -129,7 +136,22 @@ export function levenshtein(a, b) {
 export function nameIndex(text) {
 	const exact = new Map();
 	for (const [dex, name] of Object.entries(text.names)) exact.set(normalizeName(name), Number(dex));
-	return { exact, list: [...exact.entries()] };
+	const temp = new Map();
+	for (const [dex, list] of Object.entries(text.temp || {})) for (const name of list) temp.set(normalizeName(name), Number(dex));
+	return { exact, list: [...exact.entries()], temp: { exact: temp, list: [...temp.entries()] } };
+}
+
+/**
+ * Pokédex number for a "was caught" line's species that names a mega or primal form ("Mega
+ * Glalie"), read as findDex reads species names; null for anything else, a species name
+ * included. A text table from before temp has none.
+ */
+export function findMegaDex(name, index) {
+	if (!index.temp || !index.temp.list.length) return null;
+	const n = normalizeName(name);
+	if (!n || index.exact.has(n)) return null;
+	if (index.temp.exact.has(n)) return index.temp.exact.get(n);
+	return remembered(index, 'megaFuzzy', n, (x, i) => fuzzyDex(x, i.temp));
 }
 
 /**
@@ -152,7 +174,7 @@ const memo = new WeakMap();
 const LIMIT = 20000;
 function remembered(index, kind, n, f) {
 	let m = memo.get(index);
-	if (!m) memo.set(index, m = { fuzzy: new Map(), byName: new Map() });
+	if (!m) memo.set(index, m = { fuzzy: new Map(), byName: new Map(), megaFuzzy: new Map() });
 	const known = m[kind];
 	if (known.has(n)) return known.get(n);
 	if (known.size >= LIMIT) known.clear();
