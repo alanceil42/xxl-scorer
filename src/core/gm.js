@@ -13,7 +13,7 @@ export const GM_VERSION = 2;
 
 /**
  * species: {POKEMONID: {dex, fam, f: {form: Row}, evo?: {form: [target]}, evoCandy?: {form: [n]},
- * evoGender?: {form: [gender]}, mega?: [id]}}; fam is the evolution
+ * evoGender?: {form: [gender]}, evoItem?, evoCond?, mega?: [id]}}; fam is the evolution
  * family as the game master names it, without "FAMILY_" (Gourgeist: "PUMPKABOO"). A copy from
  * before version 2 lacks it; use familyOf(). evo: what each form evolves into, only forms that
  * evolve; a target is the species, plus "/FORM" when it is a form other than the base
@@ -28,6 +28,11 @@ export const GM_VERSION = 2;
  * copy from before evoGender lacks it. evoItem: the item each of evo's evolutions needs besides candy
  * (or a lure module nearby), in evo's order, without "ITEM_" ("GEN4_EVOLUTION_STONE" for a
  * Sinnoh Stone, "TROY_DISK_GLACIAL"), null for none; only forms with at least one such evolution.
+ * evoCond: what else each of evo's evolutions needs, in evo's order, a list of codes or null for
+ * nothing (Eevee: Vaporeon null, Espeon ["BUDDY", "KM:10", "DAY", "QUEST:BUDDY_EVOLUTION_WALK:10"]);
+ * see conditions(). An evolution with no gender, item or condition, next to another such one,
+ * is up to chance in the game (Eevee's first three, Wurmple, Clamperl); only forms with at least
+ * one condition have it, and a copy from before evoCond lacks it.
  * movesApart: where one form evolves by gender into two forms
  * of one species (Espurr: Meowstic, Meowstic/FEMALE), the forms among them whose moves differ
  * from the first's ("" for the base), sorted (Meowstic: ["FEMALE"]); forms that differ in stats
@@ -64,8 +69,8 @@ function megas(p) {
  * evoCandy does and the gender each needs as evoGender does (a target listed twice: its first
  * entry).
  */
-function evolutions(p) {
-	const out = [], candy = [], gender = [], item = [];
+function evolutions(p, quests = {}) {
+	const out = [], candy = [], gender = [], item = [], cond = [];
 	for (const b of p.evolutionBranch || []) {
 		if (!b.evolution) continue;	// a mega evolution
 		const form = formName(b.evolution, b.form ? String(b.form) : '');
@@ -76,8 +81,43 @@ function evolutions(p) {
 		gender.push(b.genderRequirement ? String(b.genderRequirement) : null);
 		const it = b.evolutionItemRequirement || b.lureItemRequirement;
 		item.push(it ? String(it).replace(/^ITEM_/, '') : null);
+		cond.push(conditions(b, quests));
 	}
-	return { out, candy, gender, item };
+	return { out, candy, gender, item, cond };
+}
+
+// A branch's keys that are no condition of their own (or have their own field: evoGender, evoItem)
+const NOT_CONDITIONS = new Set(['evolution', 'form', 'candyCost', 'candyCostPurified', 'priority',
+	'noCandyCostViaTrade', 'evolutionLikelihoodWeight', 'genderRequirement', 'evolutionItemRequirement',
+	'evolutionItemRequirementCost', 'lureItemRequirement', 'obPurificationEvolutionCandyCost']);
+const KNOWN_CONDITIONS = ['mustBeBuddy', 'kmBuddyDistanceRequirement', 'onlyDaytime', 'onlyNighttime',
+	'onlyDuskPeriod', 'onlyFullMoon', 'onlyUpsideDown', 'evolutionMoveRequirement', 'questDisplay'];
+
+/**
+ * What else a branch needs besides candy, a gender and an item, as evoCond stores it: "BUDDY",
+ * "KM:10" (walked as buddy), "DAY", "NIGHT", "DUSK", "FULL_MOON", "UPSIDE_DOWN", "MOVE:<move>",
+ * "QUEST:<type without QUEST_>:<goal>" (or "QUEST:<template>" when the quest isn't found), in this
+ * order, then any other key the game adds, by its name (sorted), so a new kind of condition is
+ * never read as none. null for none.
+ */
+function conditions(b, quests) {
+	const c = [];
+	if (b.mustBeBuddy) c.push('BUDDY');
+	if (b.kmBuddyDistanceRequirement) c.push(`KM:${b.kmBuddyDistanceRequirement}`);
+	if (b.onlyDaytime) c.push('DAY');
+	if (b.onlyNighttime) c.push('NIGHT');
+	if (b.onlyDuskPeriod) c.push('DUSK');
+	if (b.onlyFullMoon) c.push('FULL_MOON');
+	if (b.onlyUpsideDown) c.push('UPSIDE_DOWN');
+	if (b.evolutionMoveRequirement) c.push(`MOVE:${b.evolutionMoveRequirement}`);
+	for (const q of b.questDisplay || []) {
+		const id = q && q.questRequirementTemplateId;
+		if (!id) continue;
+		const t = quests[id];
+		c.push(t ? `QUEST:${String(t.questType).replace(/^QUEST_/, '')}:${(t.goals && t.goals[0] && t.goals[0].target) ?? ''}` : `QUEST:${id}`);
+	}
+	for (const k of Object.keys(b).sort()) if (!NOT_CONDITIONS.has(k) && !KNOWN_CONDITIONS.includes(k) && b[k] != null && b[k] !== false) c.push(k);
+	return c.length ? c : null;
 }
 
 /**
@@ -90,6 +130,12 @@ export function compactGameMaster(all, opt = {}) {
 	for (const t of all) {
 		const e = t.data && t.data.pokemonExtendedSettings;
 		if (e && e.sizeSettings && e.sizeSettings.xxlUpperBound) size[e.form || e.uniqueId] = e.sizeSettings;
+	}
+	// the evolution quests (Sylveon's buddy hearts), for evoCond
+	const quests = {};
+	for (const t of all) {
+		const q = t.data && t.data.evolutionQuestTemplate;
+		if (q && q.questTemplateId) quests[q.questTemplateId] = q;
 	}
 	const species = {};
 	for (const t of all) {
@@ -117,12 +163,13 @@ export function compactGameMaster(all, opt = {}) {
 		const sp = species[pid] || (species[pid] = { dex: Number(t.templateId.slice(1, 5)), f: {} });
 		if (p.familyId && !sp.fam) sp.fam = String(p.familyId).replace(/^FAMILY_/, '');
 		sp.f[form] = row;
-		const evo = evolutions(p);
+		const evo = evolutions(p, quests);
 		if (evo.out.length) {
 			(sp.evo || (sp.evo = {}))[form] = evo.out;
 			(sp.evoCandy || (sp.evoCandy = {}))[form] = evo.candy;
 			if (evo.gender.some(Boolean)) (sp.evoGender || (sp.evoGender = {}))[form] = evo.gender;
 			if (evo.item.some(Boolean)) (sp.evoItem || (sp.evoItem = {}))[form] = evo.item;
+			if (evo.cond.some(Boolean)) (sp.evoCond || (sp.evoCond = {}))[form] = evo.cond;
 		}
 		const mega = megas(p);
 		if (mega.length) sp.mega = [...new Set([...(sp.mega || []), ...mega])].sort();
@@ -139,11 +186,13 @@ export function compactGameMaster(all, opt = {}) {
 		if (sp.evo && sp.evo.NORMAL && sp.evo[''] && JSON.stringify(sp.evo.NORMAL) === JSON.stringify(sp.evo[''])
 			&& JSON.stringify(sp.evoCandy.NORMAL) === JSON.stringify(sp.evoCandy[''])
 			&& JSON.stringify(sp.evoGender && sp.evoGender.NORMAL) === JSON.stringify(sp.evoGender && sp.evoGender[''])
-			&& JSON.stringify(sp.evoItem && sp.evoItem.NORMAL) === JSON.stringify(sp.evoItem && sp.evoItem[''])) {
+			&& JSON.stringify(sp.evoItem && sp.evoItem.NORMAL) === JSON.stringify(sp.evoItem && sp.evoItem[''])
+			&& JSON.stringify(sp.evoCond && sp.evoCond.NORMAL) === JSON.stringify(sp.evoCond && sp.evoCond[''])) {
 			delete sp.evo.NORMAL;
 			delete sp.evoCandy.NORMAL;
 			if (sp.evoGender) delete sp.evoGender.NORMAL;
 			if (sp.evoItem) delete sp.evoItem.NORMAL;
+			if (sp.evoCond) delete sp.evoCond.NORMAL;
 		}
 	}
 	// forms an evolution picks by gender, apart by their moves alone
