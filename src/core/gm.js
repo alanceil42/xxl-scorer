@@ -33,6 +33,8 @@ export const GM_VERSION = 2;
  * see conditions(). An evolution with no gender, item or condition, next to another such one,
  * is up to chance in the game (Eevee's first three, Wurmple, Clamperl); only forms with at least
  * one condition have it, and a copy from before evoCond lacks it.
+ * cls: the species' class as the game master names it, without "POKEMON_CLASS_": "LEGENDARY",
+ * "MYTHIC" or "ULTRA_BEAST"; species without a class don't have it, nor does a copy from before.
  * movesApart: where one form evolves by gender into two forms
  * of one species (Espurr: Meowstic, Meowstic/FEMALE), the forms among them whose moves differ
  * from the first's ("" for the base), sorted (Meowstic: ["FEMALE"]); forms that differ in stats
@@ -162,6 +164,7 @@ export function compactGameMaster(all, opt = {}) {
 		];
 		const sp = species[pid] || (species[pid] = { dex: Number(t.templateId.slice(1, 5)), f: {} });
 		if (p.familyId && !sp.fam) sp.fam = String(p.familyId).replace(/^FAMILY_/, '');
+		if (p.pokemonClass && !sp.cls) sp.cls = String(p.pokemonClass).replace(/^POKEMON_CLASS_/, '');
 		sp.f[form] = row;
 		const evo = evolutions(p, quests);
 		if (evo.out.length) {

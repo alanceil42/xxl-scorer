@@ -22,6 +22,9 @@ collect under "Unreleased".
   Wurmple; Clamperl) from one you choose; the page doesn't use it
 - Deleting (a row in the editor, the ticked rows, all rows) no longer asks in a dialog first: it
   acts at once, and the note at the bottom offers Undo for about 8 seconds
+- gm.json also lists the species' class (cls: "LEGENDARY", "MYTHIC" or "ULTRA_BEAST", only for
+  species that have one), for other tools that read it; the page doesn't use it
+
 
 ## 1.10 - 2026-11-08
 

@@ -112,6 +112,7 @@ jq -c --arg now "$now" --arg etag "$etag" --arg url "$GM_URL" --argjson min "$MI
 			id: $pid,
 			dex: ($tid[1:5] | tonumber),
 			fam: (.familyId // null | if . then tostring | ltrimstr("FAMILY_") else null end),
+			cls: (.pokemonClass // null | if . then tostring | ltrimstr("POKEMON_CLASS_") else null end),
 			form: (if .form then (.form | tostring | ltrimstr($pid) | ltrimstr("_")) else "" end),
 			# its mega and primal evolutions, as gm.js: "MEGA", "MEGA_X", "PRIMAL"
 			mega: ([ ((.tempEvoOverrides // [])[] | .tempEvoId? // empty),
@@ -148,6 +149,7 @@ jq -c --arg now "$now" --arg etag "$etag" --arg url "$GM_URL" --argjson min "$MI
 	| (reduce $rows[] as $r ({};
 		.[$r.id].dex = $r.dex
 		| (if $r.fam and (.[$r.id].fam == null) then .[$r.id].fam = $r.fam else . end)
+		| (if $r.cls and (.[$r.id].cls == null) then .[$r.id].cls = $r.cls else . end)
 		| .[$r.id].f[$r.form] = $r.row
 		| (if ($r.evo2 | length) > 0 then .[$r.id].evo[$r.form] = ($r.evo2 | map(.t))
 			| .[$r.id].evoCandy[$r.form] = ($r.evo2 | map(.c))

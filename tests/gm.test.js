@@ -54,13 +54,13 @@ function edgeGameMaster() {
 			evolutionBranch: [{ evolution: 'STATLESS', form: 'STATLESS_ZETA', candyCost: 50 }, { evolution: 'STATLESS', form: 'STATLESS_ZETA', candyCost: 99 },
 				{ evolution: 'ZEROMON', evolutionItemRequirement: 'ITEM_X', evolutionItemRequirementCost: 999 }],
 			tempEvoOverrides: [{ tempEvoId: 'TEMP_EVOLUTION_MEGA_Y' }, { tempEvoId: 'TEMP_EVOLUTION_MEGA' }, { stats: {} }] }),
-		mon('V9004_POKEMON_EDGEMON_ALPHA', { pokemonId: 'EDGEMON', form: 'EDGEMON_ALPHA', pokedexHeightM: 1.3, familyId: 'FAMILY_EDGEMON' }),
+		mon('V9004_POKEMON_EDGEMON_ALPHA', { pokemonId: 'EDGEMON', form: 'EDGEMON_ALPHA', pokedexHeightM: 1.3, familyId: 'FAMILY_EDGEMON', pokemonClass: 'POKEMON_CLASS_LEGENDARY' }),
 		mon('V9005_POKEMON_STATLESS', { pokemonId: 'STATLESS', stats: { baseAttack: 90 }, familyId: 'FAMILY_EDGEMON' }),
 		mon('V9006_POKEMON_NOHEIGHT', { pokemonId: 'NOHEIGHT', pokedexHeightM: undefined }),
 		mon('V9007_POKEMON_NOSTATS', { pokemonId: 'NOSTATS', stats: undefined }),
 		{ templateId: 'V9008_POKEMON_NOSETTINGS', data: {} },
 		mon('X9009_POKEMON_NOTAMON', { pokemonId: 'NOTAMON' }),
-		mon('V9010_POKEMON_ZEROMON', { pokemonId: 'ZEROMON', weightStdDev: 0 }),
+		mon('V9010_POKEMON_ZEROMON', { pokemonId: 'ZEROMON', weightStdDev: 0, pokemonClass: 'POKEMON_CLASS_ULTRA_BEAST' }),
 		ext('ZEROMON', { xxlUpperBound: 2.2, xlUpperBound: 0, xsLowerBound: 0 }),
 		mon('V9011_POKEMON_ZEROBOUND', { pokemonId: 'ZEROBOUND' }),
 		ext('ZEROBOUND', { xxlUpperBound: 0, xlUpperBound: 1.9 }),
@@ -178,6 +178,14 @@ test('evolution families: from familyId without "FAMILY_"; a species without one
 	assert.equal(familyOf(gm, 'STATLESS'), 'EDGEMON');
 	assert.equal(familyOf(gm, 'ZEROMON'), '#ZEROMON');
 	assert.equal(familyOf(gm, 'constructor'), '#constructor');
+});
+
+test('class: from pokemonClass without "POKEMON_CLASS_", from any form; none, no field', () => {
+	const gm = compactGameMaster(edgeGameMaster(), { minSpecies: 1 });
+	assert.equal(gm.species.EDGEMON.cls, 'LEGENDARY', 'given on one form only');
+	assert.equal(gm.species.ZEROMON.cls, 'ULTRA_BEAST');
+	assert.equal(gm.species.STATLESS.cls, undefined);
+	assert.ok(!('cls' in gm.species.TWINMON));
 });
 
 test('templates without height, weight or attack are skipped; missing defence and stamina are 0', () => {
