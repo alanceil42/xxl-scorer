@@ -8,6 +8,13 @@ collect under "Unreleased".
 
 ## Unreleased
 
+
+## 1.11 - 2026-11-16
+
+Deleting no longer asks first: Undo instead.
+
+- Deleting (a row in the editor, the ticked rows, all rows) no longer asks in a dialog first: it
+  acts at once, and the note at the bottom offers Undo for about 8 seconds
 - gm.json also lists the candy each evolution costs (evoCandy, in evo's order; null where the
   game asks for an item instead), for other tools that read it; as with evo and mega, the page
   doesn't use it and nothing is fetched again
@@ -20,8 +27,6 @@ collect under "Unreleased".
   "BUDDY", "KM:10", "DAY", "NIGHT", "QUEST:BUDDY_EARN_AFFECTION_POINTS:70", or null for nothing),
   so other tools can tell an evolution left to chance (Eevee to Vaporeon, Jolteon or Flareon;
   Wurmple; Clamperl) from one you choose; the page doesn't use it
-- Deleting (a row in the editor, the ticked rows, all rows) no longer asks in a dialog first: it
-  acts at once, and the note at the bottom offers Undo for about 8 seconds
 - gm.json also lists the species' class (cls: "LEGENDARY", "MYTHIC" or "ULTRA_BEAST", only for
   species that have one), for other tools that read it; the page doesn't use it
 - gm.json also lists each mega and primal evolution's base stats (megaStats: [attack, defense,
