@@ -24,6 +24,9 @@ collect under "Unreleased".
   acts at once, and the note at the bottom offers Undo for about 8 seconds
 - gm.json also lists the species' class (cls: "LEGENDARY", "MYTHIC" or "ULTRA_BEAST", only for
   species that have one), for other tools that read it; the page doesn't use it
+- gm.json also lists each mega and primal evolution's base stats (megaStats: [attack, defense,
+  stamina] per mega, e.g. Glalie {"MEGA": [252, 168, 190]}), so other tools can tell the CP a
+  mega evolved Pokémon shows; the page doesn't use them
 
 
 ## 1.10 - 2026-11-08

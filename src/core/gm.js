@@ -13,14 +13,17 @@ export const GM_VERSION = 2;
 
 /**
  * species: {POKEMONID: {dex, fam, f: {form: Row}, evo?: {form: [target]}, evoCandy?: {form: [n]},
- * evoGender?: {form: [gender]}, evoItem?, evoCond?, mega?: [id]}}; fam is the evolution
+ * evoGender?: {form: [gender]}, evoItem?, evoCond?, mega?: [id], megaStats?: {id: [atk, def, sta]}}}; fam is the evolution
  * family as the game master names it, without "FAMILY_" (Gourgeist: "PUMPKABOO"). A copy from
  * before version 2 lacks it; use familyOf(). evo: what each form evolves into, only forms that
  * evolve; a target is the species, plus "/FORM" when it is a form other than the base
  * (Meowth: {"": ["PERSIAN"], ALOLA: ["PERSIAN/ALOLA"], GALARIAN: ["PERRSERKER"]}). Mega
  * evolutions are not in it; mega: the species' mega and primal evolutions, from any of its
  * forms, without "TEMP_EVOLUTION_" and sorted (Charizard: ["MEGA_X", "MEGA_Y"], Groudon:
- * ["PRIMAL"]). evoCandy: the candy each of evo's evolutions costs, in evo's order (Stufful:
+ * ["PRIMAL"]). megaStats: the base stats while mega evolved, [atk, def, sta] as a row's ATK, DEF
+ * and STA, per mega as mega names it (Glalie: {MEGA: [252, 168, 190]}); a mega evolved Pokémon
+ * shows the CP these give. Only megas the game master gives stats for, from the first form that
+ * gives them; a copy from before megaStats lacks it. evoCandy: the candy each of evo's evolutions costs, in evo's order (Stufful:
  * {"": [400]}); null where the game asks for an item instead of candy (Gimmighoul's coins); a copy
  * from before evoCandy lacks it. evoGender: the gender each of evo's evolutions needs, in evo's
  * order, "MALE", "FEMALE" or null for either (Kirlia: {"": [null, "MALE"]}: Gardevoir from
@@ -176,6 +179,13 @@ export function compactGameMaster(all, opt = {}) {
 		}
 		const mega = megas(p);
 		if (mega.length) sp.mega = [...new Set([...(sp.mega || []), ...mega])].sort();
+		for (const o of p.tempEvoOverrides || []) {
+			const id = o && o.tempEvoId && String(o.tempEvoId).replace(/^TEMP_EVOLUTION_/, '');
+			const st = o && o.stats;
+			if (!id || !st || !st.baseAttack) continue;
+			const ms = sp.megaStats || (sp.megaStats = {});
+			if (!ms[id]) ms[id] = [st.baseAttack, st.baseDefense || 0, st.baseStamina || 0];
+		}
 	}
 	// Drop forms identical to the base (costumes etc.)
 	for (const sp of Object.values(species)) {
