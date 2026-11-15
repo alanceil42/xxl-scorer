@@ -60,7 +60,38 @@ jq -c --arg now "$now" --arg etag "$etag" --arg url "$GM_URL" --argjson min "$MI
 	# 0 counts as missing, as in gm.js: no size, weight or attack is 0
 	def nz: if . == 0 then null else . end;
 
+	# a value the JS side counts as present: not null, false, 0 or ""
+	def t: . != null and . != false and . != 0 and . != "";
+	# what else a branch needs besides candy, a gender and an item, as gm.js conditions()
+	def conds($q):
+		. as $b
+		| [ (if ($b.mustBeBuddy | t) then "BUDDY" else empty end),
+			(if ($b.kmBuddyDistanceRequirement | t) then "KM:\($b.kmBuddyDistanceRequirement + 0)" else empty end),
+			(if ($b.onlyDaytime | t) then "DAY" else empty end),
+			(if ($b.onlyNighttime | t) then "NIGHT" else empty end),
+			(if ($b.onlyDuskPeriod | t) then "DUSK" else empty end),
+			(if ($b.onlyFullMoon | t) then "FULL_MOON" else empty end),
+			(if ($b.onlyUpsideDown | t) then "UPSIDE_DOWN" else empty end),
+			(if ($b.evolutionMoveRequirement | t) then "MOVE:\($b.evolutionMoveRequirement)" else empty end),
+			(($b.questDisplay // [])[] | (.questRequirementTemplateId // null) | select(t)
+				| . as $id | $q[$id] as $qt
+				| if $qt then "QUEST:\($qt.questType | tostring | ltrimstr("QUEST_")):\((($qt.goals // [])[0].target) // "")"
+					else "QUEST:\($id)" end),
+			($b | to_entries | sort_by(.key)[]
+				| select(.key | IN("evolution", "form", "candyCost", "candyCostPurified", "priority",
+					"noCandyCostViaTrade", "evolutionLikelihoodWeight", "genderRequirement",
+					"evolutionItemRequirement", "evolutionItemRequirementCost", "lureItemRequirement",
+					"obPurificationEvolutionCandyCost", "mustBeBuddy", "kmBuddyDistanceRequirement",
+					"onlyDaytime", "onlyNighttime", "onlyDuskPeriod", "onlyFullMoon", "onlyUpsideDown",
+					"evolutionMoveRequirement", "questDisplay") | not)
+				| select(.value != null and .value != false) | .key) ]
+		| if length > 0 then . else null end;
+
 	. as $all
+
+	# The evolution quests (Sylveon: buddy hearts), for evoCond
+	| ([ $all[] | .data.evolutionQuestTemplate? // empty | select(.questTemplateId)
+		| { key: .questTemplateId, value: . } ] | from_entries) as $quests
 
 	# Absolute size bounds (m) per species/form, from the EXTENDED_* templates
 	| ([ $all[] | .data.pokemonExtendedSettings? // empty
@@ -96,7 +127,8 @@ jq -c --arg now "$now" --arg etag "$etag" --arg url "$GM_URL" --argjson min "$MI
 					c: ((.candyCost | nz) // null),
 					g: (.genderRequirement // null | if . then tostring else null end),
 					i: ((.evolutionItemRequirement // .lureItemRequirement) // null
-						| if . then tostring | ltrimstr("ITEM_") else null end) }) as $b
+						| if . then tostring | ltrimstr("ITEM_") else null end),
+					k: conds($quests) }) as $b
 				([]; if any(.[]; .t == $b.t) then . else . + [$b] end)),
 			row: [
 				.pokedexHeightM,
@@ -122,6 +154,8 @@ jq -c --arg now "$now" --arg etag "$etag" --arg url "$GM_URL" --argjson min "$MI
 			| (if any($r.evo2[]; .g != null) then .[$r.id].evoGender[$r.form] = ($r.evo2 | map(.g))
 				else . end)
 			| (if any($r.evo2[]; .i != null) then .[$r.id].evoItem[$r.form] = ($r.evo2 | map(.i))
+				else . end)
+			| (if any($r.evo2[]; .k != null) then .[$r.id].evoCond[$r.form] = ($r.evo2 | map(.k))
 				else . end) else . end)
 		| (if ($r.mega | length) > 0 then .[$r.id].mega = ((.[$r.id].mega // []) + $r.mega | unique) else . end))
 	| with_entries(
@@ -134,9 +168,11 @@ jq -c --arg now "$now" --arg etag "$etag" --arg url "$GM_URL" --argjson min "$MI
 			and .value.evoCandy.NORMAL == .value.evoCandy[""]
 			and .value.evoGender.NORMAL == .value.evoGender[""]
 			and .value.evoItem.NORMAL == .value.evoItem[""]
+			and .value.evoCond.NORMAL == .value.evoCond[""]
 		then del(.value.evo.NORMAL) | del(.value.evoCandy.NORMAL)
 			| if .value.evoGender then del(.value.evoGender.NORMAL) else . end
 			| if .value.evoItem then del(.value.evoItem.NORMAL) else . end
+			| if .value.evoCond then del(.value.evoCond.NORMAL) else . end
 		else . end
 	)) as $species0
 

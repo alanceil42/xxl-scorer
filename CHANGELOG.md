@@ -16,6 +16,10 @@ collect under "Unreleased".
   the item it needs besides candy (evoItem, e.g. a Sinnoh Stone, or a lure module), and the forms
   a gender picks that differ in moves alone (movesApart, e.g. female Meowstic), for other tools
   that read it; the page doesn't use them
+- gm.json also lists what else an evolution needs (evoCond, in evo's order: codes such as
+  "BUDDY", "KM:10", "DAY", "NIGHT", "QUEST:BUDDY_EARN_AFFECTION_POINTS:70", or null for nothing),
+  so other tools can tell an evolution left to chance (Eevee to Vaporeon, Jolteon or Flareon;
+  Wurmple; Clamperl) from one you choose; the page doesn't use it
 - Deleting (a row in the editor, the ticked rows, all rows) no longer asks in a dialog first: it
   acts at once, and the note at the bottom offers Undo for about 8 seconds
 

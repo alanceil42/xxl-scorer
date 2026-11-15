@@ -92,6 +92,19 @@ function edgeGameMaster() {
 		mon('V9021_POKEMON_SAMEPRE', { pokemonId: 'SAMEPRE', evolutionBranch: [{ evolution: 'MOVEMON', form: 'MOVEMON_NORMAL', candyCost: 50, genderRequirement: 'MALE' },
 			{ evolution: 'MOVEMON', form: 'MOVEMON_SAME', candyCost: 50, genderRequirement: 'FEMALE' }] }),
 		mon('V9022_POKEMON_LUREMON', { pokemonId: 'LUREMON', evolutionBranch: [{ evolution: 'ZEROMON', candyCost: 25, lureItemRequirement: 'ITEM_TROY_DISK_GLACIAL' }] }),
+		// conditions: by chance (none), buddy walk by day with a quest, a quest not found, a new key
+		mon('V9023_POKEMON_CONDMON', { pokemonId: 'CONDMON', evolutionBranch: [{ evolution: 'ZEROMON', candyCost: 25 },
+			{ evolution: 'ZEROBOUND', candyCost: 25, mustBeBuddy: true, kmBuddyDistanceRequirement: 10.0, onlyDaytime: true, priority: 100,
+				questDisplay: [{ questRequirementTemplateId: 'CONDMON_EVOLUTION_QUEST' }] },
+			{ evolution: 'STATLESS', candyCost: 25, questDisplay: [{ questRequirementTemplateId: 'MISSING_QUEST' }], onlyFullMoon: false },
+			{ evolution: 'TWINMON', candyCost: 25, onlyInTheRain: true, evolutionLikelihoodWeight: 99 }] }),
+		mon('V9023_POKEMON_CONDMON_NORMAL', { pokemonId: 'CONDMON', form: 'CONDMON_NORMAL', evolutionBranch: [{ evolution: 'ZEROMON', candyCost: 25 },
+			{ evolution: 'ZEROBOUND', candyCost: 25, mustBeBuddy: true, kmBuddyDistanceRequirement: 10.0, onlyDaytime: true, priority: 100,
+				questDisplay: [{ questRequirementTemplateId: 'CONDMON_EVOLUTION_QUEST' }] },
+			{ evolution: 'STATLESS', candyCost: 25, questDisplay: [{ questRequirementTemplateId: 'MISSING_QUEST' }], onlyFullMoon: false },
+			{ evolution: 'TWINMON', candyCost: 25, onlyInTheRain: true, evolutionLikelihoodWeight: 99 }] }),
+		{ templateId: 'CONDMON_EVOLUTION_QUEST', data: { templateId: 'CONDMON_EVOLUTION_QUEST', evolutionQuestTemplate: {
+			questTemplateId: 'CONDMON_EVOLUTION_QUEST', questType: 'QUEST_BUDDY_EVOLUTION_WALK', goals: [{ target: 10 }] } } },
 		mon('V9014_POKEMON_ZEROATTACK', { pokemonId: 'ZEROATTACK', stats: { baseAttack: 0, baseDefense: 110, baseStamina: 130 } }),
 		{ templateId: 'PLAYER_LEVEL_SETTINGS', data: { playerLevel: { cpMultiplier: CPM } } },
 	];
@@ -133,6 +146,14 @@ test('the item an evolution needs, in evo\'s order: "ITEM_" dropped, a lure too,
 	for (const id of ['TWINMON', 'PRICEMON', 'FORMMON', 'STATLESS']) assert.equal(gm.species[id].evoItem, undefined, `${id}: no item, no field`);
 });
 
+test('what else an evolution needs, in evo\'s order: codes, a quest by its goal, new keys by name', () => {
+	const gm = compactGameMaster(edgeGameMaster(), { minSpecies: 1 });
+	assert.deepEqual(gm.species.CONDMON.evo, { '': ['ZEROMON', 'ZEROBOUND', 'STATLESS', 'TWINMON'] }, 'the base once');
+	assert.deepEqual(gm.species.CONDMON.evoCond, { '': [null, ['BUDDY', 'KM:10', 'DAY', 'QUEST:BUDDY_EVOLUTION_WALK:10'],
+		['QUEST:MISSING_QUEST'], ['onlyInTheRain']] }, 'none (chance), walk by day, a quest not found, a key the game added');
+	for (const id of ['EDGEMON', 'TWINMON', 'SPLITMON', 'LUREMON', 'FORMMON']) assert.equal(gm.species[id].evoCond, undefined, `${id}: no condition, no field`);
+});
+
 test('forms a gender picks that differ in moves alone: movesApart on the target species', () => {
 	const gm = compactGameMaster(edgeGameMaster(), { minSpecies: 1 });
 	assert.deepEqual(Object.keys(gm.species.MOVEMON.f), [''], 'same row: the forms are dropped');
@@ -161,7 +182,7 @@ test('evolution families: from familyId without "FAMILY_"; a species without one
 
 test('templates without height, weight or attack are skipped; missing defence and stamina are 0', () => {
 	const gm = compactGameMaster(edgeGameMaster(), { minSpecies: 1 });
-	assert.deepEqual(Object.keys(gm.species).sort(), ['EDGEMON', 'FORMMON', 'LUREMON', 'MOVEMON', 'PREMON', 'PRICEMON', 'SAMEPRE', 'SPLITMON', 'STATLESS', 'TWINMON', 'ZEROBOUND', 'ZEROMON'], 'a height, weight or attack of 0 too');
+	assert.deepEqual(Object.keys(gm.species).sort(), ['CONDMON', 'EDGEMON', 'FORMMON', 'LUREMON', 'MOVEMON', 'PREMON', 'PRICEMON', 'SAMEPRE', 'SPLITMON', 'STATLESS', 'TWINMON', 'ZEROBOUND', 'ZEROMON'], 'a height, weight or attack of 0 too');
 	assert.deepEqual(gm.species.STATLESS.f[''].slice(4, 8), [90, 0, 0, 'ROCK']);
 });
 
