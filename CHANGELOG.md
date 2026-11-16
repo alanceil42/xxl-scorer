@@ -8,6 +8,11 @@ collect under "Unreleased".
 
 ## Unreleased
 
+
+## 1.12 - 2026-11-16
+
+Screenshots of mega evolved Pokémon are recognised, not scored.
+
 - A screenshot of a mega evolved Pokémon gets a row that says so ("mega"), with the species and
   a note to screenshot it again once it's back to normal: its card shows the mega's CP, height
   and weight, but a showcase scores it as the normal Pokémon. Before, it got "Species not

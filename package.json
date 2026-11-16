@@ -1,6 +1,6 @@
 {
 	"name": "xxl-scorer",
-	"version": "1.11",
+	"version": "1.12",
 	"description": "Pokémon GO showcase scorer: screenshots in, showcase points out. Runs in the browser.",
 	"license": "MIT",
 	"private": true,
