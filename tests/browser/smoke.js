@@ -479,6 +479,7 @@ for (const [width, colorScheme] of [[402, 'light'], [1280, 'dark'], [402, 'dark'
 				await chip('e2').click();
 				assert.equal(await page.getAttribute('#sort > summary', 'title'), 'Sort: Evolve: Score, highest first');
 				assert.equal(await page.evaluate(() => document.querySelector('#editor').open), false);
+				await page.waitForSelector('#rows tr.has-evo[data-id="ev"] td.c-evo .evo-long');
 				assert.match(await ev.locator('.evo-long').innerText(), /^\+42 as Evolarge → 11\d\d · 400 candy$/);
 				assert.equal(await sm.innerText(), 'about the same if evolved');
 				assert.equal(await page.locator('#rows tr[data-id="tm"] td.c-evo').innerText(), 'doesn\'t evolve', 'an XXL row of a species alone');
@@ -494,6 +495,7 @@ for (const [width, colorScheme] of [[402, 'light'], [1280, 'dark'], [402, 'dark'
 				['Score', 'Newest', 'Pokédex', 'Catch date', 'Evolve: Gain', 'Evolve: Score']);
 			// the sort: gains first, about the same, then rows that can't evolve
 			await page.click('#sort-items button:has-text("Evolve: Gain")');
+			await page.waitForFunction(() => document.querySelector('#sort > summary').title === 'Sort: Evolve: Gain, gains first');
 			assert.deepEqual((await ids(page)).slice(0, 3), ['e2', 'ev', 'sm'], 'e2 sits lower in the band: the larger gain');
 			assert.equal(await page.getAttribute('#sort > summary', 'title'), 'Sort: Evolve: Gain, gains first');
 			assert.deepEqual(await ev.locator('.tag').allInnerTexts(), ['new best Evolarge', 'your best Evolet']);
