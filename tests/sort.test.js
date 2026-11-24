@@ -8,8 +8,8 @@ const item = (id, row = {}, e = {}) => ({ row: { id, ...row }, e: { issues: [], 
 const ids = list => list.map(x => x.row.id);
 const score = t => ({ score: { total: t } });
 
-test('the menu: Score, Newest, CP, Pokédex, Name, IVs, Caught, Evolve gain', () => {
-	assert.deepEqual(MENU.map(k => SORTS[k].label), ['Score', 'Newest', 'CP', 'Pokédex', 'Name', 'IVs', 'Caught', 'Evolve gain']);
+test('the menu: Score, Newest, CP, Pokédex, Name, IVs, Caught, Evolve gain, Score if evolved', () => {
+	assert.deepEqual(MENU.map(k => SORTS[k].label), ['Score', 'Newest', 'CP', 'Pokédex', 'Name', 'IVs', 'Caught', 'Evolve gain', 'Score if evolved']);
 	for (const k of MENU) for (const d of [1, -1]) assert.ok(SORTS[k].dirs[d], `${k} ${d}`);
 });
 

@@ -5,11 +5,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { score } from '../src/core/score.js';
 import { compileSearch } from '../src/core/search.js';
-import { SORTS, sortList } from '../src/core/sort.js';
+import { SORTS, sortList, scoreRanks, afterKey } from '../src/core/sort.js';
 import { cleanRow, cleanReplaced } from '../src/core/backup.js';
 import {
 	evolveTargets, evolvedSize, predictEvolve, evolveOf, evolvedFrom, evolvedPairs, replacements,
-	gainKey, gainText, wayText,
+	gainKey, gainText, wayText, evolveEnd, endText,
 } from '../src/core/evolve.js';
 
 const coef = { h: 800, w: 150, iv: 50, xxlAdj: 1, xxlBonus: 178 };
@@ -182,6 +182,37 @@ test('sort "Evolve gain": gains largest first, about the same, losses, then rows
 	assert.deepEqual(items.slice(4).map(x => x.row.id).sort(), ['loner', 'notxxl']);
 	assert.equal(SORTS.gain.label, 'Evolve gain');
 	assert.equal(SORTS.gain.dirs[-1], 'gains first');
+});
+
+test('the end of a family: "fully evolved already" for a last stage, "doesn\'t evolve" alone', () => {
+	assert.equal(evolveEnd(ev('BIGBEAR', 3.2, 230), ctx), 'final');
+	assert.equal(evolveEnd(ev('TOPDOG', 1.9, 90), ctx), 'final', 'the end of a chain');
+	assert.equal(evolveEnd(ev('LONER', 1.6, 15), ctx), 'single');
+	assert.equal(evolveEnd(ev('CUBLET', 0.82, 12.55), ctx), null, 'it can evolve');
+	assert.equal(evolveEnd(ev('ODDLING', 0.7, 9), ctx), null, 'targets the rule can\'t predict: nothing said');
+	assert.equal(evolveEnd(ev('LONER', 1.2, 10), ctx), null, 'not XXL');
+	assert.equal(evolveEnd({ ...ev('LONER', 1.6, 15), mega: true }, ctx), null, 'mega');
+	assert.equal(evolveEnd(ev('LONER', 1.6, 15), null), null, 'no game data yet');
+	assert.equal(endText('final'), 'fully evolved already');
+	assert.equal(endText('single'), 'doesn\'t evolve');
+	assert.equal(endText(null), null);
+});
+
+test('sort "Score if evolved": each row at its score once evolved where that gains, ranked so', () => {
+	const big = ev('SPORELET', 0.31, 1.6), cub = ev('CUBLET', 0.82, 12.55), lose = ev('HOPPLE', 1.06, 50);
+	const items = [['big', big], ['cub', cub], ['loss', lose], ['loner', ev('LONER', 1.6, 15)], ['notxxl', ev('CUBLET', 0.7, 8)]]
+		.map(([id, e]) => ({ row: { id }, e }));
+	for (const x of items) evolveOf(x.e, ctx);
+	assert.ok(Math.abs(afterKey(cub) - (cub.score.total + evolveOf(cub).best.gain)) < 1e-9, 'gain added');
+	assert.equal(afterKey(lose), lose.score.total, 'a loss stays as it is');
+	assert.equal(afterKey({ ...cub, score: null }), null);
+	sortList(items, { key: 'after', dir: -1 }, -1);
+	const keys = items.map(x => afterKey(x.e));
+	assert.deepEqual(keys, [...keys].sort((p, q) => q - p));
+	const ranks = scoreRanks(items, -1, afterKey);
+	assert.deepEqual(items.map(x => ranks.get(x.row.id)), [1, 2, 3, 4, 5]);
+	assert.equal(SORTS.after.label, 'Score if evolved');
+	assert.equal(SORTS.after.dirs[-1], 'highest first');
 });
 
 test('search "gain": the rows whose score would rise beyond ±; "evolve" stays free text', () => {

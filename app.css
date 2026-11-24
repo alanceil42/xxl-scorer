@@ -85,7 +85,6 @@ code { font-family: var(--mono); font-size: 0.92em; }
 /* as tall as the search field next to it, whatever height that has (.btn.small would win) */
 .search-row .btn.check-filter { align-self: stretch; min-height: 0; background: var(--warn-soft); color: var(--warn); border-color: transparent; }
 /* Copy search (sorted by gain): the same shape, in the accent's colours */
-.search-row .btn.check-filter.gain-copy { background: var(--accent-soft); color: var(--accent); }
 #search-count:empty { display: none; }
 /* the syntax help shows while typing a search, so it doesn't take room otherwise */
 /* the field's focus only: not while the sort menu next to it is open */
@@ -272,7 +271,7 @@ summary { cursor: pointer; color: var(--muted); }
 	.bar { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
 	.bar > .actions, .bar > .list-bar { flex: 0 1 440px; min-width: 0; max-width: none; }
 	/* room for the field next to "n to check" and Copy search */
-	.bar > .search { flex: 0 1 520px; min-width: 0; max-width: none; margin-top: 0; }
+	.bar > .search { flex: 0 1 360px; min-width: 0; max-width: none; margin-top: 0; }
 	.bar .search-box input { height: 46px; }
 	.bar .search-clear { height: 46px; }
 }

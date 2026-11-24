@@ -434,6 +434,8 @@ const EVO_IVS = { a: 10, d: 5, s: 6 };
 const EVO_ROWS = [
 	evoMon('ev', 'Evolet', 'EVOLET', EVO_IVS, 20, 0.82, 12.55),
 	evoMon('sm', 'Samelet', 'SAMELET', { a: 15, d: 15, s: 15 }, 25, 1.1, 14),
+	// a second Evolet that would beat no Evolarge in the list either, but by less than ev
+	evoMon('e2', 'Evolet', 'EVOLET', { a: 12, d: 12, s: 12 }, 20, 0.78, 10),
 ];
 // what the stand-in reader gives for the screenshot of the Evolet after evolving
 const EVOLVED = evoMon('x', 'Evolarge', 'EVOLARGE', EVO_IVS, 20, 3.21, 232.14).reading;
@@ -445,7 +447,7 @@ export const readerFor = () => ({ read: async file => ({ reading: structuredClon
 `;
 
 for (const [width, colorScheme] of [[402, 'light'], [1280, 'dark'], [402, 'dark'], [1280, 'light']]) {
-	test(`at ${width} px, ${colorScheme}: evolve gain, its sort and Copy search; an evolved scan replaces its old row`, { timeout: 60_000 }, async () => {
+	test(`at ${width} px, ${colorScheme}: evolve gain, its sorts, the end notice; an evolved scan replaces its old row`, { timeout: 60_000 }, async () => {
 		LOCAL['/local/data/gm.json'] = JSON.stringify({ ...evoGm, text: { en: evoText } });
 		LOCAL['/src/ui/ocr.js'] = STUB_OCR;
 		const { context, page, problems } = await open(width, { colorScheme });
@@ -458,35 +460,39 @@ for (const [width, colorScheme] of [[402, 'light'], [1280, 'dark'], [402, 'dark'
 			const backup = JSON.stringify({ app: 'xxl-scorer', v: 1, rows: [...ROWS, ...EVO_ROWS] });
 			await page.click('#backup > summary');
 			await page.setInputFiles('#import', { name: 'backup.json', mimeType: 'application/json', buffer: Buffer.from(backup) });
-			await page.waitForFunction(() => document.querySelectorAll('#rows tr').length === 5);
+			await page.waitForFunction(() => document.querySelectorAll('#rows tr').length === 6);
 			const ev = page.locator('#rows tr[data-id="ev"] td.c-evo');
 			const sm = page.locator('#rows tr[data-id="sm"] td.c-evo');
 			const phone = width < 680;
 			if (phone) {
-				assert.equal(await ev.locator('.evo-long').innerText(), '+42 as Evolarge · 400 candy');
+				assert.match(await ev.locator('.evo-long').innerText(), /^\+42 as Evolarge → 11\d\d · 400 candy$/);
 				assert.equal(await sm.innerText(), 'about the same if evolved');
-				assert.equal(await page.locator('#rows tr[data-id="tm"] td.c-evo').isVisible(), false, 'no line where nothing is predicted');
+				assert.equal(await page.locator('#rows tr[data-id="tm"] td.c-evo').innerText(), 'doesn\'t evolve', 'an XXL row of a species alone');
 			} else {
 				assert.equal(await ev.locator('.evo-short').innerText(), '+42 Evolarge');
 				assert.equal(await sm.innerText(), 'same');
 				assert.equal(await page.isVisible('th[data-sort="gain"]'), true);
 			}
 			assert.deepEqual(await ev.locator('.tag').allInnerTexts(), ['new best Evolarge', 'your best Evolet']);
+			assert.deepEqual(await page.locator('#rows tr[data-id="e2"] td.c-evo .tag').allInnerTexts(), [], 'only one new best per target');
 			assert.ok(await noSideScroll(page));
 			// the sort: gains first, about the same, then rows that can't evolve
-			assert.equal(await page.isVisible('#gain-copy'), false, 'only while sorted by gain');
 			await page.click('#sort > summary');
 			await page.click('#sort-items button:has-text("Evolve gain")');
-			assert.deepEqual((await ids(page)).slice(0, 2), ['ev', 'sm']);
+			assert.deepEqual((await ids(page)).slice(0, 3), ['e2', 'ev', 'sm'], 'e2 sits lower in the band: the larger gain');
 			assert.equal(await page.getAttribute('#sort > summary', 'title'), 'Sort: Evolve gain, gains first');
 			if (process.env.XXL_SHOTS) await page.screenshot({ path: `${process.env.XXL_SHOTS}/evolve-${width}-${colorScheme}.png`, fullPage: true });
-			await page.click('#gain-copy');
-			await page.waitForFunction(() => /Search copied: 1 name\./.test(document.querySelector('#toast').textContent));
-			assert.match(await page.evaluate(() => globalThis.xxlCopied), /^XX1074/);
-			assert.doesNotMatch(await page.evaluate(() => globalThis.xxlCopied), /,/);
+			// the score each would end with, the rank following it
+			const before = await page.locator('#rows tr[data-id="e2"] .rank').innerText();
+			await page.click('#sort > summary');
+			await page.click('#sort-items button:has-text("Score if evolved")');
+			const after = await ids(page);
+			assert.equal(after[0], 'ev');
+			assert.equal(await page.locator('#rows tr[data-id="e2"] .rank').innerText(), String(after.indexOf('e2') + 1));
+			assert.ok(after.indexOf('e2') + 1 < Number(before), 'evolved, it moves up');
 			// the search term
 			await page.fill('#search', 'gain');
-			assert.deepEqual(await ids(page), ['ev']);
+			assert.deepEqual((await ids(page)).sort(), ['e2', 'ev']);
 			await page.fill('#search', '');
 			// the editor lists what evolving would give
 			await page.click('#rows tr[data-id="ev"]');
@@ -499,7 +505,7 @@ for (const [width, colorScheme] of [[402, 'light'], [1280, 'dark'], [402, 'dark'
 			await page.waitForFunction(() => /Evolved: Evolet → Evolarge/.test(document.querySelector('#toast').textContent));
 			if (process.env.XXL_SHOTS) await page.screenshot({ path: `${process.env.XXL_SHOTS}/evolve-${width}-${colorScheme}-toast.png` });
 			await page.waitForFunction(() => !document.querySelector('#rows tr[data-id="ev"]'));
-			assert.equal(await page.locator('#rows tr').count(), 5);
+			assert.equal(await page.locator('#rows tr').count(), 6);
 			const stored = await storedRows(page);
 			assert.ok(!stored.some(r => r.id === 'ev'), 'deleted from storage');
 			const next = stored.find(r => r.reading.species === 'Evolarge');
@@ -507,6 +513,9 @@ for (const [width, colorScheme] of [[402, 'light'], [1280, 'dark'], [402, 'dark'
 			await page.click(`#rows tr[data-id="${next.id}"]`);
 			assert.match(await page.textContent('#ed-issues'), /Evolved from Evolet 1074/);
 			assert.equal(await page.isVisible('#ed-evo-wrap'), false, 'the last stage');
+			const end = page.locator(`#rows tr[data-id="${next.id}"] td.c-evo`);
+			assert.equal(await end.innerText(), 'fully evolved already');
+			assert.deepEqual(await page.locator('#rows tr[data-id="e2"] td.c-evo .tag').allInnerTexts(), ['your best Evolet'], 'the new Evolarge beats it; e2 is the only Evolet left');
 			await page.click('#editor button[value="cancel"]');
 			await page.waitForFunction(() => !document.querySelector('#editor').open);
 			// the toast goes by itself

@@ -32,6 +32,9 @@ export const SORTS = {
 	// what evolving would gain: gains (largest first), about the same, losses; rows that can't
 	// evolve last. The page predicts every row (evolveOf with the game data) before sorting.
 	gain: { label: 'Evolve gain', first: -1, dirs: { [-1]: 'gains first', 1: 'losses first' }, key: e => gainKey(evolveOf(e)) },
+	// the score each row would end with: evolved where that gains beyond its ±, else as it is,
+	// so the list reads like "Score" with the evolutions worth doing done
+	after: { label: 'Score if evolved', first: 'best', dirs: higher, key: e => afterKey(e) },
 	// column headers only (the table on wider screens), not in the menu
 	types: { first: 1, key: e => e.types || null },
 	level: { first: -1, key: e => e.level ?? null },
@@ -39,6 +42,14 @@ export const SORTS = {
 	weight: { first: -1, key: e => e.weight_kg ?? null },
 	status: { first: -1, key: e => e.issues.filter(i => !i.info).length },
 };
+
+/** The score a row ends with if evolved where that gains (evolveOf predicted it), else its score. */
+export function afterKey(e) {
+	const s = rowScore(e);
+	if (s == null) return null;
+	const p = evolveOf(e);
+	return p && p.kind === 'gain' ? s + p.best.gain : s;
+}
 
 /** The sorts offered in the menu, in menu order. */
 export const MENU = Object.keys(SORTS).filter(k => SORTS[k].label);
@@ -97,10 +108,11 @@ export function sortList(list, sort, best) {
 /**
  * Each row's place by score among `list` ({row, e} items), best first (`best` as in sortList):
  * the place it would take in a showcase against the others shown, whatever the list is sorted
- * by. Equal scores share a place (1, 2, 2, 4); rows without a score get none.
+ * by. Equal scores share a place (1, 2, 2, 4); rows without a score get none. key: the score
+ * to rank by (afterKey while sorted by "Score if evolved").
  */
-export function scoreRanks(list, best) {
-	const scored = list.map(x => ({ id: x.row.id, s: rowScore(x.e) })).filter(x => x.s != null)
+export function scoreRanks(list, best, key = rowScore) {
+	const scored = list.map(x => ({ id: x.row.id, s: key(x.e) })).filter(x => x.s != null)
 		.sort((p, q) => (p.s - q.s) * best);
 	const ranks = new Map();
 	scored.forEach((x, i) => ranks.set(x.id, i && x.s === scored[i - 1].s ? ranks.get(scored[i - 1].id) : i + 1));
