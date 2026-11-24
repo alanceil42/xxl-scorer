@@ -14,11 +14,11 @@ collect under "Unreleased".
 Evolve: what an XXL Pokémon would score after evolving, and which ones to evolve first.
 
 - Evolve gain: what an XXL Pokémon would score after evolving. A line under the score on a
-  phone in the Evolve sorts ("+42 as Bewear → 1117 · 400 candy", "−84 if evolved", "about the same if evolved",
-  "fully evolved already", "doesn't evolve"), a column on wider screens; the editor lists
-  every species it can evolve into, with ±, candy and what else it takes. Tags: "new best
-  Bewear" on the one row whose prediction beats every Bewear in the list by the most, "your
-  best Stufful" where evolving gives up the best of its species.
+  phone in the Evolve sorts ("+42 as Bewear → 1117 · 400 candy", "−84 if evolved", "about the
+  same if evolved", "fully evolved already", "doesn't evolve"), a column on wider screens; the
+  editor lists every species it can evolve into, with ±, candy and what else it takes. Tags:
+  "new best Bewear" on the one row whose prediction beats every Bewear in the list by the most,
+  "your best Stufful" where evolving gives up the best of its species.
 - Sort by Evolve: Gain: gains first, then about the same, losses, and rows that can't evolve.
   Sort by Evolve: Score: the list by score as it would be with every gain evolved, the rank
   following it. In these two sorts the phone shows each row's evolve line and "n to evolve"
