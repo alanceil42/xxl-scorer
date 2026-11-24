@@ -69,32 +69,33 @@ this computer only, and a server open to the network would hand out everything i
 
 This copy's footer names the branch and the commit, not the version: the tag doesn't exist yet.
 
-### 3. Merge
+### 3. Merge and publish, with the GitHub CLI
 
-Pull request → **Merge pull request**. Wait until the CI run on main is green (Actions tab, or the
-check mark next to the newest commit).
+The way to do it: the [GitHub CLI](https://cli.github.com/), logged in as the maintainer.
 
-### 4. Publish the release on GitHub
-
-In the browser, on a computer or a phone (if the phone's page lacks a button, switch it to the
-desktop site).
-
-1. Repository page → **Releases** (right of the file list) → **Draft a new release**.
-2. **Choose a tag** → type `v1.1` → **Create new tag**. **Target**: `main`.
-3. **Release title**: `1.1` (or `xxl-scorer 1.1`).
-4. **Describe this release**: paste the output of `tools/release-notes.sh 1.1`: the version's
-   section of CHANGELOG.md without its heading, each paragraph and list item on one line
-   (GitHub may show the changelog's line breaks as breaks). "Generate release notes" would list
-   the pull requests instead; the changelog says it better.
-5. Leave **This is a pre-release** unticked; **Set as latest release** ticked.
-6. No files to attach. **Publish release**.
-
-The same from a terminal, with the [GitHub CLI](https://cli.github.com/) logged in as the
-maintainer:
-
+    gh pr merge <n> --merge                  # the release PR; then wait for green CI on main
     git switch main && git pull
     tools/release-notes.sh 1.1 > /tmp/notes.md
     gh release create v1.1 --target main --title 1.1 --notes-file /tmp/notes.md
+
+The notes are the version's section of CHANGELOG.md without its heading, each paragraph and
+list item on one line (GitHub may show the changelog's line breaks as breaks). "Generate
+release notes" would list the pull requests instead; the changelog says it better. The release
+is the latest and not a pre-release; no files to attach.
+
+### 4. The same in the browser (fallback)
+
+Where the CLI isn't at hand, on a computer or a phone (if the phone's page lacks a button,
+switch it to the desktop site):
+
+1. The release pull request → **Merge pull request**. Wait until the CI run on main is green
+   (Actions tab, or the check mark next to the newest commit).
+2. Repository page → **Releases** (right of the file list) → **Draft a new release**.
+3. **Choose a tag** → type `v1.1` → **Create new tag**. **Target**: `main`.
+4. **Release title**: `1.1` (or `xxl-scorer 1.1`).
+5. **Describe this release**: paste the output of `tools/release-notes.sh 1.1`.
+6. Leave **This is a pre-release** unticked; **Set as latest release** ticked.
+7. No files to attach. **Publish release**.
 
 ### 5. Check it
 
