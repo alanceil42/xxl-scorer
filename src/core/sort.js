@@ -8,6 +8,7 @@
 // the newest scan, so e.g. the Pokédex order lists each species' best one first.
 
 import { rowScore } from './score.js';
+import { evolveOf, gainKey } from './evolve.js';
 
 const higher = { [-1]: 'highest first', 1: 'lowest first' };
 const newer = { [-1]: 'newest first', 1: 'oldest first' };
@@ -28,6 +29,9 @@ export const SORTS = {
 	name: { label: 'Name', first: 1, dirs: { 1: 'A–Z', [-1]: 'Z–A' }, key: e => `${e.name || ''} ${e.formName || ''}`.trim().toLowerCase() || null },
 	iv: { label: 'IVs', first: -1, dirs: higher, key: e => (e.ivs ? e.ivs.a + e.ivs.d + e.ivs.s : null) },
 	caught: { label: 'Caught', first: -1, dirs: newer, key: e => caughtSortKey(e.caught) },
+	// what evolving would gain: gains (largest first), about the same, losses; rows that can't
+	// evolve last. The page predicts every row (evolveOf with the game data) before sorting.
+	gain: { label: 'Evolve gain', first: -1, dirs: { [-1]: 'gains first', 1: 'losses first' }, key: e => gainKey(evolveOf(e)) },
 	// column headers only (the table on wider screens), not in the menu
 	types: { first: 1, key: e => e.types || null },
 	level: { first: -1, key: e => e.level ?? null },

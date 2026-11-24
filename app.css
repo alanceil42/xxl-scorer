@@ -84,6 +84,8 @@ code { font-family: var(--mono); font-size: 0.92em; }
 #search-count { white-space: nowrap; }
 /* as tall as the search field next to it, whatever height that has (.btn.small would win) */
 .search-row .btn.check-filter { align-self: stretch; min-height: 0; background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+/* Copy search (sorted by gain): the same shape, in the accent's colours */
+.search-row .btn.check-filter.gain-copy { background: var(--accent-soft); color: var(--accent); }
 #search-count:empty { display: none; }
 /* the syntax help shows while typing a search, so it doesn't take room otherwise */
 /* the field's focus only: not while the sort menu next to it is open */
@@ -211,6 +213,18 @@ tr.selected .tick { background: var(--accent); color: var(--accent-text); border
 .chip.ok { background: var(--ok-soft); color: var(--ok); }
 .chip.check { background: var(--warn-soft); color: var(--warn); }
 .chip.dup { background: var(--bad-soft); color: var(--bad); }
+/* Evolve gain: a column on wider screens ("+42 Bewear"), a line of its own on a phone */
+td.c-evo { font-size: 13px; color: var(--muted); }
+td.c-evo.gain { color: var(--accent); font-weight: 600; }
+td.c-evo.loss { color: var(--bad); font-weight: 600; }
+.evo-long { display: none; }
+.tag { display: block; width: fit-content; margin-top: 2px; font-size: 11px; font-weight: 400; padding: 0 6px; border: 1px solid var(--line); border-radius: 99px; color: var(--muted); }
+.ed-evo { margin: 0 0 10px; font-size: 14px; }
+.ed-evo-head { margin: 0 0 4px; font-weight: 600; }
+.ed-evo ul { margin: 0; padding-left: 18px; }
+.ed-evo li { margin: 2px 0; }
+.ed-evo .gain.up { color: var(--accent); font-weight: 600; }
+.ed-evo .gain.down { color: var(--bad); font-weight: 600; }
 
 /* dvh: the height actually visible, with Safari's toolbars; vh is the fallback */
 dialog { border: 1px solid var(--line); border-radius: 14px; padding: 0; width: min(640px, calc(100vw - 24px)); max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); background: var(--surface); color: var(--text); }
@@ -257,7 +271,8 @@ summary { cursor: pointer; color: var(--muted); }
 @media (min-width: 760px) {
 	.bar { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
 	.bar > .actions, .bar > .list-bar { flex: 0 1 440px; min-width: 0; max-width: none; }
-	.bar > .search { flex: 0 1 360px; min-width: 0; max-width: none; margin-top: 0; }
+	/* room for the field next to "n to check" and Copy search */
+	.bar > .search { flex: 0 1 520px; min-width: 0; max-width: none; margin-top: 0; }
 	.bar .search-box input { height: 46px; }
 	.bar .search-clear { height: 46px; }
 }
@@ -359,4 +374,11 @@ summary { cursor: pointer; color: var(--muted); }
 	td.c-rank .rank { line-height: 24px; }
 	tbody tr:has(.rank:empty) td.c-status { grid-column: 2 / -1; }
 	.mobile-meta { display: block; }
+	/* the evolve gain as a line under the name and score, the tags after it */
+	tbody tr.has-evo { grid-template-areas: "t n n s" "t e e e" "t r st st"; }
+	td.c-evo { grid-area: e; }
+	tbody tr:not(.has-evo) td.c-evo { display: none; }
+	.evo-long { display: inline; }
+	.evo-short { display: none; }
+	td.c-evo .tag { display: inline-block; margin: 0 0 0 6px; vertical-align: 1px; }
 }

@@ -5,7 +5,8 @@ import { findDex } from '../core/text.js';
 import { formatName, nameValues, DEFAULT_TEMPLATE } from '../core/nickname.js';
 import { compileSearch, needsCheck } from '../core/search.js';
 import { gameSearch } from '../core/gamesearch.js';
-import { MODES } from '../core/score.js';
+import { MODES, rowScore } from '../core/score.js';
+import { evolveOf, evolvedPairs, replacements, gainText, wayText, targetName } from '../core/evolve.js';
 import { SORTS, MENU, firstDir, isDefault, sortList, scoreRanks } from '../core/sort.js';
 import { rows as rowStore, kv, newId, askPersist } from './db.js';
 import { loadGameData, importGameData, dropImportedGameData } from './gamedata.js';
@@ -13,7 +14,7 @@ import { readerFor, startWorkers, poolSize, warmUp } from './ocr.js';
 import { evaluateRow } from './evalcache.js';
 import rulesEn from '../rules/en.js';
 import { phoneElement } from './help.js';
-import { cleanRow, cleanSettings, backupFileName, notInFile, filedAfterImport, remindExport, DEFAULT_FILE_NAME } from '../core/backup.js';
+import { cleanRow, cleanReplaced, cleanSettings, backupFileName, notInFile, filedAfterImport, remindExport, DEFAULT_FILE_NAME } from '../core/backup.js';
 import { imprintLink } from '../core/imprint.js';
 import { readBuild, buildLink } from '../core/buildinfo.js';
 import { makeReport, pickRows, reportFileName } from '../core/debugreport.js';
@@ -72,6 +73,9 @@ const state = {
 	inFile: null,	// what imports brought in since the last export, at the file's times (notInFile)
 	nagDismissed: 0,	// when the export reminder was dismissed; changes after it bring it back
 	build: null,	// src/build.js's fields, for the debug report
+	// ids of rows a scan of the evolved Pokémon replaced: an import skips them, so an older
+	// backup can't bring them back. Stored (kv) and in the backup.
+	replaced: [],
 };
 
 // Errors for the debug report, kept with the rows (kv) so they survive a reload; started before
@@ -96,6 +100,7 @@ async function boot() {
 	state.lastExport = (await kv.get('lastExport')) || null;
 	state.inFile = (await kv.get('inFile')) || null;
 	state.nagDismissed = (await kv.get('nagDismissed')) || 0;
+	state.replaced = cleanReplaced(await kv.get('replaced'));
 	state.mode = (await kv.get('mode')) === 'xxs' ? 'xxs' : 'xxl';
 	state.minHintSeen = !!(await kv.get('minHintSeen'));
 	state.sort = { key: 'score', dir: MODES[state.mode].best };
@@ -228,6 +233,7 @@ async function addFiles(files) {
 	if (added.length || merged.size) {
 		await rowStore.putMany([...added, ...merged]);
 		askPersist();
+		await replaceEvolved(new Set([...added, ...merged].map(r => r.id)));
 	}
 	// What was just added is what one looks at next (readings to check, names to copy): the
 	// list shows the newest first, and the sort button shows it isn't by score.
@@ -328,6 +334,37 @@ function takeReading(run, f, res, idx) {
 	else added.push(row);
 }
 
+/**
+ * A scan of an evolved Pokémon replaces the row of it from before evolving: same catch date and
+ * IVs, a species it evolves into, and a size inside the prediction. The new row keeps a note,
+ * and a note at the bottom says so for a few seconds. `touched`: ids of the rows this batch
+ * added or merged into; only pairs with one of them count.
+ */
+async function replaceEvolved(touched) {
+	if (!state.ctx) return;
+	const reps = replacements(evolvedPairs(evaluated(), touched, state.ctx));
+	if (!reps.length) return;
+	const gone = new Set(reps.map(r => r.old.id));
+	const notes = new Map();	// the row that stays → the earliest stage it replaced
+	for (const r of reps) if (!notes.has(r.next.id)) notes.set(r.next.id, r);
+	const now = Date.now();
+	const keep = [];
+	state.rows = state.rows.filter(r => !gone.has(r.id)).map(r => {
+		const n = notes.get(r.id);
+		if (!n) return r;
+		const s = rowScore(n.oldE);
+		const next = { ...r, updated: now, evolvedFrom: { name: `${n.oldE.name}${n.oldE.formName ? ' ' + n.oldE.formName : ''}`, score: s == null ? 0 : Math.round(s) } };
+		keep.push(next);
+		return next;
+	});
+	await rowStore.delMany([...gone]);
+	await rowStore.putMany(keep);
+	state.replaced = [...new Set([...state.replaced, ...gone])];
+	await kv.set('replaced', state.replaced);
+	const first = reps[0];
+	toast(reps.length === 1 ? `Evolved: ${first.oldE.name} → ${first.nextE.name}` : `Evolved: ${reps.length} Pokémon, their old rows replaced`);
+}
+
 /** 4.2 s, 38 s, 1 min 12 s */
 function duration(ms) {
 	if (ms < 9950) return `${(ms / 1000).toFixed(1)} s`;
@@ -396,6 +433,9 @@ function render() {
 	cf.hidden = toCheck === 0 || $('#search').value.trim().toLowerCase() === 'check';
 	$('#no-match').hidden = !(state.search && all.length && !list.length);
 	renderListBar();
+	evolveTags(all);
+	// Copy search: while sorted by gain, for the rows shown that would gain
+	$('#gain-copy').hidden = !(state.sort.key === 'gain' && list.some(x => x.evo && x.evo.kind === 'gain'));
 	const { key, dir } = state.sort;
 	sortList(list, state.sort, MODES[state.mode].best);
 	const ranks = scoreRanks(list, MODES[state.mode].best);
@@ -410,6 +450,59 @@ function render() {
 }
 
 /**
+ * Each item's prediction (x.evo, also cached for the sort and the search) and its quiet tags:
+ * "new best Bewear" where the prediction beats every Bewear in the list (or there is none),
+ * "your best Stufful" where this row is the best of its own species, whose showcase entry
+ * evolving gives up. Tags only on rows with a gain. items: all rows, not only those shown.
+ */
+function evolveTags(items) {
+	const best = new Map();
+	const key = (id, form) => `${id}/${form || ''}`;
+	for (const x of items) {
+		const s = rowScore(x.e);
+		if (s == null || !x.e.id) continue;
+		const k = key(x.e.id, x.e.form);
+		if (!best.has(k) || s > best.get(k)) best.set(k, s);
+	}
+	for (const x of items) {
+		x.evo = evolveOf(x.e, state.ctx);
+		x.tags = [];
+		if (!x.evo || x.evo.kind !== 'gain') continue;
+		const t = x.evo.best, have = best.get(key(t.id, t.form));
+		if (have == null || t.total > have) x.tags.push(`new best ${targetName(t)}`);
+		const own = rowScore(x.e);
+		if (own != null && own >= best.get(key(x.e.id, x.e.form))) x.tags.push(`your best ${x.e.name}${x.e.formName ? ' ' + x.e.formName : ''}`);
+	}
+}
+
+/**
+ * Copy search: one search for the game that finds the rows shown with a gain, by the names
+ * "Name to copy" gives them, joined with "," (or). Rows whose name lacks a value (or is longer
+ * than the game allows) can't be found by it: left out and counted in the note.
+ */
+async function copyGainSearch() {
+	const all = evaluated().filter(x => x.e);
+	const shown = state.search ? all.filter(x => state.search(x.e)) : all;
+	const names = [];
+	let left = 0;
+	for (const x of shown) {
+		const p = evolveOf(x.e, state.ctx);
+		if (!p || p.kind !== 'gain') continue;
+		const n = formatName(state.nameTemplate, nameValues(x.e));
+		if (n.missing.length || n.tooLong) { left++; continue; }
+		if (!names.includes(n.text)) names.push(n.text);
+	}
+	if (!names.length) {
+		toast('No names to search for: the rows with a gain have no name from "Name to copy".', null, true);
+		return;
+	}
+	const q = names.join(',');
+	const ok = await copyText(q);
+	const out = left ? ` ${left} left out: their name lacks a value.` : '';
+	toast(ok ? `Search copied: ${names.length} name${names.length > 1 ? 's' : ''}.${out} Paste it into the game's search.` : 'Couldn\'t copy. The search for the game:', ok ? null : q, !ok || left > 0);
+}
+
+/**
  * The <tr> drawn for each row, with what it was drawn from. A row whose evaluated result and
  * state are unchanged keeps its <tr>: a sort, a search or a tap in select mode then redraws only
  * what changed, and the browser restyles and lays out far less (seconds on a phone with a
@@ -419,7 +512,7 @@ function render() {
 const drawn = new Map();
 
 /** Everything renderRow reads: when any of it changes, the row is drawn again. */
-const drawnFrom = ({ row, e, dup }) => [e, row.thumb, dup, state.selecting, state.selected.has(row.id), state.findNext === row.id, state.nameTemplate];
+const drawnFrom = ({ row, e, dup, evo, tags }) => [e, row.thumb, dup, state.selecting, state.selected.has(row.id), state.findNext === row.id, state.nameTemplate, evo, (tags || []).join('|')];
 
 function renderRows(list) {
 	const nodes = list.map(x => {
@@ -518,7 +611,22 @@ const RANGE_TITLE = 'IVs not known (no appraisal): the middle of every score the
 const TOP = 10;
 const ordinal = n => `${n}${[11, 12, 13].includes(n % 100) ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th'}`;
 
-function renderRow({ row, e, dup }) {
+/**
+ * The evolve gain: on a phone a line of its own under the score ("+42 as Bewear · 400 candy",
+ * "−84 if evolved", "about the same if evolved"), on a wider screen a column ("+42 Bewear").
+ * Nothing for a row that can't evolve or isn't predicted.
+ */
+function evoCell(evo, tags) {
+	if (!evo) return el('td', { class: 'c-evo', 'data-label': 'Evolve gain' });
+	const g = Math.round(evo.best.gain);
+	const short = evo.kind === 'gain' ? `+${g} ${targetName(evo.best)}` : evo.kind === 'loss' ? `−${-g}` : 'same';
+	const title = evo.targets.slice(0, 4).map(t => `${targetName(t)}: ${t.gain >= 0 ? '+' : '−'}${Math.abs(t.gain).toFixed(1)} ± ${t.band.toFixed(1)}`).join('\n');
+	return el('td', { class: `c-evo ${evo.kind}`, 'data-label': 'Evolve gain', title },
+		el('span', { class: 'evo-long' }, gainText(evo)), el('span', { class: 'evo-short' }, short),
+		...tags.map(t => el('span', { class: 'tag' }, t)));
+}
+
+function renderRow({ row, e, dup, evo, tags }) {
 	// no appraisal and several IV sets fit: the one used is a guess, so none is shown
 	const ivs = e.score && e.score.hi != null ? '?' : e.ivs ? `${e.ivs.a}/${e.ivs.d}/${e.ivs.s}` : '–';
 	const status = dup ? el('span', { class: 'chip dup', title: 'Same species, catch date, height and weight as another row' }, 'duplicate')
@@ -537,7 +645,7 @@ function renderRow({ row, e, dup }) {
 	if (btns && state.selecting) btns.inert = true;
 	const act = () => (state.selecting ? toggleSelected(row.id) : openEditor(row.id));
 	return el('tr', {
-		tabindex: 0, 'data-id': row.id, class: sel ? 'selected' : null,
+		tabindex: 0, 'data-id': row.id, class: [sel ? 'selected' : '', evo ? 'has-evo' : ''].join(' ').trim() || null,
 		'aria-selected': state.selecting ? String(sel) : null,
 		onclick: act, onkeydown: ev => { if (ev.key === 'Enter' || (state.selecting && ev.key === ' ')) { ev.preventDefault(); act(); } },
 	},
@@ -545,6 +653,7 @@ function renderRow({ row, e, dup }) {
 		el('td', { class: 'c-thumb' }, row.thumb ? el('img', { src: row.thumb, alt: '', loading: 'lazy' }) : null,
 			state.selecting ? el('span', { class: 'tick', 'aria-hidden': 'true' }, sel ? '✓' : '') : null),
 		el('td', { class: 'c-num c-score' }, ...scoreCell(e)),
+		evoCell(evo, tags || []),
 		el('td', { class: 'c-name name' }, e.name || e.id || '?', e.formName ? el('small', {}, ` ${e.formName}`) : null,
 			e.xxl ? el('span', { class: 'xxl' }, 'XXL') : e.xxs ? el('span', { class: 'xxl' }, 'XXS') : null, el('div', { class: 'mobile-meta' }, meta)),
 		el('td', { class: 'c-meta c-num', 'data-label': 'CP' }, e.cp ?? '–'),
@@ -747,7 +856,15 @@ function openEditor(id) {
 		: e.score
 		? `${e.score.total.toFixed(1)} ± ${e.score.band.toFixed(1)}  (height ${e.score.hPart.toFixed(1)} + weight ${e.score.wPart.toFixed(1)} + IV ${e.score.ivPart.toFixed(1)} + XXL ${e.score.bonus})`
 		: 'No score yet: see below';
-	$('#ed-issues').replaceChildren(...e.issues.map(i => el('li', { class: i.info ? 'info' : null }, i.msg)));
+	const from = row.evolvedFrom ? [el('li', { class: 'info' }, `Evolved from ${row.evolvedFrom.name} ${row.evolvedFrom.score}`)] : [];
+	$('#ed-issues').replaceChildren(...from, ...e.issues.map(i => el('li', { class: i.info ? 'info' : null }, i.msg)));
+	// every species it can evolve into: the score then, ± and gain, and what it takes
+	const evo = evolveOf(e, state.ctx);
+	$('#ed-evo-wrap').hidden = !evo;
+	$('#ed-evo').replaceChildren(...(evo ? evo.targets.map(t => el('li', {},
+		el('b', {}, targetName(t)), ` ${t.total.toFixed(1)} ± ${t.band.toFixed(1)} `,
+		el('span', { class: `gain ${t.gain > t.band ? 'up' : t.gain < -t.band ? 'down' : ''}` }, `(${t.gain >= 0 ? '+' : '−'}${Math.abs(t.gain).toFixed(1)})`),
+		...wayText(t).map(w => ` · ${w}`))) : []));
 	$('#ed-species').value = e.name || r.species || '';
 	$('#ed-form-sel').replaceChildren(
 		el('option', { value: '' }, 'automatic'),
@@ -913,6 +1030,7 @@ async function saveDebugReport() {
 
 async function exportRows() {
 	const data = { app: 'xxl-scorer', v: 1, exported: new Date().toISOString(), rows: state.rows };
+	if (state.replaced.length) data.replaced = state.replaced;
 	// the "Name to copy" template and the file name go along once set, so a restore brings them back
 	const settings = {};
 	if (state.nameTemplateAt >= 0) Object.assign(settings, { nameTemplate: state.nameTemplate, nameTemplateAt: state.nameTemplateAt });
@@ -939,15 +1057,20 @@ async function importRows(file) {
 		return;
 	}
 	try {
+		// rows replaced by their evolved scan, here or where the file was made, stay gone
+		state.replaced = [...new Set([...state.replaced, ...cleanReplaced(data.replaced)])];
+		await kv.set('replaced', state.replaced);
+		const gone = new Set(state.replaced);
 		const byId = new Map(state.rows.map(r => [r.id, r]));
 		const byKey = new Map(state.rows.map(r => [keyOf(r), r]).filter(([k]) => k));
-		let added = 0, updated = 0, bad = 0;
+		let added = 0, updated = 0, bad = 0, evolved = 0;
 		const put = [];
 		const filed = new Map();	// id here -> the file's "updated": that version is in a file
 		// only known fields of the expected types: a backup file can come from anywhere
 		for (const raw of data.rows.slice(0, 50_000)) {
 			const r = cleanRow(raw);
 			if (!r) { bad++; continue; }
+			if (gone.has(r.id)) { evolved++; continue; }
 			const mine = byId.get(r.id) || byKey.get(state.ctx ? evaluateSafely(r.reading, state.ctx, r.edits).key : null);
 			if (!mine) { put.push(r); added++; }
 			else if ((r.updated || 0) > (mine.updated || 0)) { put.push({ ...r, id: mine.id }); updated++; }
@@ -959,7 +1082,7 @@ async function importRows(file) {
 		const took = await importSettings(data.settings);
 		state.inFile = filedAfterImport(state.inFile, filed, cleanSettings(data.settings), state.rows.map(r => r.id));
 		await kv.set('inFile', state.inFile);
-		banner('info', `Imported: ${added} new, ${updated} updated, ${data.rows.length - added - updated - bad} already up to date${bad ? `, ${bad} not readable` : ''}.${took}`);
+		banner('info', `Imported: ${added} new, ${updated} updated, ${data.rows.length - added - updated - bad - evolved} already up to date${evolved ? `, ${evolved} evolved since (left out)` : ''}${bad ? `, ${bad} not readable` : ''}.${took}`);
 	} catch (err) {
 		// storage full or refused, or anything else: say so rather than fail silently
 		banner('bad', `Import failed: ${err.message || err}`);
@@ -1171,6 +1294,7 @@ function wire() {
 		$('#search').value = 'check';
 		setSearch('check');
 	});
+	$('#gain-copy').addEventListener('click', copyGainSearch);
 	// keep the keyboard as it was: a tap on the button doesn't take the focus from the field
 	$('#search-clear').addEventListener('pointerdown', ev => ev.preventDefault());
 	$('#search-clear').addEventListener('click', () => {

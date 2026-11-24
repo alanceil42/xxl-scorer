@@ -41,6 +41,19 @@ in the formula: please open an issue.
 Sources: bmenrigh/pogo_size (the weight model); Pokémon GO Hub, "Showcase Scores, XXS and XXL
 Pokémon"; pgoxxldb.com.
 
+### Evolving
+
+Code: src/core/evolve.js.
+
+An XXL Pokémon keeps its place in the XXL band when it evolves: p = (h/h̄ − 1.5) / (K − 1.5)
+stays, so the new height is h̄′ × (1.5 + p × (K′ − 1.5)), and the weight keeps its ratio to
+the height, w′/w̄′ = (w/w̄) / (h/h̄) × h′/h̄′. The IVs and the bonus stay. So the score moves
+only where K does: from 1.75 to 1.55 a Pokémon low in its band gains up to about 100 points,
+one at its top a few points less. Checked on Pokémon scanned before and after evolving. The ± is
+the card's rounding (0.005 m and kg) carried through the rule. No prediction for species whose
+XL limit isn't 1.5 × h̄ or whose K is 1. A new screenshot of an evolved Pokémon (same catch
+date and IVs, a size inside the prediction) replaces the row from before.
+
 
 ## IVs from the appraisal bars
 

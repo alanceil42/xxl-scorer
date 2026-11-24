@@ -412,6 +412,122 @@ for (const [width, colorScheme] of [[402, 'light'], [1280, 'dark']]) {
 	});
 }
 
+// ---------- evolve gain ----------
+
+// Two made-up species, one evolving into the other with K going from 1.75 to 1.55 (a gain),
+// and a pair with the same K (about the same); in the game data only for these tests.
+const evoRow = (h, w, K) => [h, w, w / 8, K * h, 100, 100, 100, 'NORMAL', 1.5 * h, h / 2];
+const evoGm = structuredClone(gm);
+Object.assign(evoGm.species, {
+	EVOLET: { dex: 9201, f: { '': evoRow(0.5, 6.8, 1.75) }, evo: { '': ['EVOLARGE'] }, evoCandy: { '': [400] } },
+	EVOLARGE: { dex: 9202, f: { '': evoRow(2.1, 135, 1.55) } },
+	SAMELET: { dex: 9203, f: { '': evoRow(0.6, 8, 2.0) }, evo: { '': ['SAMEMORE'] }, evoCandy: { '': [25] } },
+	SAMEMORE: { dex: 9204, f: { '': evoRow(1.5, 50, 2.0) } },
+});
+const evoText = { ...text, names: { ...text.names, 9201: 'Evolet', 9202: 'Evolarge', 9203: 'Samelet', 9204: 'Samemore' } };
+const evoMon = (id, species, sp, ivs, level, height_m, weight_kg) => {
+	const r = mon(id, species, 'FAKEON', ivs, level, height_m, weight_kg, '7/1/2024');
+	Object.assign(r.reading, shown(evoGm.species[sp].f[''], ivs, level));
+	return r;
+};
+const EVO_IVS = { a: 10, d: 5, s: 6 };
+const EVO_ROWS = [
+	evoMon('ev', 'Evolet', 'EVOLET', EVO_IVS, 20, 0.82, 12.55),
+	evoMon('sm', 'Samelet', 'SAMELET', { a: 15, d: 15, s: 15 }, 25, 1.1, 14),
+];
+// what the stand-in reader gives for the screenshot of the Evolet after evolving
+const EVOLVED = evoMon('x', 'Evolarge', 'EVOLARGE', EVO_IVS, 20, 3.21, 232.14).reading;
+// a stand-in for the text recognition engine: the reading for each file by its name
+const STUB_OCR = `export const poolSize = () => 1;
+export const warmUp = () => {};
+export const startWorkers = async () => [Promise.resolve({ stub: true })];
+export const readerFor = () => ({ read: async file => ({ reading: structuredClone(globalThis.xxlReadings[file.name]), thumb: null }) });
+`;
+
+for (const [width, colorScheme] of [[402, 'light'], [1280, 'dark'], [402, 'dark'], [1280, 'light']]) {
+	test(`at ${width} px, ${colorScheme}: evolve gain, its sort and Copy search; an evolved scan replaces its old row`, { timeout: 60_000 }, async () => {
+		LOCAL['/local/data/gm.json'] = JSON.stringify({ ...evoGm, text: { en: evoText } });
+		LOCAL['/src/ui/ocr.js'] = STUB_OCR;
+		const { context, page, problems } = await open(width, { colorScheme });
+		try {
+			await page.addInitScript(reading => {
+				globalThis.xxlReadings = { 'evolved.png': reading };
+				navigator.clipboard.writeText = t => { globalThis.xxlCopied = t; return Promise.resolve(); };
+			}, EVOLVED);
+			await boot(page);
+			const backup = JSON.stringify({ app: 'xxl-scorer', v: 1, rows: [...ROWS, ...EVO_ROWS] });
+			await page.click('#backup > summary');
+			await page.setInputFiles('#import', { name: 'backup.json', mimeType: 'application/json', buffer: Buffer.from(backup) });
+			await page.waitForFunction(() => document.querySelectorAll('#rows tr').length === 5);
+			const ev = page.locator('#rows tr[data-id="ev"] td.c-evo');
+			const sm = page.locator('#rows tr[data-id="sm"] td.c-evo');
+			const phone = width < 680;
+			if (phone) {
+				assert.equal(await ev.locator('.evo-long').innerText(), '+42 as Evolarge · 400 candy');
+				assert.equal(await sm.innerText(), 'about the same if evolved');
+				assert.equal(await page.locator('#rows tr[data-id="tm"] td.c-evo').isVisible(), false, 'no line where nothing is predicted');
+			} else {
+				assert.equal(await ev.locator('.evo-short').innerText(), '+42 Evolarge');
+				assert.equal(await sm.innerText(), 'same');
+				assert.equal(await page.isVisible('th[data-sort="gain"]'), true);
+			}
+			assert.deepEqual(await ev.locator('.tag').allInnerTexts(), ['new best Evolarge', 'your best Evolet']);
+			assert.ok(await noSideScroll(page));
+			// the sort: gains first, about the same, then rows that can't evolve
+			assert.equal(await page.isVisible('#gain-copy'), false, 'only while sorted by gain');
+			await page.click('#sort > summary');
+			await page.click('#sort-items button:has-text("Evolve gain")');
+			assert.deepEqual((await ids(page)).slice(0, 2), ['ev', 'sm']);
+			assert.equal(await page.getAttribute('#sort > summary', 'title'), 'Sort: Evolve gain, gains first');
+			if (process.env.XXL_SHOTS) await page.screenshot({ path: `${process.env.XXL_SHOTS}/evolve-${width}-${colorScheme}.png`, fullPage: true });
+			await page.click('#gain-copy');
+			await page.waitForFunction(() => /Search copied: 1 name\./.test(document.querySelector('#toast').textContent));
+			assert.match(await page.evaluate(() => globalThis.xxlCopied), /^XX1074/);
+			assert.doesNotMatch(await page.evaluate(() => globalThis.xxlCopied), /,/);
+			// the search term
+			await page.fill('#search', 'gain');
+			assert.deepEqual(await ids(page), ['ev']);
+			await page.fill('#search', '');
+			// the editor lists what evolving would give
+			await page.click('#rows tr[data-id="ev"]');
+			assert.match(await page.textContent('#ed-evo'), /^Evolarge 1115\.8 ± 0\.5 \(\+41\.7\) · 400 candy$/);
+			if (process.env.XXL_SHOTS) await page.screenshot({ path: `${process.env.XXL_SHOTS}/evolve-${width}-${colorScheme}-editor.png` });
+			await page.click('#editor button[value="cancel"]');
+			await page.waitForFunction(() => !document.querySelector('#editor').open);
+			// a screenshot of it after evolving: the old row goes, the new one says where it came from
+			await page.setInputFiles('#add', { name: 'evolved.png', mimeType: 'image/png', buffer: drawnScreen() });
+			await page.waitForFunction(() => /Evolved: Evolet → Evolarge/.test(document.querySelector('#toast').textContent));
+			if (process.env.XXL_SHOTS) await page.screenshot({ path: `${process.env.XXL_SHOTS}/evolve-${width}-${colorScheme}-toast.png` });
+			await page.waitForFunction(() => !document.querySelector('#rows tr[data-id="ev"]'));
+			assert.equal(await page.locator('#rows tr').count(), 5);
+			const stored = await storedRows(page);
+			assert.ok(!stored.some(r => r.id === 'ev'), 'deleted from storage');
+			const next = stored.find(r => r.reading.species === 'Evolarge');
+			assert.deepEqual(next.evolvedFrom, { name: 'Evolet', score: 1074 });
+			await page.click(`#rows tr[data-id="${next.id}"]`);
+			assert.match(await page.textContent('#ed-issues'), /Evolved from Evolet 1074/);
+			assert.equal(await page.isVisible('#ed-evo-wrap'), false, 'the last stage');
+			await page.click('#editor button[value="cancel"]');
+			await page.waitForFunction(() => !document.querySelector('#editor').open);
+			// the toast goes by itself
+			await page.waitForFunction(() => document.querySelector('#toast').hidden, null, { timeout: 6000 });
+			// an older backup that still holds the old row doesn't bring it back
+			await page.click('#backup > summary');
+			await page.setInputFiles('#import', { name: 'backup.json', mimeType: 'application/json', buffer: Buffer.from(backup) });
+			await page.waitForFunction(() => /evolved since \(left out\)/.test(document.querySelector('#banners').textContent));
+			assert.equal(await page.locator('#rows tr[data-id="ev"]').count(), 0);
+			// the export carries the replaced id, so another browser leaves it out too
+			const exported = await page.evaluate(async () => (await import('/src/ui/db.js')).kv.get('replaced'));
+			assert.deepEqual(exported, ['ev']);
+			assert.deepEqual(problems, []);
+		} finally {
+			delete LOCAL['/src/ui/ocr.js'];
+			LOCAL['/local/data/gm.json'] = JSON.stringify({ ...gm, text: { en: text } });
+			await context.close();
+		}
+	});
+}
+
 // rows from outside or from an older version: shown and marked, never breaking the page
 test('a backup carries the "Name to copy" template; the newer one wins on import', { timeout: 60_000 }, async () => {
 	const tpl = 'XX{score}{lvl:circ}';
