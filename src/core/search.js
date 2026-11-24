@@ -15,6 +15,8 @@
 //                       0 = 0, 1 = 1-5, 2 = 6-10, 3 = 11-14, 4 = 15
 //   year2024  year2020-2022                   catch year
 //   check               rows marked to check (not a game term; the "n to check" button)
+//   gain                rows whose score would rise beyond its ± by evolving (not a game term:
+//                       the game's "evolve" means enough candy to evolve)
 //   ! before a term     not
 //   , ; :               or     (binds tighter than and, as in the game: fire,water&xxl)
 //   & |  space          and
@@ -22,6 +24,7 @@ import { TYPES } from './read.js';
 import { rowScore } from './score.js';
 import { familyOf } from './gm.js';
 import { normalizeName } from './text.js';
+import { evolveOf } from './evolve.js';
 
 const STARS = [[0, 22], [23, 29], [30, 36], [37, 44], [45, 45]];
 /** The game's per-stat IV groups: 0attack = 0, 1attack = 1-5, …, 4attack = 15 (Find in game uses them too). */
@@ -91,6 +94,7 @@ function term(word, ctx) {
 	if (word === 'xxs') return e => e.xxs === true;
 	if (word === 'lucky') return e => e.lucky === true;
 	if (word === 'check') return needsCheck;
+	if (word === 'gain') return e => evolveOf(e, ctx && ctx.gm ? ctx : null)?.kind === 'gain';
 	if ((m = /^(cp|hp|score|year)(.+)$/.exec(word)) && parseRange(m[2])) {
 		const r = parseRange(m[2]);
 		if (m[1] === 'cp') return e => inRange(e.cp, r);

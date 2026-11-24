@@ -8,6 +8,18 @@ collect under "Unreleased".
 
 ## Unreleased
 
+- Evolve gain: what an XXL Pokémon would score after evolving. A line under the score on a
+  phone ("+42 as Bewear · 400 candy", "−84 if evolved", "about the same if evolved"), a column
+  on wider screens; the editor lists every species it can evolve into, with ±, candy and what
+  else it takes. Tags: "new best Bewear" where the prediction beats every Bewear in the list,
+  "your best Stufful" where evolving gives up the best of its species.
+- Sort by Evolve gain: gains first, then about the same, losses, and rows that can't evolve.
+  While sorted so, Copy search copies one search for the game with the names of the rows with
+  a gain, joined by commas. Search term gain.
+- A new screenshot of an evolved Pokémon replaces its row from before evolving (same catch
+  date and IVs, a size inside the prediction), with a note on the new row. A backup remembers
+  the rows replaced, so importing an older one doesn't bring them back.
+
 
 ## 1.12.1 - 2026-11-24
 

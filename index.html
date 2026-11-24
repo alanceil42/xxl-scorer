@@ -91,6 +91,7 @@
 				</span>
 				<span id="search-count" class="muted small" aria-live="polite"></span>
 				<button type="button" id="check-filter" class="btn small check-filter" title="Show only the rows to check" hidden></button>
+				<button type="button" id="gain-copy" class="btn small check-filter gain-copy" title="Copy one search for the game that finds the Pokémon with a gain, by their names" hidden>Copy search</button>
 				<details class="menu sort-menu" id="sort">
 					<summary class="btn sort" aria-label="Sort" aria-haspopup="true"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="vendor/lucide/icons.svg#arrow-down-up"/></svg></summary>
 					<div class="menu-pop">
@@ -165,6 +166,7 @@
 						<th scope="col" class="c-rank c-num"><span class="sr">Rank</span></th>
 						<th scope="col" class="c-thumb"><span class="sr">Picture</span></th>
 						<th scope="col" data-sort="score" class="c-num">Score</th>
+						<th scope="col" data-sort="gain" class="c-evo">Evolve gain</th>
 						<th scope="col" data-sort="name">Pokémon</th>
 						<th scope="col" data-sort="cp" class="c-num">CP</th>
 						<th scope="col" data-sort="types">Type</th>
@@ -192,6 +194,10 @@
 				</div>
 			</header>
 			<ul id="ed-issues" class="issues"></ul>
+			<div id="ed-evo-wrap" class="ed-evo" hidden>
+				<p class="ed-evo-head">If evolved</p>
+				<ul id="ed-evo"></ul>
+			</div>
 			<div class="grid">
 				<label>Species <input id="ed-species" list="species-list" autocomplete="off"></label>
 				<label>Form <select id="ed-form-sel"></select></label>
@@ -237,6 +243,7 @@
 				<dt><code>year2024</code> <code>year2020-2022</code></dt><dd>catch year</dd>
 				<dt><code>score1100-</code></dt><dd>showcase points (not in the game)</dd>
 				<dt><code>check</code></dt><dd>rows marked to check (not in the game)</dd>
+				<dt><code>gain</code></dt><dd>evolving would raise the score (not in the game)</dd>
 			</dl>
 			<p class="help-combine">Combine: <code>,</code> or · <code>&amp;</code> or a space: and · <code>!</code> not. Or goes first, as in the game: <code>fire,water&amp;xxl</code> is fire or water, and XXL.</p>
 			<h3 id="help-shots" tabindex="-1">Which screenshots to take</h3>
@@ -256,6 +263,8 @@
 				<li>Whole screenshots, not cropped or edited. The game in English (other languages are not supported yet).</li>
 				<li>Nothing is uploaded: screenshots are read on this device and dropped.</li>
 			</ul>
+			<h3 id="help-evolve">Evolving</h3>
+			<p>Sort by <em>Evolve gain</em> to see which Pokémon would score more after evolving. <em>Copy search</em> copies their names as one search for the game. After evolving, add a new screenshot: it replaces the old row.</p>
 			<footer class="ed-foot"><span class="spacer"></span><button class="btn primary" value="close">Close</button></footer>
 		</form>
 	</dialog>

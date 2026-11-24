@@ -183,7 +183,7 @@ export function backupFileName(pattern, d = new Date()) {
  * at the top of Newest for good.
  * @param {unknown} r
  * @param {number} [now]
- * @returns {{id: string, created?: number, updated?: number, scanned?: number, scanIdx?: number, file?: string, reading: object, edits: object, thumb?: string} | null}
+ * @returns {{id: string, created?: number, updated?: number, scanned?: number, scanIdx?: number, file?: string, reading: object, edits: object, thumb?: string, evolvedFrom?: {name: string, score: number}} | null}
  */
 export function cleanRow(r, now = Date.now()) {
 	if (!r || typeof r !== 'object' || Array.isArray(r)) return null;
@@ -203,5 +203,26 @@ export function cleanRow(r, now = Date.now()) {
 	if (file !== undefined) out.file = file;
 	const thumb = safeThumb(r.thumb);
 	if (thumb) out.thumb = thumb;
+	// the row this one replaced when a scan showed it evolved: its name and score, for the note
+	const ef = r.evolvedFrom;
+	if (ef && typeof ef === 'object' && !Array.isArray(ef) && str(ef.name, 64) && num(ef.score, -1e4, 1e5) !== undefined) {
+		out.evolvedFrom = { name: ef.name, score: ef.score };
+	}
 	return out;
+}
+
+/**
+ * Ids of rows that were replaced by their evolved scan, from a backup file: strings only, each
+ * once, at most `max`. An import skips rows with these ids, so an older backup that still
+ * holds such a row can't bring it back (an import adds and updates, it never removes).
+ * @returns {string[]}
+ */
+export function cleanReplaced(v, max = 50_000) {
+	if (!Array.isArray(v)) return [];
+	const out = new Set();
+	for (const x of v.slice(0, max)) {
+		const id = str(x, 64);
+		if (id) out.add(id);
+	}
+	return [...out];
 }
