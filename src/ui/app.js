@@ -7,7 +7,7 @@ import { compileSearch, needsCheck } from '../core/search.js';
 import { gameSearch } from '../core/gamesearch.js';
 import { MODES, rowScore } from '../core/score.js';
 import { evolveOf, evolveEnd, endText, evolvedPairs, replacements, gainText, wayText, targetName } from '../core/evolve.js';
-import { SORTS, MENU, firstDir, isDefault, sortList, scoreRanks, afterKey } from '../core/sort.js';
+import { SORTS, MENU, EVOLVE_SORTS, firstDir, isDefault, sortList, scoreRanks, afterKey } from '../core/sort.js';
 import { rows as rowStore, kv, newId, askPersist } from './db.js';
 import { loadGameData, importGameData, dropImportedGameData } from './gamedata.js';
 import { readerFor, startWorkers, poolSize, warmUp } from './ocr.js';
@@ -434,6 +434,11 @@ function render() {
 	$('#no-match').hidden = !(state.search && all.length && !list.length);
 	renderListBar();
 	evolveTags(all);
+	// "n to evolve", in the two Evolve sorts: one tap filters to the rows with a gain
+	const toEvolve = all.filter(x => x.evo && x.evo.kind === 'gain').length;
+	const ef = $('#evolve-filter');
+	ef.textContent = `${toEvolve} to evolve`;
+	ef.hidden = !evolveSorted() || toEvolve === 0 || $('#search').value.trim().toLowerCase() === 'gain';
 	const { key, dir } = state.sort;
 	sortList(list, state.sort, MODES[state.mode].best);
 	// sorted by "Score if evolved", the rank is the place each would take once evolved
@@ -494,7 +499,7 @@ function evolveTags(items) {
 const drawn = new Map();
 
 /** Everything renderRow reads: when any of it changes, the row is drawn again. */
-const drawnFrom = ({ row, e, dup, evo, end, tags }) => [e, row.thumb, dup, state.selecting, state.selected.has(row.id), state.findNext === row.id, state.nameTemplate, evo, end, (tags || []).join('|'), evo ? rowScore(e) : null];
+const drawnFrom = ({ row, e, dup, evo, end, tags }) => [evolveSorted(), e, row.thumb, dup, state.selecting, state.selected.has(row.id), state.findNext === row.id, state.nameTemplate, evo, end, (tags || []).join('|'), evo ? rowScore(e) : null];
 
 function renderRows(list) {
 	const nodes = list.map(x => {
@@ -599,6 +604,28 @@ const ordinal = n => `${n}${[11, 12, 13].includes(n % 100) ? 'th' : ['th', 'st',
  * Bewear"), the score it would end with in the tooltip. An XXL row with nothing to evolve into
  * says so ("fully evolved already", "doesn't evolve"); nothing for a row not predicted.
  */
+/** Sorted by one of the Evolve sorts: the rows show what evolving would do. */
+const evolveSorted = () => EVOLVE_SORTS.includes(state.sort.key);
+
+/** A gain this big gets a chip under the score in the other sorts, so the feature gets found. */
+const BIG_GAIN = 50;
+
+/**
+ * The chip under the score, in every sort but the Evolve ones: "+169 if evolved" where evolving
+ * gains BIG_GAIN or more. A tap sorts by Evolve: Score and keeps the row in view.
+ */
+function gainChip(id, evo) {
+	if (evolveSorted() || !evo || evo.kind !== 'gain' || evo.best.gain < BIG_GAIN) return null;
+	return el('button', {
+		type: 'button', class: 'gain-chip', title: `As ${targetName(evo.best)}: sort by Evolve: Score`,
+		onclick: ev => {
+			ev.stopPropagation();
+			setSort('after');
+			document.querySelector(`#rows tr[data-id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'center' });
+		},
+	}, `+${Math.round(evo.best.gain)} if evolved`);
+}
+
 function evoCell(e, evo, tags, end) {
 	if (!evo) {
 		const t = endText(end);
@@ -635,14 +662,14 @@ function renderRow({ row, e, dup, evo, end, tags }) {
 	if (btns && state.selecting) btns.inert = true;
 	const act = () => (state.selecting ? toggleSelected(row.id) : openEditor(row.id));
 	return el('tr', {
-		tabindex: 0, 'data-id': row.id, class: [sel ? 'selected' : '', evo || endText(end) ? 'has-evo' : ''].join(' ').trim() || null,
+		tabindex: 0, 'data-id': row.id, class: [sel ? 'selected' : '', evolveSorted() && (evo || endText(end)) ? 'has-evo' : ''].join(' ').trim() || null,
 		'aria-selected': state.selecting ? String(sel) : null,
 		onclick: act, onkeydown: ev => { if (ev.key === 'Enter' || (state.selecting && ev.key === ' ')) { ev.preventDefault(); act(); } },
 	},
 		el('td', { class: 'c-rank c-num' }, el('span', { class: 'rank' })),
 		el('td', { class: 'c-thumb' }, row.thumb ? el('img', { src: row.thumb, alt: '', loading: 'lazy' }) : null,
 			state.selecting ? el('span', { class: 'tick', 'aria-hidden': 'true' }, sel ? '✓' : '') : null),
-		el('td', { class: 'c-num c-score' }, ...scoreCell(e)),
+		el('td', { class: 'c-num c-score' }, ...scoreCell(e), gainChip(row.id, evo)),
 		evoCell(e, evo, tags || [], end),
 		el('td', { class: 'c-name name' }, e.name || e.id || '?', e.formName ? el('small', {}, ` ${e.formName}`) : null,
 			e.xxl ? el('span', { class: 'xxl' }, 'XXL') : e.xxs ? el('span', { class: 'xxl' }, 'XXS') : null, el('div', { class: 'mobile-meta' }, meta)),
@@ -1280,6 +1307,10 @@ function wire() {
 		render();
 	};
 	$('#search').addEventListener('input', ev => setSearch(ev.target.value));
+	$('#evolve-filter').addEventListener('click', () => {
+		$('#search').value = 'gain';
+		setSearch('gain');
+	});
 	$('#check-filter').addEventListener('click', () => {
 		$('#search').value = 'check';
 		setSearch('check');

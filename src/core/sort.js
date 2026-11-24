@@ -24,18 +24,19 @@ export const scanKey = row => [row.scanned ?? row.created ?? 0, -(row.scanIdx ??
 export const SORTS = {
 	score: { label: 'Score', first: 'best', dirs: higher, key: rowScore },
 	newest: { label: 'Newest', first: -1, dirs: newer, key: (e, row) => scanKey(row) },
-	cp: { label: 'CP', first: -1, dirs: higher, key: e => e.cp ?? null },
 	dex: { label: 'Pokédex', first: 1, dirs: { 1: '#1 first', [-1]: 'highest # first' }, key: e => (e.dex != null ? [e.dex, e.formName || ''] : null) },
-	name: { label: 'Name', first: 1, dirs: { 1: 'A–Z', [-1]: 'Z–A' }, key: e => `${e.name || ''} ${e.formName || ''}`.trim().toLowerCase() || null },
-	iv: { label: 'IVs', first: -1, dirs: higher, key: e => (e.ivs ? e.ivs.a + e.ivs.d + e.ivs.s : null) },
-	caught: { label: 'Caught', first: -1, dirs: newer, key: e => caughtSortKey(e.caught) },
+	caught: { label: 'Catch date', first: -1, dirs: newer, key: e => caughtSortKey(e.caught) },
 	// what evolving would gain: gains (largest first), about the same, losses; rows that can't
 	// evolve last. The page predicts every row (evolveOf with the game data) before sorting.
-	gain: { label: 'Evolve gain', first: -1, dirs: { [-1]: 'gains first', 1: 'losses first' }, key: e => gainKey(evolveOf(e)) },
+	gain: { label: 'Evolve: Gain', first: -1, dirs: { [-1]: 'gains first', 1: 'losses first' }, key: e => gainKey(evolveOf(e)) },
 	// the score each row would end with: evolved where that gains beyond its ±, else as it is,
 	// so the list reads like "Score" with the evolutions worth doing done
-	after: { label: 'Score if evolved', first: 'best', dirs: higher, key: e => afterKey(e) },
-	// column headers only (the table on wider screens), not in the menu
+	after: { label: 'Evolve: Score', first: 'best', dirs: higher, key: e => afterKey(e) },
+	// column headers only (the table on wider screens), not in the menu: the menu stays with
+	// what a showcase score turns on
+	cp: { first: -1, dirs: higher, key: e => e.cp ?? null },
+	name: { first: 1, dirs: { 1: 'A–Z', [-1]: 'Z–A' }, key: e => `${e.name || ''} ${e.formName || ''}`.trim().toLowerCase() || null },
+	iv: { first: -1, dirs: higher, key: e => (e.ivs ? e.ivs.a + e.ivs.d + e.ivs.s : null) },
 	types: { first: 1, key: e => e.types || null },
 	level: { first: -1, key: e => e.level ?? null },
 	height: { first: -1, key: e => e.height_m ?? null },
@@ -50,6 +51,9 @@ export function afterKey(e) {
 	const p = evolveOf(e);
 	return p && p.kind === 'gain' ? s + p.best.gain : s;
 }
+
+/** The sorts that show what evolving would do: the evolve lines and "n to evolve" with them. */
+export const EVOLVE_SORTS = ['gain', 'after'];
 
 /** The sorts offered in the menu, in menu order. */
 export const MENU = Object.keys(SORTS).filter(k => SORTS[k].label);

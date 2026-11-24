@@ -171,7 +171,7 @@ test('targets: chains summed, branches each, the best first, equal ones the easi
 	assert.deepEqual(wayText(evolveTargets(gm, 'COINER')[0]), ['an item']);
 });
 
-test('sort "Evolve gain": gains largest first, about the same, losses, then rows that can\'t evolve', () => {
+test('sort "Evolve: Gain": gains largest first, about the same, losses, then rows that can\'t evolve', () => {
 	const items = [
 		['same', ev('EVENLY', 1.1, 14)], ['loner', ev('LONER', 1.6, 15)], ['loss', ev('HOPPLE', 1.06, 50)],
 		['big', ev('SPORELET', 0.31, 1.6)], ['gain', ev('CUBLET', 0.82, 12.55)], ['notxxl', ev('CUBLET', 0.7, 8)],
@@ -180,7 +180,7 @@ test('sort "Evolve gain": gains largest first, about the same, losses, then rows
 	sortList(items, { key: 'gain', dir: -1 }, -1);
 	assert.deepEqual(items.slice(0, 4).map(x => x.row.id), ['big', 'gain', 'same', 'loss']);
 	assert.deepEqual(items.slice(4).map(x => x.row.id).sort(), ['loner', 'notxxl']);
-	assert.equal(SORTS.gain.label, 'Evolve gain');
+	assert.equal(SORTS.gain.label, 'Evolve: Gain');
 	assert.equal(SORTS.gain.dirs[-1], 'gains first');
 });
 
@@ -198,7 +198,7 @@ test('the end of a family: "fully evolved already" for a last stage, "doesn\'t e
 	assert.equal(endText(null), null);
 });
 
-test('sort "Score if evolved": each row at its score once evolved where that gains, ranked so', () => {
+test('sort "Evolve: Score": each row at its score once evolved where that gains, ranked so', () => {
 	const big = ev('SPORELET', 0.31, 1.6), cub = ev('CUBLET', 0.82, 12.55), lose = ev('HOPPLE', 1.06, 50);
 	const items = [['big', big], ['cub', cub], ['loss', lose], ['loner', ev('LONER', 1.6, 15)], ['notxxl', ev('CUBLET', 0.7, 8)]]
 		.map(([id, e]) => ({ row: { id }, e }));
@@ -211,7 +211,7 @@ test('sort "Score if evolved": each row at its score once evolved where that gai
 	assert.deepEqual(keys, [...keys].sort((p, q) => q - p));
 	const ranks = scoreRanks(items, -1, afterKey);
 	assert.deepEqual(items.map(x => ranks.get(x.row.id)), [1, 2, 3, 4, 5]);
-	assert.equal(SORTS.after.label, 'Score if evolved');
+	assert.equal(SORTS.after.label, 'Evolve: Score');
 	assert.equal(SORTS.after.dirs[-1], 'highest first');
 });
 

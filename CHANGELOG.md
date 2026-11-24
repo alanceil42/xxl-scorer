@@ -14,9 +14,13 @@ collect under "Unreleased".
   every species it can evolve into, with ±, candy and what else it takes. Tags: "new best
   Bewear" on the one row whose prediction beats every Bewear in the list by the most, "your
   best Stufful" where evolving gives up the best of its species.
-- Sort by Evolve gain: gains first, then about the same, losses, and rows that can't evolve.
-  Sort by Score if evolved: the list by score as it would be with every gain evolved, the rank
-  following it. Search term gain.
+- Sort by Evolve: Gain: gains first, then about the same, losses, and rows that can't evolve.
+  Sort by Evolve: Score: the list by score as it would be with every gain evolved, the rank
+  following it. In these two sorts the phone shows each row's evolve line and "n to evolve"
+  (search term gain); in the others a chip "+73 if evolved" under the score of a gain of 50
+  or more, which switches to Evolve: Score.
+- The sort menu keeps to what a showcase score turns on: Score, Newest, Pokédex, Catch date,
+  Evolve: Gain, Evolve: Score. CP, Name and IVs sort by their column headers on wider screens.
 - A new screenshot of an evolved Pokémon replaces its row from before evolving (same catch
   date and IVs, a size inside the prediction), with a note on the new row. A backup remembers
   the rows replaced, so importing an older one doesn't bring them back.
