@@ -14,7 +14,7 @@ collect under "Unreleased".
 Evolve: what an XXL Pokémon would score after evolving, and which ones to evolve first.
 
 - Evolve gain: what an XXL Pokémon would score after evolving. A line under the score on a
-  phone ("+42 as Bewear → 1117 · 400 candy", "−84 if evolved", "about the same if evolved",
+  phone in the Evolve sorts ("+42 as Bewear → 1117 · 400 candy", "−84 if evolved", "about the same if evolved",
   "fully evolved already", "doesn't evolve"), a column on wider screens; the editor lists
   every species it can evolve into, with ±, candy and what else it takes. Tags: "new best
   Bewear" on the one row whose prediction beats every Bewear in the list by the most, "your
