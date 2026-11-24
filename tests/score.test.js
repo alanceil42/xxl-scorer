@@ -26,6 +26,16 @@ test('no bonus without XXL; IV part scales', () => {
 	near(s.total, 800 * 1.2 / 1.75 + 150 / 2.25);
 });
 
+test('no bonus where the XXL band ends at the average height (K = 1)', () => {
+	// Super Gourgeist: 1.7 m, 39 kg, σ 4.875 kg, XXL max 1.7 m, XL max 1.4 m; in game 948
+	const sup = [1.7, 39.0, 4.875, 1.7, 194, 178, 177, 'GHOST/GRASS', 1.4];
+	assert.equal(isXXLByHeight(sup, 1.70), true, 'the card shows the XXL badge');
+	const s = score(sup, coef, 1.70, 41.44, 39, true);
+	near(s.K, 1);
+	assert.equal(s.bonus, 0);
+	assert.ok(Math.abs(s.total - 948) <= s.band, `${s.total} ± ${s.band} misses 948`);
+});
+
 test('XXL from height, with the display-rounding boundary', () => {
 	assert.equal(isXXLByHeight(row, 1.80), true);
 	assert.equal(isXXLByHeight(row, 1.40), false);

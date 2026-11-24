@@ -8,6 +8,9 @@ collect under "Unreleased".
 
 ## Unreleased
 
+- Super Pumpkaboo and Super Gourgeist get no XXL bonus: their cards show the XXL badge, but the
+  showcase doesn't add the 178 points (a Super Gourgeist: 948 in game, 1128 here before). Their
+  scores drop by 178; nicknames copied before carry the old number.
 
 ## 1.12 - 2026-11-16
 

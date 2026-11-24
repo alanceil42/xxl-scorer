@@ -29,6 +29,9 @@ Code: src/core/score.js (score), src/core/gm.js (XXL_BONUS, the constants from t
   species.
 - XXL means a height above the species' XL limit (1.5 × h̄ for nearly all). Where rounding
   can't tell, the size badge on the card decides.
+- No bonus where K is 1: Super Pumpkaboo and Super Gourgeist count as XXL from their XL limit
+  up to their average height. Their cards show the badge, but a Super Gourgeist scored 948 in
+  game, the formula's 949.6 ± 2.4 without the bonus.
 - XXS mode ranks the same score the other way round, lowest first. That is a guess: no
   showcase of the smallest has run yet to check it against.
 

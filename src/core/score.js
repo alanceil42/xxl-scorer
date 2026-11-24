@@ -16,7 +16,11 @@ export function score(row, coef, heightM, weightKg, ivSum, isXXL) {
 	const hPart = coef.h * (heightM / h0) / K;
 	const wPart = coef.w * (weightKg / w0) / wDen;
 	const ivPart = coef.iv * ivSum / 45;
-	const bonus = isXXL ? coef.xxlBonus : 0;
+	// Where the XXL band ends at the average height (K = 1: Super Pumpkaboo and Super Gourgeist,
+	// whose size band runs from XL up to their average), the card shows the XXL badge but the
+	// showcase adds no bonus: a Super Gourgeist at 1.70 m scored 948 in game, 949.6 ± 2.4
+	// without the bonus.
+	const bonus = isXXL && K > 1 + 1e-9 ? coef.xxlBonus : 0;
 	return {
 		K,
 		hPart, wPart, ivPart, bonus,
