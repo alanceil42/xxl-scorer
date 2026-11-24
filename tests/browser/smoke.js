@@ -464,6 +464,8 @@ for (const [width, colorScheme] of [[402, 'light'], [1280, 'dark'], [402, 'dark'
 			await page.waitForFunction(() => document.querySelectorAll('#rows tr').length === 6);
 			const ev = page.locator('#rows tr[data-id="ev"] td.c-evo');
 			const sm = page.locator('#rows tr[data-id="sm"] td.c-evo');
+			// textContent, not innerText: phone rows off screen skip rendering (content-visibility),
+			// and their innerText is empty
 			const phone = width < 680;
 			const chip = id => page.locator(`#rows tr[data-id="${id}"] .gain-chip`);
 			const scoreRank = await page.locator('#rows tr[data-id="e2"] .rank').textContent();
@@ -471,7 +473,7 @@ for (const [width, colorScheme] of [[402, 'light'], [1280, 'dark'], [402, 'dark'
 			assert.equal(await page.isVisible('#evolve-filter'), false, 'only in the Evolve sorts');
 			if (phone) {
 				assert.equal(await ev.isVisible(), false, 'no line in the Score view');
-				assert.equal(await chip('e2').innerText(), '+73 if evolved');
+				assert.equal(await chip('e2').textContent(), '+73 if evolved');
 				assert.equal(await chip('ev').count(), 0, 'a gain under 50: no chip');
 				assert.ok(await noSideScroll(page));
 				if (process.env.XXL_SHOTS) await page.screenshot({ path: `${process.env.XXL_SHOTS}/evolve-${width}-${colorScheme}-score.png`, fullPage: true });
@@ -480,13 +482,13 @@ for (const [width, colorScheme] of [[402, 'light'], [1280, 'dark'], [402, 'dark'
 				assert.equal(await page.getAttribute('#sort > summary', 'title'), 'Sort: Evolve: Score, highest first');
 				assert.equal(await page.evaluate(() => document.querySelector('#editor').open), false);
 				await page.waitForSelector('#rows tr.has-evo[data-id="ev"] td.c-evo .evo-long');
-				assert.match(await ev.locator('.evo-long').innerText(), /^\+42 as Evolarge → 11\d\d · 400 candy$/);
-				assert.equal(await sm.innerText(), 'about the same if evolved');
-				assert.equal(await page.locator('#rows tr[data-id="tm"] td.c-evo').innerText(), 'doesn\'t evolve', 'an XXL row of a species alone');
+				assert.match(await ev.locator('.evo-long').textContent(), /^\+42 as Evolarge → 11\d\d · 400 candy$/);
+				assert.equal(await sm.locator('.evo-long').textContent(), 'about the same if evolved');
+				assert.equal(await page.locator('#rows tr[data-id="tm"] td.c-evo').textContent(), 'doesn\'t evolve', 'an XXL row of a species alone');
 			} else {
 				assert.equal(await chip('e2').isVisible(), false, 'the column says it on wider screens');
-				assert.equal(await ev.locator('.evo-short').innerText(), '+42 Evolarge');
-				assert.equal(await sm.innerText(), 'same');
+				assert.equal(await ev.locator('.evo-short').textContent(), '+42 Evolarge');
+				assert.equal(await sm.locator('.evo-short').textContent(), 'same');
 				assert.equal(await page.isVisible('th[data-sort="gain"]'), true);
 			}
 			// the menu: what a showcase score turns on
@@ -498,8 +500,8 @@ for (const [width, colorScheme] of [[402, 'light'], [1280, 'dark'], [402, 'dark'
 			await page.waitForFunction(() => document.querySelector('#sort > summary').title === 'Sort: Evolve: Gain, gains first');
 			assert.deepEqual((await ids(page)).slice(0, 3), ['e2', 'ev', 'sm'], 'e2 sits lower in the band: the larger gain');
 			assert.equal(await page.getAttribute('#sort > summary', 'title'), 'Sort: Evolve: Gain, gains first');
-			assert.deepEqual(await ev.locator('.tag').allInnerTexts(), ['new best Evolarge', 'your best Evolet']);
-			assert.deepEqual(await page.locator('#rows tr[data-id="e2"] td.c-evo .tag').allInnerTexts(), [], 'only one new best per target');
+			assert.deepEqual(await ev.locator('.tag').allTextContents(), ['new best Evolarge', 'your best Evolet']);
+			assert.deepEqual(await page.locator('#rows tr[data-id="e2"] td.c-evo .tag').allTextContents(), [], 'only one new best per target');
 			assert.equal(await chip('e2').count(), 0, 'no chip in the Evolve sorts');
 			assert.ok(await noSideScroll(page));
 			if (process.env.XXL_SHOTS) await page.screenshot({ path: `${process.env.XXL_SHOTS}/evolve-${width}-${colorScheme}.png`, fullPage: true });
@@ -538,8 +540,8 @@ for (const [width, colorScheme] of [[402, 'light'], [1280, 'dark'], [402, 'dark'
 			assert.match(await page.textContent('#ed-issues'), /Evolved from Evolet 1074/);
 			assert.equal(await page.isVisible('#ed-evo-wrap'), false, 'the last stage');
 			const end = page.locator(`#rows tr[data-id="${next.id}"] td.c-evo`);
-			assert.equal(await end.innerText(), 'fully evolved already');
-			assert.deepEqual(await page.locator('#rows tr[data-id="e2"] td.c-evo .tag').allInnerTexts(), ['your best Evolet'], 'the new Evolarge beats it; e2 is the only Evolet left');
+			assert.equal(await end.textContent(), 'fully evolved already');
+			assert.deepEqual(await page.locator('#rows tr[data-id="e2"] td.c-evo .tag').allTextContents(), ['your best Evolet'], 'the new Evolarge beats it; e2 is the only Evolet left');
 			await page.click('#editor button[value="cancel"]');
 			await page.waitForFunction(() => !document.querySelector('#editor').open);
 			// the toast goes by itself
