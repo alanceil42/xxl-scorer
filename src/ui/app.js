@@ -6,8 +6,8 @@ import { formatName, nameValues, DEFAULT_TEMPLATE } from '../core/nickname.js';
 import { compileSearch, needsCheck } from '../core/search.js';
 import { gameSearch } from '../core/gamesearch.js';
 import { MODES, rowScore } from '../core/score.js';
-import { evolveOf, evolvedPairs, replacements, gainText, wayText, targetName } from '../core/evolve.js';
-import { SORTS, MENU, firstDir, isDefault, sortList, scoreRanks } from '../core/sort.js';
+import { evolveOf, evolveEnd, endText, evolvedPairs, replacements, gainText, wayText, targetName } from '../core/evolve.js';
+import { SORTS, MENU, firstDir, isDefault, sortList, scoreRanks, afterKey } from '../core/sort.js';
 import { rows as rowStore, kv, newId, askPersist } from './db.js';
 import { loadGameData, importGameData, dropImportedGameData } from './gamedata.js';
 import { readerFor, startWorkers, poolSize, warmUp } from './ocr.js';
@@ -434,11 +434,10 @@ function render() {
 	$('#no-match').hidden = !(state.search && all.length && !list.length);
 	renderListBar();
 	evolveTags(all);
-	// Copy search: while sorted by gain, for the rows shown that would gain
-	$('#gain-copy').hidden = !(state.sort.key === 'gain' && list.some(x => x.evo && x.evo.kind === 'gain'));
 	const { key, dir } = state.sort;
 	sortList(list, state.sort, MODES[state.mode].best);
-	const ranks = scoreRanks(list, MODES[state.mode].best);
+	// sorted by "Score if evolved", the rank is the place each would take once evolved
+	const ranks = scoreRanks(list, MODES[state.mode].best, key === 'after' ? afterKey : undefined);
 	for (const x of list) x.rank = ranks.get(x.row.id);
 	for (const th of document.querySelectorAll('th[data-sort]')) {
 		th.setAttribute('aria-sort', th.dataset.sort === key ? (dir > 0 ? 'ascending' : 'descending') : 'none');
@@ -450,10 +449,13 @@ function render() {
 }
 
 /**
- * Each item's prediction (x.evo, also cached for the sort and the search) and its quiet tags:
- * "new best Bewear" where the prediction beats every Bewear in the list (or there is none),
- * "your best Stufful" where this row is the best of its own species, whose showcase entry
- * evolving gives up. Tags only on rows with a gain. items: all rows, not only those shown.
+ * Each item's prediction (x.evo, also cached for the sort and the search), x.end for an XXL row
+ * with nothing to evolve into ("fully evolved already", "doesn't evolve"), and the quiet tags:
+ * "new best Bewear" on the one row whose prediction beats every Bewear in the list (or there is
+ * none) by the most, since only one of several candidates can become the best; once it is
+ * evolved, the next one gets the tag if it still beats it. "your best Stufful" where this row is
+ * the best of its own species, whose showcase entry evolving gives up. Tags only on rows with a
+ * gain. items: all rows, not only those shown.
  */
 function evolveTags(items) {
 	const best = new Map();
@@ -464,42 +466,22 @@ function evolveTags(items) {
 		const k = key(x.e.id, x.e.form);
 		if (!best.has(k) || s > best.get(k)) best.set(k, s);
 	}
+	const top = new Map();	// target → the item whose prediction beats its best by the most
 	for (const x of items) {
 		x.evo = evolveOf(x.e, state.ctx);
+		x.end = x.evo ? null : evolveEnd(x.e, state.ctx);
 		x.tags = [];
 		if (!x.evo || x.evo.kind !== 'gain') continue;
-		const t = x.evo.best, have = best.get(key(t.id, t.form));
-		if (have == null || t.total > have) x.tags.push(`new best ${targetName(t)}`);
+		const t = x.evo.best, k = key(t.id, t.form), have = best.get(k);
+		if ((have == null || t.total > have) && (!top.has(k) || t.total > top.get(k).evo.best.total)) top.set(k, x);
+	}
+	for (const x of items) {
+		if (!x.evo || x.evo.kind !== 'gain') continue;
+		const t = x.evo.best;
+		if (top.get(key(t.id, t.form)) === x) x.tags.push(`new best ${targetName(t)}`);
 		const own = rowScore(x.e);
 		if (own != null && own >= best.get(key(x.e.id, x.e.form))) x.tags.push(`your best ${x.e.name}${x.e.formName ? ' ' + x.e.formName : ''}`);
 	}
-}
-
-/**
- * Copy search: one search for the game that finds the rows shown with a gain, by the names
- * "Name to copy" gives them, joined with "," (or). Rows whose name lacks a value (or is longer
- * than the game allows) can't be found by it: left out and counted in the note.
- */
-async function copyGainSearch() {
-	const all = evaluated().filter(x => x.e);
-	const shown = state.search ? all.filter(x => state.search(x.e)) : all;
-	const names = [];
-	let left = 0;
-	for (const x of shown) {
-		const p = evolveOf(x.e, state.ctx);
-		if (!p || p.kind !== 'gain') continue;
-		const n = formatName(state.nameTemplate, nameValues(x.e));
-		if (n.missing.length || n.tooLong) { left++; continue; }
-		if (!names.includes(n.text)) names.push(n.text);
-	}
-	if (!names.length) {
-		toast('No names to search for: the rows with a gain have no name from "Name to copy".', null, true);
-		return;
-	}
-	const q = names.join(',');
-	const ok = await copyText(q);
-	const out = left ? ` ${left} left out: their name lacks a value.` : '';
-	toast(ok ? `Search copied: ${names.length} name${names.length > 1 ? 's' : ''}.${out} Paste it into the game's search.` : 'Couldn\'t copy. The search for the game:', ok ? null : q, !ok || left > 0);
 }
 
 /**
@@ -512,7 +494,7 @@ async function copyGainSearch() {
 const drawn = new Map();
 
 /** Everything renderRow reads: when any of it changes, the row is drawn again. */
-const drawnFrom = ({ row, e, dup, evo, tags }) => [e, row.thumb, dup, state.selecting, state.selected.has(row.id), state.findNext === row.id, state.nameTemplate, evo, (tags || []).join('|')];
+const drawnFrom = ({ row, e, dup, evo, end, tags }) => [e, row.thumb, dup, state.selecting, state.selected.has(row.id), state.findNext === row.id, state.nameTemplate, evo, end, (tags || []).join('|'), evo ? rowScore(e) : null];
 
 function renderRows(list) {
 	const nodes = list.map(x => {
@@ -612,21 +594,29 @@ const TOP = 10;
 const ordinal = n => `${n}${[11, 12, 13].includes(n % 100) ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th'}`;
 
 /**
- * The evolve gain: on a phone a line of its own under the score ("+42 as Bewear · 400 candy",
- * "−84 if evolved", "about the same if evolved"), on a wider screen a column ("+42 Bewear").
- * Nothing for a row that can't evolve or isn't predicted.
+ * The evolve gain: on a phone a line of its own under the score ("+42 as Bewear → 1117 · 400
+ * candy", "−84 if evolved", "about the same if evolved"), on a wider screen a column ("+42
+ * Bewear"), the score it would end with in the tooltip. An XXL row with nothing to evolve into
+ * says so ("fully evolved already", "doesn't evolve"); nothing for a row not predicted.
  */
-function evoCell(evo, tags) {
-	if (!evo) return el('td', { class: 'c-evo', 'data-label': 'Evolve gain' });
+function evoCell(e, evo, tags, end) {
+	if (!evo) {
+		const t = endText(end);
+		return el('td', { class: `c-evo${t ? ' end' : ''}`, 'data-label': 'Evolve gain' },
+			t);
+	}
 	const g = Math.round(evo.best.gain);
+	const after = rowScore(e) + evo.best.gain;
 	const short = evo.kind === 'gain' ? `+${g} ${targetName(evo.best)}` : evo.kind === 'loss' ? `−${-g}` : 'same';
-	const title = evo.targets.slice(0, 4).map(t => `${targetName(t)}: ${t.gain >= 0 ? '+' : '−'}${Math.abs(t.gain).toFixed(1)} ± ${t.band.toFixed(1)}`).join('\n');
+	const long = evo.kind === 'gain' ? gainText(evo).replace(` as ${targetName(evo.best)}`, `$& → ${Math.round(after)}`) : gainText(evo);
+	const title = evo.targets.slice(0, 4).map(t => `${targetName(t)}: ${t.gain >= 0 ? '+' : '−'}${Math.abs(t.gain).toFixed(1)} ± ${t.band.toFixed(1)}`).join('\n') +
+		(evo.kind === 'gain' ? `\nScore if evolved: ${after.toFixed(1)}` : '');
 	return el('td', { class: `c-evo ${evo.kind}`, 'data-label': 'Evolve gain', title },
-		el('span', { class: 'evo-long' }, gainText(evo)), el('span', { class: 'evo-short' }, short),
+		el('span', { class: 'evo-long' }, long), el('span', { class: 'evo-short' }, short),
 		...tags.map(t => el('span', { class: 'tag' }, t)));
 }
 
-function renderRow({ row, e, dup, evo, tags }) {
+function renderRow({ row, e, dup, evo, end, tags }) {
 	// no appraisal and several IV sets fit: the one used is a guess, so none is shown
 	const ivs = e.score && e.score.hi != null ? '?' : e.ivs ? `${e.ivs.a}/${e.ivs.d}/${e.ivs.s}` : '–';
 	const status = dup ? el('span', { class: 'chip dup', title: 'Same species, catch date, height and weight as another row' }, 'duplicate')
@@ -645,7 +635,7 @@ function renderRow({ row, e, dup, evo, tags }) {
 	if (btns && state.selecting) btns.inert = true;
 	const act = () => (state.selecting ? toggleSelected(row.id) : openEditor(row.id));
 	return el('tr', {
-		tabindex: 0, 'data-id': row.id, class: [sel ? 'selected' : '', evo ? 'has-evo' : ''].join(' ').trim() || null,
+		tabindex: 0, 'data-id': row.id, class: [sel ? 'selected' : '', evo || endText(end) ? 'has-evo' : ''].join(' ').trim() || null,
 		'aria-selected': state.selecting ? String(sel) : null,
 		onclick: act, onkeydown: ev => { if (ev.key === 'Enter' || (state.selecting && ev.key === ' ')) { ev.preventDefault(); act(); } },
 	},
@@ -653,7 +643,7 @@ function renderRow({ row, e, dup, evo, tags }) {
 		el('td', { class: 'c-thumb' }, row.thumb ? el('img', { src: row.thumb, alt: '', loading: 'lazy' }) : null,
 			state.selecting ? el('span', { class: 'tick', 'aria-hidden': 'true' }, sel ? '✓' : '') : null),
 		el('td', { class: 'c-num c-score' }, ...scoreCell(e)),
-		evoCell(evo, tags || []),
+		evoCell(e, evo, tags || [], end),
 		el('td', { class: 'c-name name' }, e.name || e.id || '?', e.formName ? el('small', {}, ` ${e.formName}`) : null,
 			e.xxl ? el('span', { class: 'xxl' }, 'XXL') : e.xxs ? el('span', { class: 'xxl' }, 'XXS') : null, el('div', { class: 'mobile-meta' }, meta)),
 		el('td', { class: 'c-meta c-num', 'data-label': 'CP' }, e.cp ?? '–'),
@@ -1294,7 +1284,6 @@ function wire() {
 		$('#search').value = 'check';
 		setSearch('check');
 	});
-	$('#gain-copy').addEventListener('click', copyGainSearch);
 	// keep the keyboard as it was: a tap on the button doesn't take the focus from the field
 	$('#search-clear').addEventListener('pointerdown', ev => ev.preventDefault());
 	$('#search-clear').addEventListener('click', () => {

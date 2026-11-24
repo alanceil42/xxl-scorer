@@ -165,6 +165,32 @@ export function evolveOf(e, ctx) {
 	return cache.get(e);
 }
 
+const into = new WeakMap();	// game data → the species some other species evolves into
+function evolvedInto(gm) {
+	if (!into.has(gm)) {
+		const set = new Set();
+		for (const sp of Object.values(gm.species)) {
+			for (const list of Object.values(sp.evo || {})) for (const t of list) set.add(split(t)[0]);
+		}
+		into.set(gm, set);
+	}
+	return into.get(gm);
+}
+
+/**
+ * For an XXL row with nothing to evolve into: 'final' when it is the last stage of a family,
+ * 'single' when no species evolves into it either (mega evolutions aside); null otherwise, so
+ * a row with targets the rule can't predict says nothing.
+ */
+export function evolveEnd(e, ctx) {
+	if (!e || !ctx || !ctx.gm || !e.score || e.mega || e.xxl !== true || !e.id) return null;
+	if (!Object.hasOwn(ctx.gm.species, e.id) || evolveTargets(ctx.gm, e.id, e.form ?? '').length) return null;
+	return evolvedInto(ctx.gm).has(e.id) ? 'final' : 'single';
+}
+
+/** evolveEnd's words: "fully evolved already", "doesn't evolve". */
+export const endText = k => (k === 'final' ? 'fully evolved already' : k === 'single' ? 'doesn\'t evolve' : null);
+
 /** The key the "Evolve gain" sort and the gain column use: the best gain, 0 when about the same. */
 export const gainKey = p => (!p ? null : p.kind === 'same' ? 0 : p.best.gain);
 
