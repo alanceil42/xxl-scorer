@@ -8,6 +8,11 @@ collect under "Unreleased".
 
 ## Unreleased
 
+
+## 1.13 - 2026-11-24
+
+Evolve: what an XXL Pokémon would score after evolving, and which ones to evolve first.
+
 - Evolve gain: what an XXL Pokémon would score after evolving. A line under the score on a
   phone ("+42 as Bewear → 1117 · 400 candy", "−84 if evolved", "about the same if evolved",
   "fully evolved already", "doesn't evolve"), a column on wider screens; the editor lists
