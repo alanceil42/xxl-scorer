@@ -483,12 +483,13 @@ for (const [width, colorScheme] of [[402, 'light'], [1280, 'dark'], [402, 'dark'
 			assert.equal(await page.getAttribute('#sort > summary', 'title'), 'Sort: Evolve gain, gains first');
 			if (process.env.XXL_SHOTS) await page.screenshot({ path: `${process.env.XXL_SHOTS}/evolve-${width}-${colorScheme}.png`, fullPage: true });
 			// the score each would end with, the rank following it
-			const before = await page.locator('#rows tr[data-id="e2"] .rank').innerText();
+			const before = await page.locator('#rows tr[data-id="e2"] .rank').textContent();
 			await page.click('#sort > summary');
 			await page.click('#sort-items button:has-text("Score if evolved")');
 			const after = await ids(page);
 			assert.equal(after[0], 'ev');
-			assert.equal(await page.locator('#rows tr[data-id="e2"] .rank').innerText(), String(after.indexOf('e2') + 1));
+			const want = String(after.indexOf('e2') + 1);
+			await page.waitForFunction(r => document.querySelector('#rows tr[data-id="e2"] .rank').textContent === r, want);
 			assert.ok(after.indexOf('e2') + 1 < Number(before), 'evolved, it moves up');
 			// the search term
 			await page.fill('#search', 'gain');
