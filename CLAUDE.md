@@ -4,9 +4,9 @@ Read the private decision log first (project knowledge). docs/HOW-IT-WORKS.md ha
 (score, IVs, reading, merging), written for a Pokémon GO player who codes.
 
 - One task, one branch `claude/<topic>` from an up-to-date main, one pull request. Never push
-  to main. `git fetch origin main` and rebase before starting and before pushing. The
-  maintainer merges. Force-push (`--force-with-lease`) only the open pull request's own branch,
-  when the maintainer asks to amend it.
+  to main. `git fetch origin main` and rebase before starting and before pushing. Merging: as
+  the private decision log says. Force-push (`--force-with-lease`) only the open pull request's
+  own branch, when the maintainer asks to amend it.
 - Commits: repo-local `git config user.name Claude` and `user.email noreply@anthropic.com`;
   end each message with `Co-Authored-By: Claude <model> <noreply@anthropic.com>`. No
   `Claude-Session:` line and no session links in commits; pull request texts may carry the
