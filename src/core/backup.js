@@ -95,7 +95,7 @@ export function cleanSettings(s, now = Date.now()) {
 }
 
 /**
- * What the browser holds that is in no backup file yet, for the Backup dot and the reminder
+ * What the browser holds that is in no backup file yet, for the Sync dot and the reminder
  * banner. Everything up to the last export is in a file; so is what an import brought in, at
  * the time the file had (`inFile`: per row id, and per setting). Without the second, a list
  * restored into a fresh browser, e.g. after Safari deleted the site's data, would count as
@@ -142,7 +142,7 @@ export function filedAfterImport(old, rows, settings, ids) {
 /**
  * Whether to show the reminder banner: some change in no file has waited `days` or more, close
  * to Safari's 7-day deletion. Once the banner is dismissed, only changes made after that bring
- * it back: it informs about a risk once, it doesn't push to export (the Backup dot stays).
+ * it back: it informs about a risk once, it doesn't push to export (the Sync dot stays).
  * @param {{updated?: number}[]} pending	rows in no file (notInFile)
  * @param {number} dismissedAt	when the banner was last dismissed, 0 for never
  * @param {number} days

@@ -71,6 +71,10 @@ and the middle of the scores all fitting combinations give, ± half their spread
 points; forms that CP and HP can't tell apart widen it). Sorting and the copied name use that
 middle, the number shown.
 
+Without the CP (a floating or tall sprite can cover it), the bars and the HP often fit two
+levels half a level apart. The row then shows both ("28.5 or 29"), the editor the CPs they would
+give, and "Name to copy" the lower level with a ? until the CP is typed.
+
 
 ## Reading the card
 
@@ -109,7 +113,25 @@ well, the screenshot stays on its own: better a pair to merge by hand than a wro
 value is taken from the screenshot that shows it intact.
 
 
-## Game data
+## Sync with the game
+
+Code: src/core/listview.js (tiles, stitching), src/core/namereader.js and tilename.js (names),
+src/core/listsync.js (runSync, matchTiles).
+
+Rows stay until deleted, so traded, transferred and evolved Pokémon pile up. Screenshots of the
+game's own list for the search xxl (xxs in XXS mode) bring it back in line. Each tile is found by
+the green bar under its name, its CP read above the sprite; the header gives the search and the
+count. Screenshots are stitched into one list by the tiles they share, in any order. A tile
+matches a row by its CP (the CPs a row's IVs and HP allow, where its CP wasn't read), or as a
+later stage of a row; a plain species name, the list's order by number and the values of a
+"Name to copy" name only narrow the candidates. What is left:
+
+- a row with no tile is "not in the game", marked only when the tiles add up to the game's
+  count, every one with its CP. Deleting is your tap (Select them, then Delete, with Undo).
+- a row whose tile shows a later stage: "evolved, scan again"; the new scan replaces the row.
+- a tile that fits several rows leaves them "not sure", never gone or new.
+- a tile that fits no row is new: counted, with a search for their CPs (xxl&cp512,cp1480).
+
 
 Code: src/core/gm.js (compactGameMaster), src/core/text.js, src/ui/gamedata.js.
 

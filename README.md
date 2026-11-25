@@ -17,6 +17,7 @@ table sorted by showcase points.
 - Search with the game's own terms: `xxl`, `4*`, `cp700-800`, `rock,flying&!lucky`, …
 - Copies a ready-made nickname, such as XX1063¹⁸⓿㉚
 - Every value can be corrected; a backup file moves the list to another device
+- Syncs with the game: screenshots of the game's XXL list mark the Pokémon you no longer have
 
 Runs entirely in your browser: screenshots are read on your device and never uploaded. No
 account, no cloud service needed.
@@ -93,11 +94,16 @@ won't run JavaScript modules from `file://`.
    plus `score1100-`.
    Combine them as in the game: `,` or, `&` and, `!` not (`rock,flying&!xxl`). In select mode,
    **All** marks only what the search shows.
-5. **Backup → Export** now and then (a dot on Backup means there are unexported changes). The list
+5. **Sync → Export** now and then (a dot on Sync means there are unexported changes). The list
    lives only in this browser, and browsers may delete it (Safari does after 7 days without a
    visit). Import the file to restore it or move it to another device; it brings back the "Name
    to copy" pattern and the backup file name (Settings) too, unless the browser has one set more
    recently.
+6. **Sync → Sync with the game** when Pokémon were traded, transferred or evolved: copy the
+   search (`xxl`), paste it into the game's search, screenshot the whole list as you scroll (any
+   order, overlap is fine) and add the screenshots. Rows the game no longer lists are marked
+   *not in the game* (**Select them**, then **Delete**; nothing goes without that tap), evolved
+   ones *evolved, scan again*; Pokémon new to the list are counted, with a search to scan them.
 
 The first time, the page downloads the text recognition engine (about 4 MB) and the game data
 (about 2 MB). After that it checks for new game data once a week.

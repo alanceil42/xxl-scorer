@@ -8,6 +8,20 @@ collect under "Unreleased".
 
 ## Unreleased
 
+Sync with the game: screenshots of the game's XXL list show which rows you no longer have.
+
+- Sync with the game (the header's Backup menu, now called Sync): copy the search, screenshot
+  the game's list of it as you scroll (any order, overlap is fine), add the screenshots. Rows the
+  game no longer lists are marked "not in the game", nothing is deleted: "Select them" selects
+  them in select mode, Delete takes them with Undo. A row whose Pokémon evolved is marked
+  "evolved, scan again"; a tile that could be several rows leaves them "not sure". Pokémon the
+  list doesn't have yet: "Found 3 new Pokémon. Please scan" with a Copy search string button.
+  Nothing is marked gone unless the screenshots cover the whole list (the game's count).
+- Search terms gone, evolved and unsure for the sync's marks.
+- A level the HP leaves open shows both ("28.5 or 29") until the CP is typed; the editor's CP
+  field shows the CPs they'd give, and "Name to copy" has the lower level with a ?.
+- The debug report says what a sync read and marked (counts, no names).
+
 
 ## 1.13 - 2026-11-24
 

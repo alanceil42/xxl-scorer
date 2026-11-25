@@ -255,7 +255,7 @@ export function matchTiles(tiles, rows, ctx, { window: useWindow = true } = {}) 
 	return { tiles: out, used, evolved, could };
 }
 
-/** Rows whose evolved scan is a row of its own (same catch date and IVs, X67's test). */
+/** Rows whose evolved scan is a row of its own (same catch date and IVs: evolve.js's evolvedFrom). */
 function evolvedScans(rows, ctx) {
 	const by = new Map();
 	for (const r of rows) if (r.caught && r.e) by.set(r.caught, [...(by.get(r.caught) || []), r]);
