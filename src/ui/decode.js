@@ -2,6 +2,7 @@
 // same steps with an HTML canvas on the page and an OffscreenCanvas in a worker.
 import { readScreenshot } from '../core/pipeline.js';
 import { REGIONS, boxOf, crop, downscale, imageSize, columnOf } from '../core/image.js';
+import { isListView, readListShot } from '../core/listview.js';
 
 // a phone screenshot is 1-4 megapixels; refuse what would only exhaust the tab's memory
 const MAX_PIXELS = 40e6;
@@ -48,11 +49,13 @@ export async function thumbnail(img, canvas) {
 }
 
 /**
- * Readings and thumbnail of one decoded screenshot.
+ * Readings and thumbnail of one decoded screenshot; a screenshot of the game's list (list sync):
+ * its tiles instead, {list} (readListShot's), and no thumbnail.
  * @param {{width: number, height: number, data: Uint8ClampedArray}} img  from decode
  * @param {any} source  what the engine reads the whole screenshot from (the file)
  */
 export async function readImage(img, source, engine, rules, canvas) {
+	if (isListView(img)) return { list: await readListShot(img, engine), size: [img.width, img.height] };
 	if (img.width > img.height) throw new Error('landscape image: not a Pokémon screenshot?');
 	const reading = await readScreenshot(img, source, engine, rules);
 	return { reading, thumb: await thumbnail(img, canvas), size: [img.width, img.height] };

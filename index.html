@@ -43,7 +43,7 @@
 			<div class="tools">
 				<button class="btn small icon" id="help-btn" type="button" aria-label="Help" title="Help: searching the list, which screenshots to take" aria-haspopup="dialog"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="vendor/lucide/icons.svg#circle-help"/></svg></button>
 				<details class="menu" id="backup">
-					<summary class="btn small" aria-label="Backup"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="vendor/lucide/icons.svg#hard-drive-download"/></svg><span class="lbl give">Backup</span><span class="dot" id="export-dot" hidden></span></summary>
+					<summary class="btn small" aria-label="Sync"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="vendor/lucide/icons.svg#hard-drive-download"/></svg><span class="lbl give">Sync</span><span class="dot" id="export-dot" hidden></span></summary>
 					<div class="menu-pop">
 						<button class="btn" id="export" type="button">Export</button>
 						<label class="btn">
@@ -51,6 +51,9 @@
 							Import
 						</label>
 						<p class="muted small">Last export: <span id="export-status">never</span></p>
+						<p class="menu-head small"><strong>Sync with the game</strong></p>
+						<p class="muted small sync-steps">Copy the search, paste it into the game's search and screenshot the whole list, scrolling (any order, overlap is fine). Add the screenshots here: rows not in the game get marked, nothing is deleted.</p>
+						<button class="btn" id="sync-copy" type="button">Copy search <code id="sync-search">xxl</code></button>
 					</div>
 				</details>
 				<button class="btn small icon" id="settings-btn" type="button" aria-label="Settings" title="Settings" aria-expanded="false" aria-controls="settings"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="vendor/lucide/icons.svg#settings"/></svg></button>
@@ -67,6 +70,7 @@
 			<span class="spacer"></span>
 			<span class="select-tools">
 				<button class="btn" id="select-all" type="button">All</button>
+				<button class="btn" id="select-gone" type="button" hidden>Not in the game</button>
 				<button class="btn danger" id="select-delete" type="button" disabled>Delete</button>
 				<button class="btn" id="select-done" type="button">Done</button>
 			</span>
@@ -244,6 +248,7 @@
 				<dt><code>score1100-</code></dt><dd>showcase points (not in the game)</dd>
 				<dt><code>check</code></dt><dd>rows marked to check (not in the game)</dd>
 				<dt><code>gain</code></dt><dd>evolving would raise the score (not in the game)</dd>
+				<dt><code>gone</code> <code>evolved</code> <code>unsure</code></dt><dd>marked by the last list sync: not in the game, evolved (scan it again), not sure (not in the game)</dd>
 			</dl>
 			<p class="help-combine">Combine: <code>,</code> or · <code>&amp;</code> or a space: and · <code>!</code> not. Or goes first, as in the game: <code>fire,water&amp;xxl</code> is fire or water, and XXL.</p>
 			<h3 id="help-shots" tabindex="-1">Which screenshots to take</h3>
@@ -263,6 +268,8 @@
 				<li>Whole screenshots, not cropped or edited. The game in English (other languages are not supported yet).</li>
 				<li>Nothing is uploaded: screenshots are read on this device and dropped.</li>
 			</ul>
+			<h3 id="help-sync">Sync with the game</h3>
+			<p>Pokémon traded, transferred or evolved stay in this list until you delete them. To find them, sync with the game: under <em>Sync</em>, copy the search, paste it into the game's search, screenshot the whole list as you scroll, and add those screenshots here. Each row then is found in the game, or marked <em>not in the game</em> (<em>Select them</em> selects those to delete), <em>evolved, scan again</em> or <em>not sure</em>. Pokémon the game lists and this list doesn't are counted, with a search to find them for a scan.</p>
 			<h3 id="help-evolve">Evolving</h3>
 			<p>Sort by <em>Evolve: Gain</em> to see which Pokémon would score more after evolving, or by <em>Evolve: Score</em> to see the list as it would be with those evolved; <em>n to evolve</em> (search <code>gain</code>) shows only those. After evolving, add a new screenshot: it replaces the old row.</p>
 			<footer class="ed-foot"><span class="spacer"></span><button class="btn primary" value="close">Close</button></footer>

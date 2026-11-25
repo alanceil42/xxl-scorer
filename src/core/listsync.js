@@ -296,7 +296,7 @@ export function runSync(shots, items, ctx, { mode = 'xxl', now = Date.now() } = 
 		} else res.newCps.push(t.cp);
 	}
 	res.unsure = unsureTiles.length;
-	if (res.newCps.length) res.newSearch = `${search}&${[...new Set(res.newCps)].sort((a, b) => a - b).map(c => `cp${c}`).join(',')}`;
+	res.newSearch = newSearch(search, res.newCps);
 	// gone: only from the whole list
 	const why = [];
 	if (count == null) why.push('the count in the header wasn\'t read');
@@ -337,6 +337,35 @@ export function dexAt(rows, ctx) {
 		return hit.length && hit.every(x => x.r.dex === hit[0].r.dex) ? hit[0].r.dex : null;
 	};
 }
+
+/** The game's search for tiles of these CPs: "xxl&cp512,cp1480" ('' for none). */
+export const newSearch = (search, cps) => (cps.length ? `${search}&${[...new Set(cps)].sort((a, b) => a - b).map(c => `cp${c}`).join(',')}` : '');
+
+/**
+ * The new tiles' CPs still waiting for a scan: those no row added since the sync has. items:
+ * [{row, e}] (evaluated).
+ */
+export function newLeft(sync, items) {
+	const left = [...((sync && sync.newCps) || [])];
+	for (const { row, e } of items) {
+		const i = e && row.created > sync.at ? left.indexOf(e.cp) : -1;
+		if (i >= 0) left.splice(i, 1);
+	}
+	return left;
+}
+
+/** A row's mark from the sync while it holds: a scan since the sync drops it. */
+export function markOf(sync, row) {
+	const m = sync && sync.marks && sync.marks[row.id];
+	return m && !(row.scanned > sync.at) ? m : null;
+}
+
+/** What a mark says, in the list and the search: the chip's words and the search term. */
+export const MARKS = Object.freeze({
+	gone: { chip: 'not in the game', term: 'gone' },
+	evolved: { chip: 'evolved, scan again', term: 'evolved' },
+	unsure: { chip: 'not sure', term: 'unsure' },
+});
 
 /** Counts by mark, for the banner and the debug report. */
 export function markCounts(marks) {

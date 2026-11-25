@@ -59,10 +59,15 @@ const COLS = [0.183, 0.5, 0.815];
  */
 export function isListView(img, bars = findBars(img)) {
 	const W = img.width;
-	return bars.some(b => {
+	const g = bars.filter(b => {
 		const w = b.x1 - b.x0 + 1;
 		return w >= 0.12 * W && w <= 0.16 * W && COLS.some(c => Math.abs(b.x - c * W) <= 0.025 * W);
 	});
+	// A Pokémon's page can show one such bar too: its move's energy bar cut in two by the close
+	// button (at 1.74 W), or a green shape at the top. A grid has two bars in one row, or rows a
+	// tile apart; a list of one Pokémon its one tile at the left, where the first row sits.
+	const grid = g.some((a, i) => g.some((b, j) => j > i && (Math.abs(a.y - b.y) <= 0.01 * W || Math.abs(a.y - b.y) >= 0.9 * TILE.pitch * W)));
+	return grid || (g.length === 1 && g[0].col === 0 && g[0].y > 0.5 * W && g[0].y < 1.2 * W);
 }
 
 /** Bars → rows of the grid: [{y, slots: [bar|null, bar|null, bar|null]}]. */
