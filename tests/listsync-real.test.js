@@ -2,10 +2,11 @@
 // for the engine; XXL_OCR_CACHE as there). A folder with a sync.json holds one sync:
 //
 //   { "about": "...", "backup": "backup.json", "count": 120,
-//     "expect": { "gone": 7, "evolved": 1, "unsure": 0, "new": 0 }, "other": true }
+//     "expect": { "gone": 7, "evolved": 1, "unsure": 0, "new": 0 }, "other": true,
+//     "level": [{ "row": id, "levels": [24.5, 25], "cp": 1251, "level": 25 }] }
 //
 // "other": screenshots of another search, from which a sync must mark nothing gone. Each set is
-// also synced shuffled (the same marks) and with every name taken away (CP alone: no row
+// also synced reversed, rotated and shuffled (the same marks) and with every name taken away (CP alone: no row
 // marked gone that the named sync saw).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -57,6 +58,12 @@ test('list sync on real screenshots', { skip, timeout: 3_600_000 }, async t => {
 			const res = runSync(shots, items, ctx, { now: 0 });
 			const n = markCounts(res.marks);
 			t.diagnostic(`${rel}: ${res.shots} shots (${res.other} other), ${res.read} read of ${res.count}, matched ${res.matched}, gone ${n.gone}, evolved ${n.evolved}, not sure ${n.unsure}, new ${res.newCps.length}${res.why ? `; ${res.why}` : ''}`);
+			// rows whose level the HP alone leaves open ("level": [{row, levels, cp, level}])
+			for (const l of sync.level || []) {
+				const it = items.find(x => x.row.id === l.row);
+				assert.deepEqual(it.e.levels, l.levels, `${l.species} levels`);
+				assert.equal(evaluate(it.row.reading, ctx, { ...it.row.edits, cp: l.cp }).level, l.level, `${l.species} with CP ${l.cp}`);
+			}
 			if (sync.other) { assert.equal(n.gone, 0, 'another search marks nothing gone'); return; }
 			if (sync.count != null) { assert.equal(res.count, sync.count); assert.equal(res.read, sync.count); assert.ok(res.complete, res.why); }
 			if (sync.expect) assert.deepEqual({ gone: n.gone, evolved: n.evolved, unsure: n.unsure, new: res.newCps.length }, sync.expect);
@@ -65,6 +72,12 @@ test('list sync on real screenshots', { skip, timeout: 3_600_000 }, async t => {
 			const mid = runSync([...shots.slice(7), ...shots.slice(0, 7)], items, ctx, { now: 0 });
 			assert.deepEqual(rev.marks, res.marks, 'reversed');
 			assert.deepEqual(mid.marks, res.marks, 'rotated');
+			// shuffled (a fixed seed, so a failure repeats)
+			let seed = 7;
+			const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+			const mixed = [...shots];
+			for (let i = mixed.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [mixed[i], mixed[j]] = [mixed[j], mixed[i]]; }
+			assert.deepEqual(runSync(mixed, items, ctx, { now: 0 }).marks, res.marks, 'shuffled');
 			// CP alone: nothing gone that the names saw
 			const bare = shots.map(s => ({ ...s, rows: s.rows.map(r => ({ ...r, slots: r.slots.map(x => (typeof x === 'object' ? { ...x, p: null, name: null } : x)) })) }));
 			const cpOnly = runSync(bare, items, ctx, { now: 0 });
