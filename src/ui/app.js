@@ -1,5 +1,5 @@
 // xxl-scorer page: queue, table, editor, backup. Pure logic lives in src/core.
-import { makeContext, evaluate, evaluateSafely, formLabel, mergeTarget, mergeReadings } from '../core/evaluate.js';
+import { makeContext, evaluate, evaluateSafely, formLabel, mergeTarget, mergeReadings, levelText } from '../core/evaluate.js';
 import { makeRules } from '../core/read.js';
 import { findDex } from '../core/text.js';
 import { formatName, nameValues, DEFAULT_TEMPLATE } from '../core/nickname.js';
@@ -677,7 +677,7 @@ function renderRow({ row, e, dup, evo, end, tags }) {
 	// one span per item so a line never breaks inside "2.30 m"
 	// a mega evolved Pokémon's IVs and sizes aren't known: what to do instead (phones show no tooltip)
 	const meta = (e.mega ? [e.types.replace('/', ' / '), 'screenshot it again when it\'s back to normal']
-		: [e.cp != null ? `CP ${e.cp}` : null, e.types.replace('/', ' / '), `IV ${ivs}`, `${fmt(e.height_m)} m`, `${fmt(e.weight_kg)} kg`]).filter(Boolean)
+		: [e.cp != null ? `CP ${e.cp}` : null, e.types.replace('/', ' / '), `IV ${ivs}`, e.levels ? `Lv ${levelText(e)}` : null, `${fmt(e.height_m)} m`, `${fmt(e.weight_kg)} kg`]).filter(Boolean)
 		.flatMap((t, i) => [i ? ' · ' : null, el('span', { class: 'nw' }, t)]);
 	const sel = state.selecting && state.selected.has(row.id);
 	// In select mode the find and copy buttons stay, dimmed and out of reach (a tap marks the
@@ -700,7 +700,7 @@ function renderRow({ row, e, dup, evo, end, tags }) {
 		el('td', { class: 'c-meta c-num', 'data-label': 'CP' }, e.cp ?? '–'),
 		el('td', { class: 'c-meta', 'data-label': 'Type' }, e.types.replace('/', ' / ').toLowerCase()),
 		el('td', { class: 'c-meta c-num', 'data-label': 'IVs' }, ivs),
-		el('td', { class: 'c-meta c-num', 'data-label': 'Level' }, e.level ?? '–'),
+		el('td', { class: 'c-meta c-num', 'data-label': 'Level', title: e.levels ? 'The HP fits these levels: type the CP to settle it' : null }, levelText(e) ?? '–'),
 		el('td', { class: 'c-meta c-num', 'data-label': 'Height' }, `${fmt(e.height_m)} m`),
 		el('td', { class: 'c-meta c-num', 'data-label': 'Weight' }, `${fmt(e.weight_kg)} kg`),
 		el('td', { class: 'c-meta', 'data-label': 'Caught' }, e.caught || '–'),
@@ -943,6 +943,8 @@ function openEditor(id) {
 	const val = (k, fallback) => ed[k] ?? fallback ?? '';
 	// the values as used (repaired or corrected ones included); saving records them as edits
 	$('#ed-cp').value = val('cp', e.cp);
+	// several levels fit the HP: the CPs they'd show, to pick from the game's
+	$('#ed-cp').placeholder = e.levels ? e.cpExpected.join(' or ') : '';
 	$('#ed-hp').value = val('hp', e.hp);
 	$('#ed-height').value = val('height_m', e.height_m);
 	$('#ed-weight').value = val('weight_kg', e.weight_kg);

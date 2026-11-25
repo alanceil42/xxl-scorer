@@ -59,7 +59,7 @@ export function evaluate(reading, ctx, edits = {}) {
 	const res = {
 		id: null, dex: null, name: reading.species || '', form: null, formName: '', types: '',
 		caught: v.caught ?? null, hp: v.hp ?? null, cp: v.cp ?? null, height_m: v.height_m ?? null, weight_kg: v.weight_kg ?? null,
-		bars: reading.bars ?? null, ivs: null, ivSource: null, level: null, candidates: [], forms: [],
+		bars: reading.bars ?? null, ivs: null, ivSource: null, level: null, levels: null, candidates: [], forms: [],
 		cpExpected: null, xxl: null, xxs: null, lucky: reading.lucky ?? null, score: null, inGame: edits.inGame ?? null, inGameDiff: null, mega: false, issues, key: null,
 	};
 
@@ -182,7 +182,11 @@ export function evaluate(reading, ctx, edits = {}) {
 	// IVs
 	if (edits.ivs) {
 		res.ivs = edits.ivs; res.ivSource = 'edit';
-		if (hp) res.level = levelsForHp(row, edits.ivs, hp, gm.cpm).find(l => !cpNow || l.cp === cpNow)?.level ?? null;
+		if (hp) {
+			const lv = levelsForHp(row, edits.ivs, hp, gm.cpm);
+			if (cpNow == null) levelByHp(res, lv, issues);
+			else res.level = lv.find(l => l.cp === cpNow)?.level ?? null;
+		}
 	} else if (pick.hits.length) {
 		const best = pick.hits[0];
 		res.ivs = { a: best.a, d: best.d, s: best.s }; res.level = best.level; res.ivSource = bars ? 'bars+cp' : 'cp';
@@ -196,8 +200,12 @@ export function evaluate(reading, ctx, edits = {}) {
 		res.ivs = roundBars(bars); res.ivSource = 'bars';
 		if (hp) {
 			const lv = levelsForHp(row, res.ivs, hp, gm.cpm);
-			res.level = lv[0]?.level ?? null;
-			if (cpNow && lv.length && !lv.some(l => l.cp === cpNow)) {
+			// a CP typed in (or read) settles the level among those the HP allows
+			const hit = cpNow ? lv.find(l => l.cp === cpNow) : null;
+			if (hit) res.level = hit.level;
+			else if (!cpNow) levelByHp(res, lv, issues);
+			else res.level = lv[0]?.level ?? null;
+			if (cpNow && lv.length && !hit) {
 				res.cpExpected = lv.map(l => l.cp);
 				issues.push({ code: 'cp', msg: `CP ${cpNow} doesn't fit; expected ${res.cpExpected.join(' or ')}` });
 			}
@@ -251,6 +259,25 @@ export function evaluate(reading, ctx, edits = {}) {
 
 /** Values the user typed in the editor that the readings would otherwise give. */
 const userValues = edits => edits.form != null || ['cp', 'hp', 'height_m', 'weight_kg', 'ivs'].some(k => edits[k] != null && edits[k] !== '');
+
+/**
+ * The level from the IVs and the HP alone (no CP): often two fit, half a level apart (IVs
+ * 7/10/3 at HP 93: 24.5 or 25). Then all of them (res.levels), the lowest as the level, their
+ * CPs, and an issue asking for the CP, which settles it.
+ */
+function levelByHp(res, lv, issues) {
+	res.level = lv[0]?.level ?? null;
+	if (lv.length < 2) return;
+	res.levels = lv.map(l => l.level);
+	res.cpExpected = lv.map(l => l.cp);
+	issues.push({ code: 'level', msg: `Level ${levelText(res)} by the HP: type the CP to settle it` });
+}
+
+/** The level as shown: "29", or "28.5 or 29" where the HP alone leaves several; null if unknown. */
+export function levelText(e) {
+	if (e.levels && e.levels.length > 1) return `${e.levels.slice(0, -1).join(', ')} or ${e.levels[e.levels.length - 1]}`;
+	return e.level ?? null;
+}
 
 /** A CP the row gives at this HP, with IVs near the bars where there are bars. */
 function fitsRead(row, cp, hp, bars, gm) {
