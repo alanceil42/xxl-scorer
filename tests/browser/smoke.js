@@ -767,6 +767,13 @@ test('at 375 px: a list sync\'s marks and notices, the rows not in the game sele
 		await page.click('#search-clear');
 		assert.deepEqual((await ids(page)).sort(), ['fk', 'tm']);
 
+		// the debug report: what the sync read and marked, in numbers, no names or searches
+		const r = await debugReport(page);
+		assert.deepEqual([r.sync.count, r.sync.read, r.sync.matched, r.sync.new], [2, 2, 1, 1]);
+		assert.deepEqual(r.sync.marked, { gone: 1, evolved: 1, unsure: 0 });
+		assert.ok(!('marks' in r.sync) && !('newCps' in r.sync), JSON.stringify(r.sync));
+		assert.doesNotMatch(JSON.stringify(r.sync), /Testmon|cp1234/);
+
 		assert.deepEqual(problems, []);
 	} finally {
 		await context.close();
