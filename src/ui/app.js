@@ -742,7 +742,8 @@ function renderListBar() {
 	// the rows shown that the list sync found not in the game, at one tap
 	const shown = new Set(state.shown);
 	const gone = state.selecting ? goneRows().filter(r => shown.has(r.id)) : [];
-	$('#select-gone').hidden = !gone.length || gone.every(r => state.selected.has(r.id));
+	$('#select-gone').hidden = !gone.length;
+	$('#select-gone').disabled = gone.every(r => state.selected.has(r.id));
 	$('#list-count').textContent = `${state.selected.size} selected`;
 	document.body.classList.toggle('selecting', state.selecting);
 }

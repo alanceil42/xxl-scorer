@@ -188,7 +188,10 @@ td.c-thumb img { width: 56px; height: 46px; object-fit: cover; border-radius: 6p
 .seg .btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-text); z-index: 1; }
 .mode-chip { font: inherit; font-size: 12px; font-weight: 700; padding: 1px 7px; margin-right: 6px; border-radius: 4px; border: 0; background: var(--accent); color: var(--accent-text); cursor: pointer; vertical-align: 1px; }
 .xxl { display: inline-block; font-size: 11px; font-weight: 700; padding: 0 5px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); margin-left: 4px; vertical-align: 1px; }
-.list-bar { display: flex; align-items: center; gap: 6px; max-width: 440px; }
+.list-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; max-width: 440px; }
+/* the list sync's rows not in the game, at one tap: a line of its own (four buttons don't fit a
+   phone's width), kept while select mode shows such rows, so the bar doesn't jump under the finger */
+#select-gone { flex: 1 0 100%; }
 .list-bar .btn { min-height: 46px; }
 /* Select mode: the select tools in the action row's place, Done where Select was; the
    bar with the search stays at the top while scrolling, so Delete is always in reach */
