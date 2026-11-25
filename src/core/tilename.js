@@ -1,12 +1,13 @@
-// A list tile's nickname, read as tokens (namereader.js), → its values. The names this reads:
+// A list tile's nickname, read as tokens (namereader.js), → its values. What it reads is the
+// "Name to copy" name (nickname.js): XX1063¹⁸⓿㉚, XX and the score, the IV % in superscript,
+// Attack in a filled circle, the level circled (½ after it for a half level); XX¹⁸⓿㉚ from a
+// template without the score. Other names of the same shape (another app's) give their values
+// where they are there; marks of theirs the matching never uses (a shadow dot, an empty ring,
+// a number after the level, a lettered ring) are only told apart so they don't break the read.
 //
-//   XX1063¹⁸⓿㉚     "Name to copy" (nickname.js): XX, the score, IV % in superscript, Attack in a
-//                   filled circle, level circled (½ after it for a half level)
-//   XX¹⁸⓿㉚        the same from a template without the score
-//   ⁸⁰⓫㉑2650      another app's names: [prefix] [● shadow | ◯ purified] IV % ⓯ level [Max CP]
-//                   [Ⓖ53 PvP league and rank]; ◯ for Attack: several IV combinations fit
-//
-// Anything else (a species name, a nickname of your own) has style 'none'.
+// Nothing depends on a name: a tile matches by its CP (and a species name where it was never
+// renamed); a name's values only narrow the candidates down (listsync.js). Anything else (a
+// species name, a nickname of your own) has style 'none'.
 
 /** IV % values a whole IV total can show (0-45 of 45, rounded). */
 export const IV_PCTS = new Set(Array.from({ length: 46 }, (_, s) => Math.round((100 * s) / 45)));
