@@ -6,8 +6,9 @@
 //     "level": [{ "row": id, "levels": [24.5, 25], "cp": 1251, "level": 25 }] }
 //
 // "other": screenshots of another search, from which a sync must mark nothing gone. Each set is
-// also synced reversed, rotated and shuffled (the same marks) and with every name taken away (CP alone: no row
-// marked gone that the named sync saw).
+// also synced reversed, rotated and shuffled (the same marks), with every name taken away (CP
+// alone: no row marked gone that the named sync saw), and with three seen rows taken out of the
+// backup (their tiles new).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
@@ -83,6 +84,15 @@ test('list sync on real screenshots', { skip, timeout: 3_600_000 }, async t => {
 			const cpOnly = runSync(bare, items, ctx, { now: 0 });
 			const wrong = Object.entries(cpOnly.marks).filter(([id, m]) => m.k === 'gone' && res.marks[id]?.k !== 'gone');
 			assert.deepEqual(wrong, [], 'CP alone marks a row gone the names saw');
+			// new: rows taken out of the backup (seen, a CP no other row has) leave their tiles new
+			const cpCount = new Map();
+			for (const x of items) cpCount.set(x.e.cp, (cpCount.get(x.e.cp) || 0) + 1);
+			const out = items.filter(x => x.e.cp != null && cpCount.get(x.e.cp) === 1 && !res.marks[x.row.id]).slice(0, 3);
+			const less = runSync(shots, items.filter(x => !out.includes(x)), ctx, { now: 0 });
+			const cps = out.map(x => x.e.cp).sort((a, b) => a - b);
+			assert.deepEqual([...less.newCps].sort((a, b) => a - b), cps, 'their tiles new');
+			assert.equal(less.newSearch, `xxl&${cps.map(c => `cp${c}`).join(',')}`);
+			assert.deepEqual(less.marks, res.marks, 'the rest as before');
 		});
 	}
 	assert.ok(fallback || !sets.length, 'a sync set with a backup');
