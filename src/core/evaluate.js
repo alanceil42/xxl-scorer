@@ -60,7 +60,7 @@ export function evaluate(reading, ctx, edits = {}) {
 		id: null, dex: null, name: reading.species || '', form: null, formName: '', types: '',
 		caught: v.caught ?? null, hp: v.hp ?? null, cp: v.cp ?? null, height_m: v.height_m ?? null, weight_kg: v.weight_kg ?? null,
 		bars: reading.bars ?? null, ivs: null, ivSource: null, level: null, levels: null, candidates: [], forms: [],
-		cpExpected: null, xxl: null, xxs: null, lucky: reading.lucky ?? null, score: null, inGame: edits.inGame ?? null, inGameDiff: null, mega: false, issues, key: null,
+		cpExpected: null, near: null, xxl: null, xxs: null, lucky: reading.lucky ?? null, score: null, inGame: edits.inGame ?? null, inGameDiff: null, mega: false, issues, key: null,
 	};
 
 	if (reading.merged > 1) issues.push({ code: 'merged', info: true, msg: `Merged from ${reading.merged} screenshots` });
@@ -214,6 +214,10 @@ export function evaluate(reading, ctx, edits = {}) {
 		issues.push({ code: 'ivs', msg: 'IVs unknown: no appraisal bars and no CP/HP match' });
 	}
 
+	// no CP and the IVs from the bars alone: what Find in game can still count on, each bar taken
+	// as one IV off either way (a few Pokémon to look through beat a search that finds none)
+	if (res.cp == null && res.ivSource === 'bars') res.near = nearBars(row, res.ivs, hp, gm.cpm);
+
 	// XXL
 	// From the height, unless that is within display rounding of the boundary (small species:
 	// 0.15 m for a Gimmighoul can be either); then the badge above the height decides.
@@ -271,6 +275,22 @@ function levelByHp(res, lv, issues) {
 	res.levels = lv.map(l => l.level);
 	res.cpExpected = lv.map(l => l.cp);
 	issues.push({ code: 'level', msg: `Level ${levelText(res)} by the HP: type the CP to settle it` });
+}
+
+/**
+ * Each IV one off the bars' either way (0..15): the CPs those that give this HP would show, as
+ * {lo, hi} (null without an HP or when none gives it), and each stat's IVs as {lo, hi}.
+ */
+export function nearBars(row, ivs, hp, cpm) {
+	const span = v => [v - 1, v, v + 1].filter(x => x >= 0 && x <= 15);
+	const all = [], fit = [];
+	for (const a of span(ivs.a)) for (const d of span(ivs.d)) for (const s of span(ivs.s)) {
+		all.push({ a, d, s });
+		if (hp) for (const l of levelsForHp(row, { a, d, s }, hp, cpm)) fit.push({ a, d, s, cp: l.cp });
+	}
+	const use = fit.length ? fit : all;
+	const lohi = k => ({ lo: Math.min(...use.map(x => x[k])), hi: Math.max(...use.map(x => x[k])) });
+	return { cp: fit.length ? lohi('cp') : null, a: lohi('a'), d: lohi('d'), s: lohi('s') };
 }
 
 /** The level as shown: "29", or "28.5 or 29" where the HP alone leaves several; null if unknown. */

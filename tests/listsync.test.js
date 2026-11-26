@@ -187,8 +187,12 @@ test('level from the HP alone: "a or b", the lower one with a ? in the name; the
 	assert.ok(e.issues.some(i => i.code === 'level' && !i.info));
 	assert.match(formatName('{lvl:circ}', nameValues(e)).text, /\?$/);
 	assert.equal(formatName('{lvlMaybe}', nameValues(e)).text, '{lvlMaybe}');
-	// the search for the game has both levels' CPs
-	assert.match(gameSearch(e), new RegExp(`&cp${found.l[0].cp},cp${found.l[1].cp}&hp${found.hp}&`));
+	// the search for the game: a CP range for the bars one IV off, both levels' CPs in it, and the
+	// page's search finds the row at either CP
+	const m = /&cp(\d+)-(\d+)&hp(\d+)&/.exec(gameSearch(e));
+	assert.ok(m, gameSearch(e));
+	assert.ok(+m[1] <= found.l[0].cp && found.l[1].cp <= +m[2] && +m[3] === found.hp);
+	for (const l of found.l) assert.ok(compileSearch(gameSearch(e))({ ...e, cp: l.cp }));
 	const typed = evaluate(reading, ctx, { form: '', cp: found.l[1].cp });
 	assert.equal(typed.levels, null);
 	assert.equal(typed.level, found.l[1].level);
