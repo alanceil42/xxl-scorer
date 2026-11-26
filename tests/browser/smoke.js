@@ -13,6 +13,7 @@
 //   npm install --no-save --ignore-scripts playwright-core@<version in .github/workflows/ci.yml>
 //   node --test tests/browser/smoke.js                                # Google Chrome installed
 //   XXL_CHROME=/path/to/chromium node --test tests/browser/smoke.js   # another Chromium
+// Without Google Chrome it takes Playwright's own Chromium (npx playwright-core install chromium).
 //
 // No game art and no screenshots: the game data and the backup are made up (tests/synthetic.js).
 import { test, before, after } from 'node:test';
@@ -61,7 +62,9 @@ before(async () => {
 	});
 	await new Promise(r => server.listen(0, '127.0.0.1', r));
 	base = `http://127.0.0.1:${server.address().port}/`;
-	browser = await chromium.launch(process.env.XXL_CHROME ? { executablePath: process.env.XXL_CHROME } : { channel: 'chrome' });
+	// Google Chrome, else Playwright's own Chromium for this playwright-core version, if installed
+	browser = process.env.XXL_CHROME ? await chromium.launch({ executablePath: process.env.XXL_CHROME })
+		: await chromium.launch({ channel: 'chrome' }).catch(() => chromium.launch());
 });
 
 after(async () => {
@@ -680,6 +683,106 @@ test('the export reminder informs and can be dismissed; the Backup dot stays', {
 		await page.waitForSelector('#rows tr >> nth=2');
 		assert.equal(await nag(), null);
 		assert.equal(await page.isHidden('#export-dot'), false);
+		assert.deepEqual(problems, []);
+	} finally {
+		await context.close();
+	}
+});
+
+// A list sync as the page keeps it (kv 'sync'): what reading the game's list screenshots leaves.
+// Made up here, as no screenshots of the game go into this repository; tests/listsync*.test.js
+// test the reading and matching.
+const SYNC = {
+	at: 2, mode: 'xxl', search: 'xxl', shots: 3, other: 0, count: 2, read: 2, complete: true, why: '',
+	matched: 1, unsure: 0, newCps: [1234], newSearch: 'xxl&cp1234',
+	marks: { mf: { k: 'gone', why: 'Not in the game' }, fk: { k: 'evolved', why: 'Evolved into Testmon: scan it again' } },
+};
+
+test('at 375 px: a list sync\'s marks and notices, the rows not in the game selected at one tap', { timeout: 60_000 }, async () => {
+	const { context, page, problems } = await open(375);
+	try {
+		await page.addInitScript(() => {
+			navigator.clipboard.writeText = t => { globalThis.xxlCopied = t; return Promise.resolve(); };
+		});
+		await boot(page);
+		await page.evaluate(async ({ rows, sync }) => {
+			const db = await import('/src/ui/db.js');
+			await db.rows.putMany(rows);
+			await db.kv.set('sync', sync);
+			await db.kv.set('nagDismissed', Date.now());
+		}, { rows: ROWS, sync: SYNC });
+		await boot(page);
+		await page.waitForSelector('#rows tr >> nth=2');
+
+		// the marks beside the status, why in the editor
+		assert.equal(await page.textContent('tr[data-id="mf"] .chip.mark'), 'not in the game');
+		assert.equal(await page.textContent('tr[data-id="fk"] .chip.mark'), 'evolved, scan again');
+		assert.equal(await page.locator('tr[data-id="tm"] .chip.mark').count(), 0);
+		await page.click('tr[data-id="fk"] .c-name');
+		await page.waitForSelector('#editor[open]');
+		assert.match(await page.textContent('#ed-issues'), /List sync: Evolved into Testmon: scan it again/);
+		await page.keyboard.press('Escape');
+		await page.waitForFunction(() => !document.querySelector('#editor').open);
+
+		// the search terms
+		await page.fill('#search', 'gone');
+		assert.deepEqual(await ids(page), ['mf']);
+		await page.fill('#search', 'evolved');
+		assert.deepEqual(await ids(page), ['fk']);
+		await page.click('#search-clear');
+
+		// the notices: what it found, and the new ones with their search
+		const banners = await page.textContent('#banners');
+		assert.match(banners, /List sync: 2 Pokémon in the game, 1 of them in this list\. 1 not in the game, 1 evolved: scan it again\./);
+		assert.match(banners, /Found 1 new Pokémon\. Please scan/);
+		await page.click('#banners button:has-text("Copy search string")');
+		assert.equal(await page.evaluate(() => globalThis.xxlCopied), 'xxl&cp1234');
+		// the Sync menu's search
+		await page.click('#backup > summary');
+		await page.click('#sync-copy');
+		assert.equal(await page.evaluate(() => globalThis.xxlCopied), 'xxl');
+		// its help: the dialog opens at the sync section
+		await page.click('#backup > summary');
+		await page.click('#sync-help');
+		assert.ok(await page.isVisible('#help'));
+		assert.equal(await page.evaluate(() => document.activeElement.id), 'help-sync');
+		await page.click('#help button[value="close"]');
+
+		// Select them: select mode, the rows not in the game shown and selected; Delete with Undo
+		await page.click('#banners button:has-text("Select them")');
+		assert.ok(await page.isVisible('#list-bar'));
+		assert.deepEqual(await ids(page), ['mf']);
+		assert.equal(await page.textContent('#select-delete'), 'Delete 1');
+		assert.ok(await noSideScroll(page), 'select mode: no sideways scrolling');
+		assert.ok(await page.isDisabled('#select-gone'), 'all of them selected');
+		// None, then the list bar's own button selects them again: on a line of its own, as four
+		// buttons don't fit a phone's width
+		await page.click('#select-all');
+		assert.equal(await page.textContent('#select-delete'), 'Delete');
+		assert.ok(await page.isEnabled('#select-gone'));
+		const box = sel => page.locator(sel).boundingBox();
+		const tools = ['#select-all', '#select-delete', '#select-done'];
+		const boxes = await Promise.all([...tools, '#select-gone'].map(box));
+		for (const b of boxes) assert.ok(b.x >= 0 && b.x + b.width <= 375, `on screen: ${JSON.stringify(boxes)}`);
+		assert.ok(boxes.slice(0, 3).every(b => Math.abs(b.y - boxes[0].y) < 2), `All, Delete, Done in one line: ${JSON.stringify(boxes)}`);
+		assert.ok(boxes[3].y >= boxes[0].y + boxes[0].height, `Not in the game below them: ${JSON.stringify(boxes)}`);
+		assert.ok(await noSideScroll(page), 'select mode: no sideways scrolling');
+		await page.click('#select-gone');
+		assert.equal(await page.textContent('#select-delete'), 'Delete 1');
+		assert.ok(await page.isDisabled('#select-gone'));
+		await page.click('#select-delete');
+		await page.waitForFunction(() => document.querySelectorAll('#rows tr').length === 0);
+		assert.match(await page.textContent('#toast'), /^Deleted .*Undo$/);
+		await page.click('#search-clear');
+		assert.deepEqual((await ids(page)).sort(), ['fk', 'tm']);
+
+		// the debug report: what the sync read and marked, in numbers, no names or searches
+		const r = await debugReport(page);
+		assert.deepEqual([r.sync.count, r.sync.read, r.sync.matched, r.sync.new], [2, 2, 1, 1]);
+		assert.deepEqual(r.sync.marked, { gone: 1, evolved: 1, unsure: 0 });
+		assert.ok(!('marks' in r.sync) && !('newCps' in r.sync), JSON.stringify(r.sync));
+		assert.doesNotMatch(JSON.stringify(r.sync), /Testmon|cp1234/);
+
 		assert.deepEqual(problems, []);
 	} finally {
 		await context.close();

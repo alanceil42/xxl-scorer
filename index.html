@@ -43,7 +43,7 @@
 			<div class="tools">
 				<button class="btn small icon" id="help-btn" type="button" aria-label="Help" title="Help: searching the list, which screenshots to take" aria-haspopup="dialog"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="vendor/lucide/icons.svg#circle-help"/></svg></button>
 				<details class="menu" id="backup">
-					<summary class="btn small" aria-label="Backup"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="vendor/lucide/icons.svg#hard-drive-download"/></svg><span class="lbl give">Backup</span><span class="dot" id="export-dot" hidden></span></summary>
+					<summary class="btn small" aria-label="Sync"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="vendor/lucide/icons.svg#hard-drive-download"/></svg><span class="lbl give">Sync</span><span class="dot" id="export-dot" hidden></span></summary>
 					<div class="menu-pop">
 						<button class="btn" id="export" type="button">Export</button>
 						<label class="btn">
@@ -51,6 +51,10 @@
 							Import
 						</label>
 						<p class="muted small">Last export: <span id="export-status">never</span></p>
+						<p class="menu-head small"><strong>Sync with the game</strong></p>
+						<p class="muted small">Find Pokémon you no longer have.</p>
+						<button class="btn" id="sync-copy" type="button">Copy the search</button>
+						<button class="btn small ghost" id="sync-help" type="button">How it works</button>
 					</div>
 				</details>
 				<button class="btn small icon" id="settings-btn" type="button" aria-label="Settings" title="Settings" aria-expanded="false" aria-controls="settings"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="vendor/lucide/icons.svg#settings"/></svg></button>
@@ -70,6 +74,7 @@
 				<button class="btn danger" id="select-delete" type="button" disabled>Delete</button>
 				<button class="btn" id="select-done" type="button">Done</button>
 			</span>
+			<button class="btn" id="select-gone" type="button" hidden>Not in the game</button>
 		</div>
 		<nav class="actions fit" aria-label="Add Pokémon">
 			<label class="btn primary grow" id="add-label">
@@ -128,7 +133,7 @@
 		<label class="field">Backup file name
 			<input id="file-name" autocomplete="off" spellcheck="false" maxlength="100" placeholder="xxl-scorer-{date}">
 		</label>
-		<p class="muted small">The name Backup → Export gives its file. <code>{date}</code> is today's date; empty is the default <code>xxl-scorer-{date}</code>.
+		<p class="muted small">The name Sync → Export gives its file. <code>{date}</code> is today's date; empty is the default <code>xxl-scorer-{date}</code>.
 			A fixed name saves over the same file each time, e.g. one file per game account in a shared folder. Export saves: <strong id="file-example">–</strong></p>
 		<div class="row-btns">
 			<button class="btn" id="gm-refresh" type="button">Check for new game data</button>
@@ -244,6 +249,7 @@
 				<dt><code>score1100-</code></dt><dd>showcase points (not in the game)</dd>
 				<dt><code>check</code></dt><dd>rows marked to check (not in the game)</dd>
 				<dt><code>gain</code></dt><dd>evolving would raise the score (not in the game)</dd>
+				<dt><code>gone</code> <code>evolved</code> <code>unsure</code></dt><dd>marked by the last list sync: not in the game any more, evolved (scan it again), not sure (these three: not in the game's search)</dd>
 			</dl>
 			<p class="help-combine">Combine: <code>,</code> or · <code>&amp;</code> or a space: and · <code>!</code> not. Or goes first, as in the game: <code>fire,water&amp;xxl</code> is fire or water, and XXL.</p>
 			<h3 id="help-shots" tabindex="-1">Which screenshots to take</h3>
@@ -261,8 +267,23 @@
 			<ul class="help-tips">
 				<li>Many at once is fine: swipe through your storage, once with the appraisal and once without.</li>
 				<li>Whole screenshots, not cropped or edited. The game in English (other languages are not supported yet).</li>
+				<li>A row without a CP (the Pokémon covered it): tap the magnifier next to its name, paste the search into the game and screenshot the list it shows. Added here, that screenshot gives the row its CP.</li>
 				<li>Nothing is uploaded: screenshots are read on this device and dropped.</li>
 			</ul>
+			<h3 id="help-sync" tabindex="-1">Sync with the game</h3>
+			<p>Traded, transferred or evolved Pokémon stay in this list until you delete them. A sync finds them:</p>
+			<ol class="help-tips">
+				<li><em>Sync</em> → <em>Copy the search</em>.</li>
+				<li>In the game, paste it into the search and screenshot the whole list as you scroll (any order, overlap is fine).</li>
+				<li>Add the screenshots here.</li>
+			</ol>
+			<p>The rows then show:</p>
+			<ul class="help-tips">
+				<li><em>not in the game</em>: <em>Select them</em>, then <em>Delete</em>.</li>
+				<li><em>evolved, scan again</em>: the magnifier finds it as what it evolved into; a new screenshot replaces the row.</li>
+				<li><em>not sure</em>: the list could mean several rows.</li>
+			</ul>
+			<p>Pokémon the game has and this list doesn't are counted, with a search to scan them. Nothing is deleted without your tap.</p>
 			<h3 id="help-evolve">Evolving</h3>
 			<p>Sort by <em>Evolve: Gain</em> to see which Pokémon would score more after evolving, or by <em>Evolve: Score</em> to see the list as it would be with those evolved; <em>n to evolve</em> (search <code>gain</code>) shows only those. After evolving, add a new screenshot: it replaces the old row.</p>
 			<footer class="ed-foot"><span class="spacer"></span><button class="btn primary" value="close">Close</button></footer>

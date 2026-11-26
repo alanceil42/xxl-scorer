@@ -5,11 +5,15 @@ import { join } from 'node:path';
 
 export const IMAGE = /\.(png|jpe?g)$/i;
 
-/** Every folder with screenshots or a truth.json in it, as paths relative to `top` with /. */
+/**
+ * Every folder with screenshots or a truth.json in it, as paths relative to `top` with /. A
+ * folder with a sync.json holds list screenshots (listsync-real.test.js), not a set: left out.
+ */
 export function findSets(top, rel = '') {
 	const here = join(top, ...rel.split('/').filter(Boolean));
 	const names = readdirSync(here).filter(n => !n.startsWith('.'));
 	const out = [];
+	if (names.includes('sync.json')) return out;
 	if (names.some(n => IMAGE.test(n)) || names.includes('truth.json')) out.push(rel);
 	for (const n of names.sort((x, y) => x.localeCompare(y, 'en', { numeric: true }))) {
 		if (statSync(join(here, n)).isDirectory()) out.push(...findSets(top, rel ? `${rel}/${n}` : n));

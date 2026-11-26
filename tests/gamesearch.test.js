@@ -27,10 +27,35 @@ test('XXS, no size class, missing values', () => {
 	assert.equal(gameSearch(mon('Gible', { dex: 443, cp: 41, hp: 20, caught: '4/19/2024' })), '443&cp41&hp20&2attack&2defense&2hp&year2024');
 });
 
-test('no species or no CP: no search', () => {
+test('no species: no search', () => {
 	assert.equal(gameSearch(mon('?', { dex: null })), null);
-	assert.equal(gameSearch(mon('Gastly', { dex: 92, cp: null })), null);
 	assert.equal(gameSearch(null), null);
+});
+
+test('no CP, IVs from the bars: a CP range and IV groups for each bar one IV off', () => {
+	const near = { cp: { lo: 1190, hi: 1312 }, a: { lo: 6, hi: 8 }, d: { lo: 9, hi: 11 }, s: { lo: 2, hi: 4 } };
+	const m = mon('Rhyhorn', { dex: 111, cp: null, hp: 93, xxl: true, ivs: { a: 7, d: 10, s: 3 }, caught: '5/3/2025',
+		ivSource: 'bars', level: 24.5, levels: [24.5, 25], cpExpected: [1238, 1251], near });
+	assert.equal(gameSearch(m), '111&xxl&cp1190-1312&hp93&2attack&2-3defense&1hp&year2025');
+	const p = compileSearch(gameSearch(m));
+	assert.ok(p({ ...m, cp: 1300, ivs: { a: 8, d: 11, s: 3 } }));
+	assert.ok(!p({ ...m, cp: 1320 }) && !p({ ...m, cp: 1250, ivs: { a: 12, d: 10, s: 3 } }));
+	// no HP: no CP term, the groups still wide
+	assert.equal(gameSearch({ ...m, hp: null, levels: null, cpExpected: null, near: { ...near, cp: null } }), '111&xxl&2attack&2-3defense&1hp&year2025');
+	// a CP (typed in) makes it exact again
+	assert.equal(gameSearch({ ...m, cp: 1251 }), '111&xxl&cp1251&hp93&2attack&2defense&1hp&year2025');
+});
+
+test('no CP, IVs typed in: the CPs of the levels the HP leaves open, else no CP term', () => {
+	// IVs 7/10/3 at HP 93, CP not read: level 24.5 or 25
+	const m = mon('Rhyhorn', { dex: 111, cp: null, hp: 93, xxl: true, ivs: { a: 7, d: 10, s: 3 }, caught: '5/3/2025',
+		level: 24.5, levels: [24.5, 25], cpExpected: [1238, 1251] });
+	assert.equal(gameSearch(m), '111&xxl&cp1238,cp1251&hp93&2attack&2defense&1hp&year2025');
+	assert.equal(gameSearch(mon('Gastly', { dex: 92, cp: null, hp: 30 })), '92&hp30&2attack&2defense&2hp&year2026');
+	// the page's search reads the comma as the game does: either CP, with the rest
+	const p = compileSearch(gameSearch(m));
+	assert.ok(p({ ...m, cp: 1238 }) && p({ ...m, cp: 1251 }));
+	assert.ok(!p({ ...m, cp: 1245 }) && !p({ ...m, cp: 1251, hp: 94 }));
 });
 
 test('every string finds its own row through the page\'s search, and twins together', () => {

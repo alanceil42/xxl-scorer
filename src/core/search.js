@@ -17,6 +17,8 @@
 //   check               rows marked to check (not a game term; the "n to check" button)
 //   gain                rows whose score would rise beyond its ± by evolving (not a game term:
 //                       the game's "evolve" means enough candy to evolve)
+//   gone  evolved  unsure                    rows the last list sync marked: not in the game,
+//                       evolved (scan again), not sure (not game terms)
 //   ! before a term     not
 //   , ; :               or     (binds tighter than and, as in the game: fire,water&xxl)
 //   & |  space          and
@@ -86,10 +88,16 @@ function family(word, ctx) {
 	return e => e.dex != null && want.has(fam(e.dex));
 }
 
-/** One term (no operators) → predicate over an evaluated row (evaluate()'s result), or null. */
-function term(word, ctx) {
+const MARK_TERMS = new Set(['gone', 'evolved', 'unsure']);
+
+/**
+ * One term (no operators) → predicate over an evaluated row (evaluate()'s result) and the stored
+ * row, or null. mark(row): the row's list sync mark ('gone', 'evolved', 'unsure') or null.
+ */
+function term(word, ctx, mark) {
 	let m;
 	if (word.startsWith('+')) return family(word.slice(1), ctx);
+	if (MARK_TERMS.has(word)) return (e, row) => !!mark && !!row && mark(row) === word;
 	if (word === 'xxl') return e => e.xxl === true;
 	if (word === 'xxs') return e => e.xxs === true;
 	if (word === 'lucky') return e => e.lucky === true;
@@ -117,19 +125,20 @@ function term(word, ctx) {
 }
 
 /**
- * Compile a search into a predicate over evaluated rows; null for an empty search (show all).
- * Unknown words are free text, so a typo finds nothing rather than raising an error.
- * ctx (makeContext's) gives the species names and evolution families for "+name".
+ * Compile a search into a predicate over evaluated rows, (e, row); null for an empty search (show
+ * all). Unknown words are free text, so a typo finds nothing rather than raising an error.
+ * ctx (makeContext's) gives the species names and evolution families for "+name"; mark(row) the
+ * list sync's mark of a stored row, for gone, evolved and unsure.
  */
-export function compileSearch(query, ctx = null) {
+export function compileSearch(query, ctx = null, { mark = null } = {}) {
 	const groups = fold(query).split(/[&|]/).map(g => g.split(/[,;:]/)
 		.map(alt => alt.trim().split(/\s+/).filter(w => w && w !== '!').map(w => {
 			const neg = w.startsWith('!');
-			const p = term(neg ? w.slice(1) : w, ctx);
-			return p && neg ? e => !p(e) : p;
+			const p = term(neg ? w.slice(1) : w, ctx, mark);
+			return p && neg ? (e, row) => !p(e, row) : p;
 		}).filter(Boolean))
 		.filter(words => words.length))
 		.filter(alts => alts.length);
 	if (!groups.length) return null;
-	return e => groups.every(alts => alts.some(words => words.every(p => p(e))));
+	return (e, row) => groups.every(alts => alts.some(words => words.every(p => p(e, row))));
 }

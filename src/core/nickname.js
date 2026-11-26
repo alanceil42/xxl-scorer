@@ -53,6 +53,8 @@ export function nameValues(e) {
 		d: ivs ? ivs.d : null,
 		s: ivs ? ivs.s : null,
 		lvl: e.level,
+		// the lowest of several levels the HP allows (no CP yet): shown with a "?" after it
+		lvlMaybe: !!(e.levels && e.levels.length > 1),
 		name: e.name || null,
 		xxl: e.xxl ? 'XXL' : '',
 		xxs: e.xxs ? 'XXS' : '',
@@ -64,24 +66,26 @@ export function nameValues(e) {
  * Fill a template: {score} {iv} {ivsum} {a} {d} {s} {lvl} {name} {xxl} {xxs} {size}, each optionally with a
  * style: {iv:sup} superscript digits, {lvl:circ} one circled number (0-50), {a:dcirc} one dark
  * circled number (0-20); with both, a half number gets "½" after its whole part (⑳½).
- * Unknown placeholders stay as they are; unknown values become "?".
+ * Unknown placeholders stay as they are; unknown values become "?". A level not settled yet
+ * (values.lvlMaybe) gets a "?" after it.
  * @returns {{text: string, length: number, tooLong: boolean, missing: string[]}}
  */
 export function formatName(template, values) {
 	const missing = [];
 	const text = String(template || DEFAULT_TEMPLATE).replace(/\{(\w+)(?::(sup|circ|dcirc))?\}/g, (all, key, style) => {
 		// own keys only: "{constructor}" names no value, though every object has one
-		if (!Object.hasOwn(values, key)) return all;
+		if (!Object.hasOwn(values, key) || key === 'lvlMaybe') return all;
 		const v = values[key];
 		const label = key === 'xxl' || key === 'xxs' || key === 'size';	// may be empty
 		if (v == null || v === '') {
 			if (!label) missing.push(key);
 			return label ? '' : '?';
 		}
-		if (style === 'sup') return superscript(v);
-		if (style === 'circ') return circledHalf(circled, Number(v)) ?? String(v);
-		if (style === 'dcirc') return circledHalf(darkCircled, Number(v)) ?? String(v);
-		return String(v);
+		const maybe = key === 'lvl' && values.lvlMaybe ? '?' : '';
+		if (style === 'sup') return superscript(v) + maybe;
+		if (style === 'circ') return (circledHalf(circled, Number(v)) ?? String(v)) + maybe;
+		if (style === 'dcirc') return (circledHalf(darkCircled, Number(v)) ?? String(v)) + maybe;
+		return String(v) + maybe;
 	});
 	const length = [...text].length;
 	return { text, length, tooLong: length > MAX_NICKNAME, missing };

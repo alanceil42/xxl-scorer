@@ -8,6 +8,31 @@ collect under "Unreleased".
 
 ## Unreleased
 
+Sync with the game: screenshots of the game's XXL list show which rows you no longer have.
+
+- Sync with the game (the header's Backup menu, now called Sync): Copy the search, screenshot
+  the game's list of it as you scroll (any order, overlap is fine), add the screenshots. Rows the
+  game no longer lists are marked "not in the game", nothing is deleted: "Select them" selects
+  them in select mode, Delete takes them with Undo. A row whose Pokémon evolved is marked
+  "evolved, scan again", its Find in game searching for the evolved Pokémon with the list's
+  CP; a tile that could be several rows leaves them "not sure". Pokémon the
+  list doesn't have yet: "Found 3 new Pokémon. Please scan" with a Copy search string button.
+  Nothing is marked gone unless the screenshots cover the whole list (the game's count).
+- Search terms gone, evolved and unsure for the sync's marks.
+- A level the HP leaves open shows both ("28.5 or 29") until the CP is typed; the editor's CP
+  field shows the CPs they'd give, and "Name to copy" has the lower level with a ?.
+- The find-in-game button works without a CP too, a little wider so it doesn't miss: a CP range
+  and IV groups for each appraisal bar read one IV off ("cp1190-1312", "2-3defense"), with the
+  HP; without an HP no CP term.
+- A screenshot of the game's list for that search, added like any other, gives the row its CP
+  (as if typed in), where its tile fits no other row.
+- The sync's notice shows the rows to act on ("Show n": the evolved and not sure ones). A CP not
+  read on a tile no longer stops every "not in the game" when the tile's name points to its
+  rows (those are "not sure"); where it doesn't, the notice names the screenshot to take again.
+- Help: the sync as steps with what the marks mean (the Sync menu's How it works opens it), and
+  a tip for rows without a CP; the row's note says the same.
+- The debug report says what a sync read and marked (counts, no names).
+
 
 ## 1.13 - 2026-11-24
 

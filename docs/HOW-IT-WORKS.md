@@ -1,133 +1,109 @@
 # How xxl-scorer works
 
 For players who code: what is read from a screenshot, and how that becomes showcase points.
-Everything runs in the browser; screenshots are never uploaded. Each section names the code
-that does it; src/core/ is plain functions without the DOM, so all of it runs in Node too.
+Everything runs in the browser; screenshots are never uploaded. src/core/ is plain functions
+without the DOM, so all of it runs in Node too.
 
 
 ## The score
 
-Code: src/core/score.js (score), src/core/gm.js (XXL_BONUS, the constants from the game data).
+Code: src/core/score.js, src/core/gm.js (XXL_BONUS, the constants from the game data).
 
     score = 800 × (h / h̄) / K
           + 150 × (w / w̄) / (K + 4·σw / w̄)
           +  50 × (Attack + Defense + HP IV) / 45
           + 178 if XXL
 
-- h and w are the Pokémon's height and weight; h̄ and w̄ its species' averages
-  (pokedexHeightM, pokedexWeightKg in the game master). σw, the spread of the weight, is w̄/8
-  for every species, so the weight's denominator is K + 0.5.
-- K is the species' XXL height limit as a multiple of h̄ (xxlUpperBound / pokedexHeightM,
-  from the game master's EXTENDED_…_POKEMON_* templates): 1.75 for most species, 1.55 or 2.00
-  for the rest, with a few odd forms.
-- 800, 150 and 50 are read from the game master (CONTEST_SETTINGS), so they follow the game.
-  The XXL bonus of 178 is not in the game data: it is the community's value, and it matches
-  the game (a Tornadus: 1144.1 ± 1.7 computed, 1143 shown).
-- The game shows height and weight to two decimals, hence the ± range:
-  ± = 800 × 0.005 / h̄ / K + 150 × 0.005 / w̄ / (K + 4σw / w̄). Small species get a wide one.
-- Species and type showcases use the same formula: each Pokémon is measured against its own
-  species.
-- XXL means a height above the species' XL limit (1.5 × h̄ for nearly all). Where rounding
-  can't tell, the size badge on the card decides.
-- No bonus where K is 1: Super Pumpkaboo and Super Gourgeist count as XXL from their XL limit
-  up to their average height. Their cards show the badge, but a Super Gourgeist scored 948 in
-  game, the formula's 949.6 ± 2.4 without the bonus.
-- XXS mode ranks the same score the other way round, lowest first. That is a guess: no
-  showcase of the smallest has run yet to check it against.
+- h, w: height and weight; h̄, w̄ the species' averages (game master). σw = w̄/8 for every
+  species, so the weight's denominator is K + 0.5.
+- K: the species' XXL height limit as a multiple of h̄, 1.75 for most, 1.55 or 2.00 for the
+  rest. 800, 150 and 50 come from the game master; the bonus of 178 is the community's value
+  and matches the game (a Tornadus: 1144.1 ± 1.7 computed, 1143 shown).
+- ±: the card's two decimals of height and weight carried through; small species get a wide one.
+- XXL: a height above the XL limit (1.5 × h̄ for nearly all); where rounding can't tell, the
+  size badge decides. No bonus where K is 1 (Super Pumpkaboo, Super Gourgeist).
+- XXS mode ranks the same score lowest first, a guess not yet checked against a showcase.
 
-Each row has an "in game" field. A score from the game outside the ± range points at a change
-in the formula: please open an issue.
+A score from the game outside the ± range (each row's "in game" field) points at a change in
+the formula: please open an issue. Sources: bmenrigh/pogo_size; Pokémon GO Hub, "Showcase
+Scores, XXS and XXL Pokémon"; pgoxxldb.com.
 
-Sources: bmenrigh/pogo_size (the weight model); Pokémon GO Hub, "Showcase Scores, XXS and XXL
-Pokémon"; pgoxxldb.com.
-
-### Evolving
-
-Code: src/core/evolve.js.
-
-An XXL Pokémon keeps its place in the XXL band when it evolves: p = (h/h̄ − 1.5) / (K − 1.5)
-stays, so the new height is h̄′ × (1.5 + p × (K′ − 1.5)), and the weight keeps its ratio to
-the height, w′/w̄′ = (w/w̄) / (h/h̄) × h′/h̄′. The IVs and the bonus stay. So the score moves
-only where K does: from 1.75 to 1.55 a Pokémon low in its band gains up to about 100 points,
-one at its top a few points less. Checked on Pokémon scanned before and after evolving. The ± is
-the card's rounding (0.005 m and kg) carried through the rule. No prediction for species whose
-XL limit isn't 1.5 × h̄ or whose K is 1. A new screenshot of an evolved Pokémon (same catch
-date and IVs, a size inside the prediction) replaces the row from before.
+Evolving (src/core/evolve.js): the place in the XXL band, p = (h/h̄ − 1.5) / (K − 1.5), stays,
+and the weight keeps its ratio to the height; IVs and bonus stay. So the score moves only where
+K does. A new screenshot of the evolved Pokémon (same catch date and IVs) replaces the old row.
 
 
 ## IVs from the appraisal bars
 
-Code: src/core/bars.js (readBars), src/core/ivs.js (solveIVs, rankByBars).
+Code: src/core/bars.js, src/core/ivs.js.
 
-CP and HP alone often fit dozens of IV combinations, so the IVs come from the appraisal's three
-bars, measured in pixels. Each bar has three segments of 5 points, and a pixel counts as filled
-by its colour (orange, or red for a 15); the readings land within 0.15 of a whole number. Then
-every combination of IVs and level that gives exactly the CP and HP read is ranked by its
-distance to the bars. The bars decide; CP and HP confirm, and catch a misread number or the
-wrong form (a screenshot says "Tornadus", not which Tornadus).
-
-Without the bars (no screenshot with the appraisal), the IVs stay open: the row shows "IV ?"
-and the middle of the scores all fitting combinations give, ± half their spread (at most 50
-points; forms that CP and HP can't tell apart widen it). Sorting and the copied name use that
-middle, the number shown.
+CP and HP alone fit dozens of IV combinations, so the IVs come from the appraisal's three bars,
+measured in pixels (readings within 0.15 of a whole number). Every IV and level combination
+that gives the CP and HP read is ranked by its distance to the bars: the bars decide, CP and HP
+catch a misread number or the wrong form. Without the bars the row shows "IV ?" and the middle
+of the fitting scores, ± half their spread. Without the CP, two levels half a level apart often
+fit; the row shows both ("28.5 or 29") until the CP is typed.
 
 
 ## Reading the card
 
-Code: src/core/image.js (REGIONS, crops), src/core/read.js (parseWords, parseCrops),
-src/core/pipeline.js (readScreenshot), src/ui/ocr.js (the workers).
+Code: src/core/image.js, read.js, pipeline.js; src/ui/ocr.js.
 
-- Text recognition is tesseract.js (Tesseract compiled to WebAssembly), run in your browser
-  from files the site serves itself: about a second per screenshot, several in parallel.
-- The game lays out its card from the screen's width, so every region is located in units of
-  the width (the CP 0.13–0.19 widths from the top, the HP bar at 0.98, …): 19.5:9 and 16:9
-  screens read alike. A wider screen, such as an iPad's, gets a 16:9 phone's layout as tall as
-  the screen, centred; the card is read in that column.
-- What is on the card is found from the HP bar, a green line found by colour: the card sits
-  higher or lower on other phones and in screenshots cut off at the top, and the player's tags
-  push the stats row down. Where the CP isn't, its digits are looked for.
-- The whole screenshot gives the species and catch date ("This … was caught on …", matched
-  with the game's own texts); close-ups of single regions give HP, weight, height, types and
-  the size badge.
-- The CP is a cross-check only: the page computes it from bars, HP and level, and takes a
-  reading only when it fits (or is one digit off).
-- The trainer or the sprite can hide digits ("62" for 1.62 m). A value the species can't have
-  is repaired by putting digits back, picking the one that fits the other size, and the row is
-  marked to check, as is a whole number under the appraisal ("1m" of 2.01 m). Every value can
-  be edited.
+- Text recognition is tesseract.js (WebAssembly) from files the site serves itself, about a
+  second per screenshot.
+- Regions are located in units of the screen's width, found from the HP bar (a green line),
+  so phones of other shapes and cut screenshots read alike; an iPad is read as a 16:9 column.
+- Species and catch date come from the whole screenshot, matched with the game's own texts;
+  HP, weight, height, types and the size badge from close-ups.
+- The CP is a cross-check: taken only when it fits bars, HP and level (or is a digit off).
+- A value the species can't have (a digit hidden by the sprite) is repaired and marked to
+  check. Every value can be edited.
 
 
 ## Several screenshots, one Pokémon
 
-Code: src/core/evaluate.js (canMerge, matchScore, mergeReadings).
+Code: src/core/evaluate.js.
 
-The appraisal covers part of the card, so most Pokémon need a screenshot with it and one
-without; a quick swipe through the storage often catches each one twice or more. Screenshots
-merge into one row when nothing contradicts (HP, weight, catch date, species, …) and enough
-agrees: HP and weight together are practically a fingerprint. When two rows fit about equally
-well, the screenshot stays on its own: better a pair to merge by hand than a wrong merge. Each
-value is taken from the screenshot that shows it intact.
+Most Pokémon need a screenshot with the appraisal and one without. Screenshots merge into one
+row when nothing contradicts (HP, weight, catch date, species, …) and enough agrees; HP and
+weight together are practically a fingerprint. Two rows fitting about equally well: the
+screenshot stays on its own, better a pair to merge by hand than a wrong merge.
+
+
+## Sync with the game
+
+Code: src/core/listview.js, namereader.js, tilename.js, listsync.js.
+
+Rows stay until deleted, so traded and evolved Pokémon pile up. Screenshots of the game's list
+for the search xxl (xxs in XXS mode) bring it back in line. Each tile is found by the green bar
+under its name, its CP read above the sprite; the header gives the count. Screenshots are
+stitched by the tiles they share, in any order. A tile matches a row by its CP (the CPs its IVs
+and HP allow, where none was read), or as a later stage; names and the list's order only narrow
+the candidates. What is left:
+
+- a row with no tile is "not in the game", marked only when the tiles add up to the game's
+  count, each with its CP. Deleting is your tap (Select them, then Delete, with Undo).
+- a row whose tile shows a later stage: "evolved, scan again".
+- a tile that fits several rows leaves them "not sure", never gone or new.
+- a tile that fits no row is new: counted, with a search for their CPs (xxl&cp512,cp1480).
 
 
 ## Game data
 
-Code: src/core/gm.js (compactGameMaster), src/core/text.js, src/ui/gamedata.js.
+Code: src/core/gm.js, src/core/text.js, src/ui/gamedata.js.
 
 Species sizes, base stats and the game's texts come from PokeMiners' game master and text
-tables on GitHub. Your browser fetches them on the first visit and then about once a week,
-compacts them (about 95 KB) and keeps them on your device. Nothing from the game is in this
-repository. tools/build-gm.sh builds the same file on a server instead, so visitors' browsers
-don't have to fetch it.
+tables on GitHub, fetched by your browser about once a week, compacted (about 95 KB) and kept
+on your device. Nothing from the game is in this repository; tools/build-gm.sh can build the
+same file on a server instead.
 
 
 ## Storage
 
-Code: src/ui/db.js (IndexedDB), src/core/backup.js (cleanRow).
+Code: src/ui/db.js, src/core/backup.js.
 
-Screenshots are decoded, read and dropped in memory. IndexedDB keeps one row per Pokémon (the
-readings, the user's edits, a JPEG thumbnail of the sprite area, about 2 KB) and the compacted
-game data; scores are computed when shown, so new game data re-scores everything. A backup is
-the same rows as one JSON file; on import every row goes through cleanRow, which keeps only known
-fields of the right types. Browsers may delete stored data (Safari after 7 days without a visit),
-hence the backup. A Content-Security-Policy in index.html lets the page load nothing but its own
-files and the game data.
+Screenshots are read and dropped in memory. IndexedDB keeps one row per Pokémon (readings,
+edits, a 2 KB thumbnail of the sprite) and the game data; scores are computed when shown. A
+backup is the same rows as JSON; on import, cleanRow keeps only known fields of the right types.
+Browsers may delete stored data (Safari after 7 days without a visit), hence the backup. A
+Content-Security-Policy lets the page load nothing but its own files and the game data.

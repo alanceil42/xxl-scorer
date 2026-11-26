@@ -1,5 +1,5 @@
 // xxl-scorer page: queue, table, editor, backup. Pure logic lives in src/core.
-import { makeContext, evaluate, evaluateSafely, formLabel, mergeTarget, mergeReadings } from '../core/evaluate.js';
+import { makeContext, evaluate, evaluateSafely, formLabel, mergeTarget, mergeReadings, levelText } from '../core/evaluate.js';
 import { makeRules } from '../core/read.js';
 import { findDex } from '../core/text.js';
 import { formatName, nameValues, DEFAULT_TEMPLATE } from '../core/nickname.js';
@@ -18,6 +18,7 @@ import { cleanRow, cleanReplaced, cleanSettings, backupFileName, notInFile, file
 import { imprintLink } from '../core/imprint.js';
 import { readBuild, buildLink } from '../core/buildinfo.js';
 import { makeReport, pickRows, reportFileName } from '../core/debugreport.js';
+import { runSync, cpFromList, ownShots, markCounts, markOf, newLeft, newSearch, syncSearch, inListNow, MARKS } from '../core/listsync.js';
 import { startErrorLog, environment, jsFeatures, layoutFacts, saveFile } from './debug.js';
 
 const $ = sel => document.querySelector(sel);
@@ -76,6 +77,9 @@ const state = {
 	// ids of rows a scan of the evolved Pokémon replaced: an import skips them, so an older
 	// backup can't bring them back. Stored (kv) and in the backup.
 	replaced: [],
+	// the last list sync (runSync's result, kv 'sync'): the marks on the rows, the new Pokémon
+	// counted; seen / newSeen: its banners dismissed
+	sync: null,
 };
 
 // Errors for the debug report, kept with the rows (kv) so they survive a reload; started before
@@ -101,6 +105,7 @@ async function boot() {
 	state.inFile = (await kv.get('inFile')) || null;
 	state.nagDismissed = (await kv.get('nagDismissed')) || 0;
 	state.replaced = cleanReplaced(await kv.get('replaced'));
+	state.sync = (await kv.get('sync')) || null;
 	state.mode = (await kv.get('mode')) === 'xxs' ? 'xxs' : 'xxl';
 	state.minHintSeen = !!(await kv.get('minHintSeen'));
 	state.sort = { key: 'score', dir: MODES[state.mode].best };
@@ -162,7 +167,7 @@ async function loadData(force) {
 		const { gm, text, info } = await loadGameData(state.config, { force });
 		state.ctx = makeContext(gm, text);
 		// "+name" in the search reads the species names and families of the game data
-		state.search = compileSearch($('#search').value, state.ctx);
+		state.search = searchFor($('#search').value);
 		state.rules = makeRules(text);
 		state.gmInfo = info;
 		const list = $('#species-list');
@@ -199,6 +204,7 @@ async function addFiles(files) {
 		started: Date.now(),	// the batch's scan time, on every row it touches
 		files: files.slice(), results: [], next: 0, taken: 0, workers: [], loops: [],
 		added: [], merged: new Set(), read: 0, withBars: 0,
+		lists: [],	// screenshots of the game's list (list sync), read
 		rules: RULES[state.config.lang] || rulesEn,
 	};
 	state.busy = true;
@@ -235,6 +241,8 @@ async function addFiles(files) {
 		askPersist();
 		await replaceEvolved(new Set([...added, ...merged].map(r => r.id)));
 	}
+	// list screenshots: matched to the rows as they are now, this batch's scans included
+	if (run.lists.length) await listSync(run.lists);
 	// What was just added is what one looks at next (readings to check, names to copy): the
 	// list shows the newest first, and the sort button shows it isn't by score.
 	if (added.length || merged.size || state.pendingDup.some(d => d.row.scanned === run.started)) {
@@ -309,6 +317,7 @@ function drainRun(run) {
 function takeReading(run, f, res, idx) {
 	const { added, merged } = run;
 	if (res.error) { state.errors.push(`${f.name}: ${res.error.message || res.error}`); return; }
+	if (res.list) { run.lists.push({ ...res.list, file: f.name }); return; }
 	const { reading, thumb } = res;
 	run.read++;
 	if (reading.bars) run.withBars++;
@@ -365,6 +374,33 @@ async function replaceEvolved(touched) {
 	toast(reps.length === 1 ? `Evolved: ${first.oldE.name} → ${first.nextE.name}` : `Evolved: ${reps.length} Pokémon, their old rows replaced`);
 }
 
+/**
+ * List sync: the game's list, from its screenshots, matched to the rows. Marks rows (not in the
+ * game, evolved, not sure) and counts the new Pokémon; deletes nothing. First, a row without a
+ * CP takes its tile's, as if typed in the editor (cpFromList: Find in game's list of it). Only
+ * screenshots of another search, and a CP taken: no sync, the last one's marks stay.
+ */
+async function listSync(lists) {
+	const took = cpFromList(lists, evaluated().filter(x => x.e), state.ctx);
+	if (took.length) {
+		const cp = new Map(took.map(t => [t.rowId, t.cp]));
+		const now = Date.now();
+		// new objects, as the editor's save (state.rows)
+		const next = state.rows.filter(r => cp.has(r.id)).map(r => ({ ...r, edits: { ...r.edits, cp: cp.get(r.id) }, updated: now }));
+		await rowStore.putMany(next);
+		const byId = new Map(next.map(r => [r.id, r]));
+		state.rows = state.rows.map(r => byId.get(r.id) || r);
+		const said = next.map(r => `${evaluateRow(r.reading, state.ctx, r.edits).name} ${cp.get(r.id)}`);
+		banner('info', `CP from the list screenshot${lists.length > 1 ? 's' : ''}: ${said.join(', ')}.`);
+		if (!ownShots(lists, syncSearch(state.mode)).own.length) return;
+	}
+	state.sync = runSync(lists, evaluated().filter(x => x.e), state.ctx, { mode: state.mode });
+	await kv.set('sync', state.sync);
+}
+
+/** The row's list sync mark, while it holds. */
+const rowMark = row => markOf(state.sync, row);
+
 /** 4.2 s, 38 s, 1 min 12 s */
 function duration(ms) {
 	if (ms < 9950) return `${(ms / 1000).toFixed(1)} s`;
@@ -413,7 +449,7 @@ function render() {
 	renderSettings();
 	renderBanners();
 	const all = evaluated().filter(x => x.e);
-	const list = state.search ? all.filter(x => state.search(x.e)) : all;
+	const list = state.search ? all.filter(x => state.search(x.e, x.row)) : all;
 	state.shown = list.map(x => x.row.id);
 	// select mode acts on what is on screen only: a search drops marks on hidden rows
 	if (state.search) for (const id of [...state.selected]) if (!state.shown.includes(id)) state.selected.delete(id);
@@ -499,7 +535,7 @@ function evolveTags(items) {
 const drawn = new Map();
 
 /** Everything renderRow reads: when any of it changes, the row is drawn again. */
-const drawnFrom = ({ row, e, dup, evo, end, tags }) => [evolveSorted(), e, row.thumb, dup, state.selecting, state.selected.has(row.id), state.findNext === row.id, state.nameTemplate, evo, end, (tags || []).join('|'), evo ? rowScore(e) : null];
+const drawnFrom = ({ row, e, dup, evo, end, tags }) => [evolveSorted(), e, row.thumb, dup, rowMark(row), state.selecting, state.selected.has(row.id), state.findNext === row.id, state.nameTemplate, evo, end, (tags || []).join('|'), evo ? rowScore(e) : null];
 
 function renderRows(list) {
 	const nodes = list.map(x => {
@@ -650,15 +686,18 @@ function renderRow({ row, e, dup, evo, end, tags }) {
 		: e.mega ? el('span', { class: 'chip check', title: problems(e).map(i => i.msg).join('\n') }, 'mega')
 		: problems(e).length ? el('span', { class: 'chip check', title: problems(e).map(i => i.msg).join('\n') }, 'check')
 			: el('span', { class: 'chip ok' }, 'ok');
+	// the last list sync's mark, beside the status: why in the tooltip and the editor
+	const m = rowMark(row);
+	const mark = m && MARKS[m.k] ? el('span', { class: `chip mark ${m.k}`, title: m.why }, MARKS[m.k].chip) : null;
 	// one span per item so a line never breaks inside "2.30 m"
 	// a mega evolved Pokémon's IVs and sizes aren't known: what to do instead (phones show no tooltip)
 	const meta = (e.mega ? [e.types.replace('/', ' / '), 'screenshot it again when it\'s back to normal']
-		: [e.cp != null ? `CP ${e.cp}` : null, e.types.replace('/', ' / '), `IV ${ivs}`, `${fmt(e.height_m)} m`, `${fmt(e.weight_kg)} kg`]).filter(Boolean)
+		: [e.cp != null ? `CP ${e.cp}` : null, e.types.replace('/', ' / '), `IV ${ivs}`, e.levels ? `Lv ${levelText(e)}` : null, `${fmt(e.height_m)} m`, `${fmt(e.weight_kg)} kg`]).filter(Boolean)
 		.flatMap((t, i) => [i ? ' · ' : null, el('span', { class: 'nw' }, t)]);
 	const sel = state.selecting && state.selected.has(row.id);
 	// In select mode the find and copy buttons stay, dimmed and out of reach (a tap marks the
 	// row): a card keeps its height, so the list doesn't jump when select mode ends.
-	const btns = rowButtons(row.id, e);
+	const btns = rowButtons(row, e);
 	if (btns && state.selecting) btns.inert = true;
 	const act = () => (state.selecting ? toggleSelected(row.id) : openEditor(row.id));
 	return el('tr', {
@@ -676,14 +715,38 @@ function renderRow({ row, e, dup, evo, end, tags }) {
 		el('td', { class: 'c-meta c-num', 'data-label': 'CP' }, e.cp ?? '–'),
 		el('td', { class: 'c-meta', 'data-label': 'Type' }, e.types.replace('/', ' / ').toLowerCase()),
 		el('td', { class: 'c-meta c-num', 'data-label': 'IVs' }, ivs),
-		el('td', { class: 'c-meta c-num', 'data-label': 'Level' }, e.level ?? '–'),
+		el('td', { class: 'c-meta c-num', 'data-label': 'Level', title: e.levels ? 'The HP fits these levels: type the CP to settle it' : null }, levelText(e) ?? '–'),
 		el('td', { class: 'c-meta c-num', 'data-label': 'Height' }, `${fmt(e.height_m)} m`),
 		el('td', { class: 'c-meta c-num', 'data-label': 'Weight' }, `${fmt(e.weight_kg)} kg`),
 		el('td', { class: 'c-meta', 'data-label': 'Caught' }, e.caught || '–'),
-		el('td', { class: 'c-status' }, status, btns));
+		el('td', { class: 'c-status' }, mark, status, btns));
 }
 
 // ---------- select mode: mark rows, delete them together ----------
+
+/** The search's predicate, with the list sync's marks. */
+const searchFor = q => compileSearch(q, state.ctx, { mark: row => rowMark(row)?.k ?? null });
+
+/** The list's search, from the field's text. */
+function setSearch(q) {
+	state.search = searchFor(q);
+	$('#search-clear').hidden = q === '';
+	render();
+}
+
+/** The rows the last list sync found not in the game. */
+const goneRows = () => state.rows.filter(r => rowMark(r)?.k === 'gone');
+
+/**
+ * The rows not in the game, shown (search gone) and selected in select mode: Delete takes them,
+ * with Undo in the note. Nothing goes without that tap.
+ */
+function selectGone() {
+	$('#search').value = 'gone';
+	state.selecting = true;
+	state.selected = new Set(goneRows().map(r => r.id));
+	setSearch('gone');
+}
 
 function renderListBar() {
 	$('#list-bar').hidden = !state.selecting;
@@ -691,6 +754,11 @@ function renderListBar() {
 	$('#select-delete').disabled = state.selected.size === 0;
 	$('#select-delete').textContent = state.selected.size ? `Delete ${state.selected.size}` : 'Delete';
 	$('#select-all').textContent = state.shown.length && state.shown.every(id => state.selected.has(id)) ? 'None' : 'All';
+	// the rows shown that the list sync found not in the game, at one tap
+	const shown = new Set(state.shown);
+	const gone = state.selecting ? goneRows().filter(r => shown.has(r.id)) : [];
+	$('#select-gone').hidden = !gone.length;
+	$('#select-gone').disabled = gone.every(r => state.selected.has(r.id));
 	$('#list-count').textContent = `${state.selected.size} selected`;
 	document.body.classList.toggle('selecting', state.selecting);
 }
@@ -737,8 +805,9 @@ async function deleteSelected() {
 // ---------- find in game, then copy the nickname ----------
 
 /** One pill: find (a search for the game) on the left, the nickname on the right. */
-function rowButtons(id, e) {
-	const find = findButton(id, e), name = nameButton(id, e);
+function rowButtons(row, e) {
+	const id = row.id;
+	const find = findButton(id, e, rowMark(row)), name = nameButton(id, e);
 	return find || name ? el('span', { class: 'pair' }, find, name) : null;
 }
 
@@ -759,8 +828,10 @@ function nameButton(id, e) {
 	return b;
 }
 
-function findButton(id, e) {
-	const q = gameSearch(e);
+function findButton(id, e, mark) {
+	// marked evolved by the list sync: the row's own search finds nothing now, the tile's does
+	const as = mark && mark.k === 'evolved' && mark.as && mark.as.cp != null ? mark.as : null;
+	const q = gameSearch(e, as);
 	if (!q) return null;
 	const title = 'Copy a search that finds this Pokémon in the game';
 	const b = el('button', { class: 'btn copy find', type: 'button', title, 'aria-label': title }, icon('scan-search'));
@@ -784,7 +855,8 @@ function findButton(id, e) {
 		}
 		toast(!ok ? 'Couldn\'t copy. The search for the game:'
 			: others ? `Search copied. It also fits ${others} other Pokémon in this list: compare height and weight in the game.`
-				: 'Search copied. Paste it into the game\'s search.', q, !ok || others > 0);
+				: as ? `Search copied: it's a ${as.name} now. Paste it into the game's search, then scan it again.`
+					: 'Search copied. Paste it into the game\'s search.', q, !ok || others > 0);
 	});
 	b.addEventListener('keydown', ev => ev.stopPropagation());
 	return b;
@@ -874,6 +946,8 @@ function openEditor(id) {
 		? `${e.score.total.toFixed(1)} ± ${e.score.band.toFixed(1)}  (height ${e.score.hPart.toFixed(1)} + weight ${e.score.wPart.toFixed(1)} + IV ${e.score.ivPart.toFixed(1)} + XXL ${e.score.bonus})`
 		: 'No score yet: see below';
 	const from = row.evolvedFrom ? [el('li', { class: 'info' }, `Evolved from ${row.evolvedFrom.name} ${row.evolvedFrom.score}`)] : [];
+	const m = rowMark(row);
+	if (m) from.push(el('li', { class: m.k === 'unsure' ? 'info' : null }, `List sync: ${m.why}`));
 	$('#ed-issues').replaceChildren(...from, ...e.issues.map(i => el('li', { class: i.info ? 'info' : null }, i.msg)));
 	// every species it can evolve into: the score then, ± and gain, and what it takes
 	const evo = evolveOf(e, state.ctx);
@@ -889,6 +963,8 @@ function openEditor(id) {
 	const val = (k, fallback) => ed[k] ?? fallback ?? '';
 	// the values as used (repaired or corrected ones included); saving records them as edits
 	$('#ed-cp').value = val('cp', e.cp);
+	// several levels fit the HP: the CPs they'd show, to pick from the game's
+	$('#ed-cp').placeholder = e.levels ? e.cpExpected.join(' or ') : '';
 	$('#ed-hp').value = val('hp', e.hp);
 	$('#ed-height').value = val('height_m', e.height_m);
 	$('#ed-weight').value = val('weight_kg', e.weight_kg);
@@ -1033,6 +1109,12 @@ async function saveDebugReport() {
 				banners: [...document.querySelectorAll('#banners .banner p')].map(p => hideFileName(p.textContent)),
 				editorOpen: !!$('#editor').open,
 			})),
+			// what the last list sync read and marked: counts and why, no names
+			sync: section(() => {
+				if (!state.sync) return null;
+				const { marks, newCps, newSearch: q, ...rest } = state.sync;
+				return { ...rest, marked: markCounts(marks), new: (newCps || []).length };
+			}),
 			rows: {
 				included, total,
 				list: list.map(r => ({ ...r, shown: section(() => (state.ctx ? evaluateRow(r.reading, state.ctx, r.edits) : null)) })),
@@ -1186,6 +1268,7 @@ async function renderBanners() {
 			el('button', { class: 'btn', type: 'button', onclick: () => resolveDuplicates(true) }, 'Replace'),
 			el('button', { class: 'btn ghost', type: 'button', onclick: () => resolveDuplicates(false) }, 'Keep both')));
 	}
+	if (state.sync && state.ctx) out.push(...syncBanners(state.sync));
 	if (state.errors.length) {
 		const errs = state.errors.splice(0);
 		transient.push({ kind: 'bad', text: `Could not read: ${errs.join('; ')}` });
@@ -1198,7 +1281,7 @@ async function renderBanners() {
 	const { rows: pending, settings } = notInFile(state, state.lastExport || 0, state.inFile);
 	const changes = pending.length + settings;	// new settings count too
 	$('#export-dot').hidden = changes === 0;
-	$('#backup > summary').title = changes ? `${changes} change${changes > 1 ? 's' : ''} not exported yet` : 'Export or import a backup';
+	$('#backup > summary').title = changes ? `${changes} change${changes > 1 ? 's' : ''} not exported yet` : 'Export or import a backup, sync with the game';
 	if (remindExport(pending, state.nagDismissed, EXPORT_NAG_DAYS)) {
 		const dismiss = async () => { state.nagDismissed = Date.now(); await kv.set('nagDismissed', state.nagDismissed); renderBanners(); };
 		out.push(el('div', { class: 'banner' }, el('p', {}, `Some changes are ${EXPORT_NAG_DAYS}+ days old and not exported. Safari deletes a site's data after 7 days without a visit.`),
@@ -1206,6 +1289,51 @@ async function renderBanners() {
 			el('button', { class: 'btn ghost', type: 'button', onclick: dismiss }, 'OK')));
 	}
 	box.replaceChildren(...out);
+}
+
+/**
+ * The list sync's banners: what it read and marked (with "Select them" for the rows not in the
+ * game), and the new Pokémon still to scan, with their search. Each goes with its OK.
+ */
+function syncBanners(s) {
+	const out = [];
+	const dismiss = k => async () => { state.sync = { ...state.sync, [k]: true }; await kv.set('sync', state.sync); renderBanners(); };
+	const left = newLeft(s, evaluated());
+	if (!s.seen) {
+		const marks = {};
+		for (const r of state.rows) { const m = rowMark(r); if (m) marks[r.id] = m; }
+		const n = markCounts(marks);
+		const parts = [];
+		if (n.gone) parts.push(`${n.gone} not in the game`);
+		if (n.evolved) parts.push(`${n.evolved} evolved: scan ${n.evolved > 1 ? 'them' : 'it'} again`);
+		if (n.unsure) parts.push(`${n.unsure} not sure`);
+		// rows scanned since the sync count as in this list: the number follows the rescans
+		const inList = s.shots ? inListNow(s, n, left) : 0;
+		const text = !s.shots ? `List sync: ${s.why}` : [
+			s.complete ? `List sync: ${s.count} Pokémon in the game, ${inList} of them in this list.`
+				: `List sync: ${s.read} Pokémon read${s.count != null ? ` of ${s.count}` : ''}, ${inList} of them in this list.`,
+			parts.length ? `${parts.join(', ')}.` : '',
+			s.other ? `${s.other} screenshot${s.other > 1 ? 's' : ''} of another search left out.` : '',
+			s.why,
+		].filter(Boolean).join(' ');
+		// the rows to act on, as "n to check" shows its rows: by the search
+		const show = n.evolved || n.unsure ? () => { const q = [n.evolved && 'evolved', n.unsure && 'unsure'].filter(Boolean).join(','); $('#search').value = q; setSearch(q); } : null;
+		out.push(el('div', { class: 'banner info' }, el('p', {}, text),
+			n.gone ? el('button', { class: 'btn', type: 'button', onclick: selectGone }, 'Select them') : null,
+			show ? el('button', { class: n.gone ? 'btn ghost' : 'btn', type: 'button', onclick: show }, `Show ${n.evolved + n.unsure}`) : null,
+			el('button', { class: 'btn ghost', type: 'button', onclick: dismiss('seen') }, 'OK')));
+	}
+	if (left.length && !s.newSeen) {
+		const q = newSearch(s.search, left);
+		const copy = async () => {
+			const ok = await copyText(q);
+			toast(ok ? 'Search copied. Paste it into the game\'s search.' : 'Couldn\'t copy. The search for the game:', q, !ok);
+		};
+		out.push(el('div', { class: 'banner info' }, el('p', {}, `Found ${left.length} new Pokémon. Please scan`),
+			el('button', { class: 'btn', type: 'button', onclick: copy }, 'Copy search string'),
+			el('button', { class: 'btn ghost', type: 'button', onclick: dismiss('newSeen') }, 'OK')));
+	}
+	return out;
 }
 
 function setStatus(sel, text) { $(sel).textContent = text; }
@@ -1257,11 +1385,11 @@ function showFileExample(pattern) {
 
 /** The help dialog, at its top (the search terms) or, with 'shots', at which screenshots to take. */
 function openHelp(section) {
-	const d = $('#help'), h = $(section === 'shots' ? '#help-shots' : '#help-title');
+	const d = $('#help'), h = (section && $(`#help-${section}`)) || $('#help-title');
 	d.showModal();
 	h.focus({ preventScroll: true });
 	// the section's heading at the dialog's top (focus alone scrolls it just into view)
-	d.scrollTop = section === 'shots' ? h.offsetTop - 12 : 0;
+	d.scrollTop = h.id === 'help-title' ? 0 : h.offsetTop - 12;
 }
 
 // ---------- wiring ----------
@@ -1274,6 +1402,12 @@ function wire() {
 	$('#import').addEventListener('change', ev => { const f = ev.target.files[0]; ev.target.value = ''; if (f) importRows(f); });
 	$('#export').addEventListener('click', () => { $('#backup').open = false; exportRows(); });
 	$('#import').addEventListener('click', () => { $('#backup').open = false; });
+	$('#sync-copy').addEventListener('click', async () => {
+		$('#backup').open = false;
+		const q = syncSearch(state.mode), ok = await copyText(q);
+		toast(ok ? 'Search copied. Paste it into the game\'s search, then screenshot the list.' : 'Couldn\'t copy. The search for the game:', q, !ok);
+	});
+	$('#sync-help').addEventListener('click', () => { $('#backup').open = false; openHelp('sync'); });
 	document.addEventListener('click', ev => {
 		if (!ev.target.closest('#backup')) $('#backup').open = false;
 		if (!ev.target.closest('#sort')) $('#sort').open = false;
@@ -1296,16 +1430,15 @@ function wire() {
 	$('#select-btn').addEventListener('click', () => setSelecting(true));
 	$('#select-done').addEventListener('click', () => setSelecting(false));
 	$('#select-delete').addEventListener('click', deleteSelected);
+	$('#select-gone').addEventListener('click', () => {
+		for (const r of goneRows()) if (state.shown.includes(r.id)) state.selected.add(r.id);
+		render();
+	});
 	$('#select-all').addEventListener('click', () => {
 		if (state.shown.every(id => state.selected.has(id))) state.selected.clear();
 		else for (const id of state.shown) state.selected.add(id);
 		render();
 	});
-	const setSearch = q => {
-		state.search = compileSearch(q, state.ctx);
-		$('#search-clear').hidden = q === '';
-		render();
-	};
 	$('#search').addEventListener('input', ev => setSearch(ev.target.value));
 	$('#evolve-filter').addEventListener('click', () => {
 		$('#search').value = 'gain';

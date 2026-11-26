@@ -87,7 +87,8 @@ fetch_verified() {	# name version → $tmp/<base>.tgz, checked against the regis
 	fi
 }
 
-tmp="$(mktemp -d)"
+# with a template: macOS mktemp ignores $TMPDIR without one
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/vendor.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 
 case "${1:-}" in
