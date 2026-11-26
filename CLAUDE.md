@@ -23,5 +23,13 @@ has the core (score, IVs, reading, merging), written for a Pokémon GO player wh
   public copy on GitHub Pages.
 - Never add game data, game art or screenshots of the game (log X11). Screenshots show where
   Pokémon were caught; the maintainer's are private and not in this repository.
+- The page loads nothing from other sites. Every GitHub Pages project of alanceil42 shares one
+  origin (alanceil42.github.io) and with it the browser's storage: IndexedDB names, keys and
+  caches stay under the prefix "xxl-scorer" (`DB` in src/ui/db.js, `modelCacheKey` in
+  src/ui/ocr.js). The one exception is tesseract.js's own database "keyval-store", which only
+  `dropOldModel` touches, to delete the old unprefixed model. A service worker, if ever, only
+  with the scope /xxl-scorer/; the page refuses to run inside another site's frame. There is
+  never a repository named alanceil42.github.io: its site would sit at / and its service
+  worker could take over every project's pages.
 - Docs: lines at most 101 columns, tables padded for reading in vi. Bash: indent with tabs.
 - Plain JavaScript modules, no build step, no dependencies (log X07).

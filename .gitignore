@@ -11,6 +11,8 @@ fixtures/
 node_modules/
 # Site-specific settings and game data of a self-hosted install
 /local/
+# Claude Code's local settings
+.claude/
 # Editor leftovers (vi swap files, backups)
 .*.sw?
 *~
