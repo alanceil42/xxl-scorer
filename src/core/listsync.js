@@ -400,6 +400,18 @@ export function newLeft(sync, items) {
 	return left;
 }
 
+/**
+ * How many of the list's Pokémon are in this list now: the sync's matched ones, plus each
+ * evolved or not-sure tile whose rows were scanned again (or deleted) since, plus each new one
+ * added. holding: markCounts of the marks that still hold; left: newLeft's result.
+ */
+export function inListNow(sync, holding, left) {
+	const at = markCounts(sync.marks);
+	const unsure = sync.unsure || 0;
+	return sync.matched + (at.evolved - holding.evolved) + (unsure - Math.min(unsure, holding.unsure))
+		+ ((sync.newCps || []).length - left.length);
+}
+
 /** A row's mark from the sync while it holds: a scan since the sync drops it. */
 export function markOf(sync, row) {
 	const m = sync && sync.marks && sync.marks[row.id];

@@ -18,7 +18,7 @@ import { cleanRow, cleanReplaced, cleanSettings, backupFileName, notInFile, file
 import { imprintLink } from '../core/imprint.js';
 import { readBuild, buildLink } from '../core/buildinfo.js';
 import { makeReport, pickRows, reportFileName } from '../core/debugreport.js';
-import { runSync, cpFromList, ownShots, markCounts, markOf, newLeft, newSearch, syncSearch, MARKS } from '../core/listsync.js';
+import { runSync, cpFromList, ownShots, markCounts, markOf, newLeft, newSearch, syncSearch, inListNow, MARKS } from '../core/listsync.js';
 import { startErrorLog, environment, jsFeatures, layoutFacts, saveFile } from './debug.js';
 
 const $ = sel => document.querySelector(sel);
@@ -1298,6 +1298,7 @@ async function renderBanners() {
 function syncBanners(s) {
 	const out = [];
 	const dismiss = k => async () => { state.sync = { ...state.sync, [k]: true }; await kv.set('sync', state.sync); renderBanners(); };
+	const left = newLeft(s, evaluated());
 	if (!s.seen) {
 		const marks = {};
 		for (const r of state.rows) { const m = rowMark(r); if (m) marks[r.id] = m; }
@@ -1306,9 +1307,11 @@ function syncBanners(s) {
 		if (n.gone) parts.push(`${n.gone} not in the game`);
 		if (n.evolved) parts.push(`${n.evolved} evolved: scan ${n.evolved > 1 ? 'them' : 'it'} again`);
 		if (n.unsure) parts.push(`${n.unsure} not sure`);
+		// rows scanned since the sync count as in this list: the number follows the rescans
+		const inList = s.shots ? inListNow(s, n, left) : 0;
 		const text = !s.shots ? `List sync: ${s.why}` : [
-			s.complete ? `List sync: ${s.count} Pokémon in the game, ${s.matched} of them in this list.`
-				: `List sync: ${s.read} Pokémon read${s.count != null ? ` of ${s.count}` : ''}, ${s.matched} of them in this list.`,
+			s.complete ? `List sync: ${s.count} Pokémon in the game, ${inList} of them in this list.`
+				: `List sync: ${s.read} Pokémon read${s.count != null ? ` of ${s.count}` : ''}, ${inList} of them in this list.`,
 			parts.length ? `${parts.join(', ')}.` : '',
 			s.other ? `${s.other} screenshot${s.other > 1 ? 's' : ''} of another search left out.` : '',
 			s.why,
@@ -1320,7 +1323,6 @@ function syncBanners(s) {
 			show ? el('button', { class: n.gone ? 'btn ghost' : 'btn', type: 'button', onclick: show }, `Show ${n.evolved + n.unsure}`) : null,
 			el('button', { class: 'btn ghost', type: 'button', onclick: dismiss('seen') }, 'OK')));
 	}
-	const left = newLeft(s, evaluated());
 	if (left.length && !s.newSeen) {
 		const q = newSearch(s.search, left);
 		const copy = async () => {

@@ -8,7 +8,7 @@ import { compactGameMaster, formsOf } from '../src/core/gm.js';
 import { compactText } from '../src/core/text.js';
 import { makeContext, evaluate, levelText } from '../src/core/evaluate.js';
 import { levelTable, cpOf, levelsForHp } from '../src/core/ivs.js';
-import { runSync, cpFromList, markCounts, markOf, newLeft, newSearch, syncSearch, MARKS } from '../src/core/listsync.js';
+import { runSync, cpFromList, markCounts, markOf, newLeft, newSearch, syncSearch, inListNow, MARKS } from '../src/core/listsync.js';
 import { isListView } from '../src/core/listview.js';
 import { compileSearch } from '../src/core/search.js';
 import { formatName, nameValues } from '../src/core/nickname.js';
@@ -85,6 +85,19 @@ test('a tile showing the evolved species: "evolved, scan again", not gone', () =
 	const e = { ...a.e, hp: 90, caught: '5/1/2024' };
 	assert.equal(gameSearch(e), `${a.e.dex}&xxl&cp${a.e.cp}&hp90&3attack&3defense&3hp&year2024`);
 	assert.equal(gameSearch(e, as), `${as.dex}&xxl&cp${evolvedCp}&3attack&3defense&3hp&year2024`);
+});
+
+test('"n of them in this list" follows the rescans: evolved, not sure and new ones count once scanned', () => {
+	const a = item('TESTMON', [12, 13, 14], 22.5), b = item('MR_FAKE', [10, 12, 14], 25), c = item('FAKEON', [1, 2, 3], 15, { cp: b.e.cp });
+	const evolvedCp = cpOf(rowOf('FAKEON'), 12, 13, 14, lv.get(22.5));
+	const res = runSync([shot([tile(evolvedCp), tile(b.e.cp), tile(4321)])], [a, b, c], ctx, { now: 1 });
+	assert.deepEqual(markCounts(res.marks), { gone: 0, evolved: 1, unsure: 2 });
+	assert.equal(res.matched, 0);
+	assert.equal(inListNow(res, markCounts(res.marks), [4321]), 0);
+	// the evolved row scanned again, one of the two not-sure rows too: its tile still open
+	assert.equal(inListNow(res, { gone: 0, evolved: 0, unsure: 1 }, [4321]), 1);
+	// both not-sure rows settled, the new one added
+	assert.equal(inListNow(res, { gone: 0, evolved: 0, unsure: 0 }, []), 3);
 });
 
 test('a name that says another Pokémon (Attack and IV % off): not matched, the row not sure, never gone', () => {
