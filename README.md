@@ -81,7 +81,9 @@ won't run JavaScript modules from `file://`.
    game; change the pattern in Settings (the gear: "Name to copy"). The magnifier in a frame before it copies a search
    that finds this one Pokémon in the game's storage (`641&xxl&cp1900&hp121&4attack&…`):
    paste it into the game's search, open the Pokémon, then paste the name. If the search also
-   fits another Pokémon in your list, the note at the bottom says so.
+   fits another Pokémon in your list, the note at the bottom says so. A row without a CP (the
+   sprite hid it) gets a wider search; a screenshot of the game's list it finds, added like any
+   other, gives the row its CP.
    The list is sorted by score. The **sort** button (two arrows, at the end of the search row)
    sorts by Newest, CP, Pokédex number, name, IVs or catch date too; pick the current one again
    to reverse it. Right after adding screenshots the list shows the newest first, so new and

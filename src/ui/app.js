@@ -18,7 +18,7 @@ import { cleanRow, cleanReplaced, cleanSettings, backupFileName, notInFile, file
 import { imprintLink } from '../core/imprint.js';
 import { readBuild, buildLink } from '../core/buildinfo.js';
 import { makeReport, pickRows, reportFileName } from '../core/debugreport.js';
-import { runSync, markCounts, markOf, newLeft, newSearch, syncSearch, MARKS } from '../core/listsync.js';
+import { runSync, cpFromList, ownShots, markCounts, markOf, newLeft, newSearch, syncSearch, MARKS } from '../core/listsync.js';
 import { startErrorLog, environment, jsFeatures, layoutFacts, saveFile } from './debug.js';
 
 const $ = sel => document.querySelector(sel);
@@ -376,9 +376,24 @@ async function replaceEvolved(touched) {
 
 /**
  * List sync: the game's list, from its screenshots, matched to the rows. Marks rows (not in the
- * game, evolved, not sure) and counts the new Pokémon; deletes nothing.
+ * game, evolved, not sure) and counts the new Pokémon; deletes nothing. First, a row without a
+ * CP takes its tile's, as if typed in the editor (cpFromList: Find in game's list of it). Only
+ * screenshots of another search, and a CP taken: no sync, the last one's marks stay.
  */
 async function listSync(lists) {
+	const took = cpFromList(lists, evaluated().filter(x => x.e), state.ctx);
+	if (took.length) {
+		const cp = new Map(took.map(t => [t.rowId, t.cp]));
+		const now = Date.now();
+		// new objects, as the editor's save (state.rows)
+		const next = state.rows.filter(r => cp.has(r.id)).map(r => ({ ...r, edits: { ...r.edits, cp: cp.get(r.id) }, updated: now }));
+		await rowStore.putMany(next);
+		const byId = new Map(next.map(r => [r.id, r]));
+		state.rows = state.rows.map(r => byId.get(r.id) || r);
+		const said = next.map(r => `${evaluateRow(r.reading, state.ctx, r.edits).name} ${cp.get(r.id)}`);
+		banner('info', `CP from the list screenshot${lists.length > 1 ? 's' : ''}: ${said.join(', ')}.`);
+		if (!ownShots(lists, syncSearch(state.mode)).own.length) return;
+	}
 	state.sync = runSync(lists, evaluated().filter(x => x.e), state.ctx, { mode: state.mode });
 	await kv.set('sync', state.sync);
 }

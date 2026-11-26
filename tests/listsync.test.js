@@ -8,7 +8,7 @@ import { compactGameMaster, formsOf } from '../src/core/gm.js';
 import { compactText } from '../src/core/text.js';
 import { makeContext, evaluate, levelText } from '../src/core/evaluate.js';
 import { levelTable, cpOf, levelsForHp } from '../src/core/ivs.js';
-import { runSync, markCounts, markOf, newLeft, newSearch, syncSearch, MARKS } from '../src/core/listsync.js';
+import { runSync, cpFromList, markCounts, markOf, newLeft, newSearch, syncSearch, MARKS } from '../src/core/listsync.js';
 import { isListView } from '../src/core/listview.js';
 import { compileSearch } from '../src/core/search.js';
 import { formatName, nameValues } from '../src/core/nickname.js';
@@ -199,4 +199,39 @@ test('level from the HP alone: "a or b", the lower one with a ? in the name; the
 	assert.equal(levelText(typed), found.l[1].level);
 	assert.doesNotMatch(formatName('{lvl:circ}', nameValues(typed)).text, /\?/);
 	assert.match(gameSearch(typed), new RegExp(`&cp${found.l[1].cp}&`));
+});
+
+test('a CP from a list screenshot of any search, for a row without one, where only it fits', () => {
+	// a row whose CP wasn't read: two levels by the HP, a range for the bars one IV off
+	const open = (id, cps, o = {}) => {
+		const x = item(id, [7, 10, 3], 20, { cp: null });
+		x.e = { ...x.e, levels: [20, 20.5], cpExpected: cps, near: { cp: { lo: cps[0] - 20, hi: cps[1] + 20 } }, ...o };
+		return x;
+	};
+	const a = open('TESTMON', [500, 510]), b = item('MR_FAKE', [10, 12, 14], 25);
+	const plain = name => ({ style: 'none', raw: name });
+	const find = '641&xxl&cp480-530&hp93&2attack&2defense&1hp';
+	assert.deepEqual(cpFromList([shot([tile(510, plain('Testmon'))], { field: find })], [a, b], ctx), [{ rowId: a.row.id, cp: 510 }]);
+	// inside the range for the bars one IV off, not a level's CP: taken too
+	assert.deepEqual(cpFromList([shot([tile(522, plain('Testmon'))], { field: find })], [a, b], ctx), [{ rowId: a.row.id, cp: 522 }]);
+	// outside it, another species, a cut tile: not
+	assert.deepEqual(cpFromList([shot([tile(560, plain('Testmon'))])], [a, b], ctx), []);
+	assert.deepEqual(cpFromList([shot([tile(510, plain('Mr. Fake'))])], [a, b], ctx), []);
+	assert.deepEqual(cpFromList([shot([{ ...tile(510, plain('Testmon')), cut: true }])], [a, b], ctx), []);
+	// a "Name to copy" whose values agree (Attack 7), or contradict it (Attack 3)
+	assert.deepEqual(cpFromList([shot([tile(505, { style: 'new', atk: 7, raw: 'x' })])], [a, b], ctx), [{ rowId: a.row.id, cp: 505 }]);
+	assert.deepEqual(cpFromList([shot([tile(505, { style: 'new', atk: 3, raw: 'x' })])], [a, b], ctx), []);
+	// a name that says nothing: could be any Pokémon of that CP
+	assert.deepEqual(cpFromList([shot([tile(505, plain('Xyz'))])], [a, b], ctx), []);
+	// two rows without a CP it could be: neither
+	const a2 = open('TESTMON', [505, 515]);
+	assert.deepEqual(cpFromList([shot([tile(510, plain('Testmon'))])], [a, a2, b], ctx), []);
+	// a row that has this CP and fits the tile: it is that one's
+	const c = item('TESTMON', [1, 2, 3], 30, { cp: 510 });
+	assert.deepEqual(cpFromList([shot([tile(510, plain('Testmon'))])], [a, b, c], ctx), []);
+	// the same tile on two screenshots: once; two tiles with different CPs for the row: none
+	assert.deepEqual(cpFromList([shot([tile(510, plain('Testmon'))]), shot([tile(510, plain('Testmon'))])], [a, b], ctx), [{ rowId: a.row.id, cp: 510 }]);
+	assert.deepEqual(cpFromList([shot([tile(500, plain('Testmon')), tile(510, plain('Testmon'))])], [a, b], ctx), []);
+	// rows with a CP only: nothing to do
+	assert.deepEqual(cpFromList([shot([tile(510, plain('Testmon'))])], [b, c], ctx), []);
 });

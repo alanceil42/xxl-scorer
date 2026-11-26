@@ -23,6 +23,8 @@ Sync with the game: screenshots of the game's XXL list show which rows you no lo
 - The find-in-game button works without a CP too, a little wider so it doesn't miss: a CP range
   and IV groups for each appraisal bar read one IV off ("cp1190-1312", "2-3defense"), with the
   HP; without an HP no CP term.
+- A screenshot of the game's list for that search, added like any other, gives the row its CP
+  (as if typed in), where its tile fits no other row.
 - The debug report says what a sync read and marked (counts, no names).
 
 

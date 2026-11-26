@@ -29,7 +29,7 @@ const sureIvs = e => !!(e.ivs && (e.ivSource === 'bars+cp' || e.ivSource === 'ba
 
 /**
  * The rows a sync matches: those of the mode's size class (e.xxl in XXL mode, e.xxs in XXS) with
- * a species. items: [{row, e}] (evaluated). → [{rowId, id, form, dex, name, cps: [{cp, level}],
+ * a species (mode null: every size). items: [{row, e}] (evaluated). → [{rowId, id, form, dex, name, cps: [{cp, level}],
  * ivs, atk, ivPct, score, caught, e}]: cps the CPs the row can show, one where it has a CP, the
  * ones its IVs and HP give at each level they allow where it has none (a CP the sprite hid).
  * Attack, IV % and the level only where the IVs are sure; the score as the name shows it.
@@ -38,7 +38,7 @@ export function syncRows(items, ctx, mode = 'xxl') {
 	const { gm } = ctx;
 	const out = [];
 	for (const { row, e } of items) {
-		if (!e || !e.id || e.mega || e[mode === 'xxs' ? 'xxs' : 'xxl'] !== true) continue;
+		if (!e || !e.id || e.mega || (mode && e[mode === 'xxs' ? 'xxs' : 'xxl'] !== true)) continue;
 		const sure = sureIvs(e);
 		const ivs = e.ivs ? [e.ivs.a, e.ivs.d, e.ivs.s] : null;
 		let cps = [];
@@ -336,6 +336,39 @@ export function dexAt(rows, ctx) {
 		const hit = (byCp.get(t.cp) || []).filter(x => x.r.dex != null && agrees(t.p, x.r, x.level));
 		return hit.length && hit.every(x => x.r.dex === hit[0].r.dex) ? hit[0].r.dex : null;
 	};
+}
+
+/**
+ * CPs for rows that have none, from list screenshots of any search (Find in game's above all:
+ * a CP-less row's search lists it with its CP). shots: readListShot's results, each read on its
+ * own; items: [{row, e}] (evaluated). A tile gives a row its CP only where nothing else could be
+ * meant: its CP is one the row's levels give or inside its range for the bars one IV off
+ * (e.cpExpected, e.near), its name is the row's species or a "Name to copy" whose values agree,
+ * no row that has this CP fits it, and the row fits no other such tile. → [{rowId, cp}]
+ */
+export function cpFromList(shots, items, ctx) {
+	const rows = syncRows(items, ctx, null);
+	const open = rows.filter(r => r.e.cp == null);
+	if (!open.length) return [];
+	const cpFits = (r, cp) => (r.e.cpExpected || []).includes(cp) || (r.e.near?.cp != null && cp >= r.e.near.cp.lo && cp <= r.e.near.cp.hi);
+	const nameFits = (t, r) => {
+		const pd = plainDex(t, ctx);
+		return pd != null ? pd === r.dex : named(t.p) && agrees(t.p, r, null);
+	};
+	const pairs = [];
+	for (const shot of shots) {
+		for (const t of stitch([shot]).tiles) {
+			if (t.cp == null || t.cut) continue;
+			// a row with this CP that the tile could be: it is that one's tile
+			if (rows.some(r => r.e.cp === t.cp && nameFits(t, r))) continue;
+			const rs = open.filter(r => cpFits(r, t.cp) && nameFits(t, r));
+			if (rs.length === 1) pairs.push({ r: rs[0], cp: t.cp });
+		}
+	}
+	// the same tile on two screenshots is one; two CPs for one row: none
+	const by = new Map();
+	for (const { r, cp } of pairs) by.set(r.rowId, [...new Set([...(by.get(r.rowId) || []), cp])]);
+	return [...by].filter(([, cps]) => cps.length === 1).map(([rowId, [cp]]) => ({ rowId, cp }));
 }
 
 /** The game's search for tiles of these CPs: "xxl&cp512,cp1480" ('' for none). */
