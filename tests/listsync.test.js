@@ -12,6 +12,7 @@ import { runSync, markCounts, markOf, newLeft, newSearch, syncSearch, MARKS } fr
 import { isListView } from '../src/core/listview.js';
 import { compileSearch } from '../src/core/search.js';
 import { formatName, nameValues } from '../src/core/nickname.js';
+import { gameSearch } from '../src/core/gamesearch.js';
 import { syntheticGameMaster, syntheticText } from './synthetic.js';
 
 const gm = compactGameMaster(syntheticGameMaster(), { minSpecies: 1 });
@@ -186,9 +187,12 @@ test('level from the HP alone: "a or b", the lower one with a ? in the name; the
 	assert.ok(e.issues.some(i => i.code === 'level' && !i.info));
 	assert.match(formatName('{lvl:circ}', nameValues(e)).text, /\?$/);
 	assert.equal(formatName('{lvlMaybe}', nameValues(e)).text, '{lvlMaybe}');
+	// the search for the game has both levels' CPs
+	assert.match(gameSearch(e), new RegExp(`&cp${found.l[0].cp},cp${found.l[1].cp}&hp${found.hp}&`));
 	const typed = evaluate(reading, ctx, { form: '', cp: found.l[1].cp });
 	assert.equal(typed.levels, null);
 	assert.equal(typed.level, found.l[1].level);
 	assert.equal(levelText(typed), found.l[1].level);
 	assert.doesNotMatch(formatName('{lvl:circ}', nameValues(typed)).text, /\?/);
+	assert.match(gameSearch(typed), new RegExp(`&cp${found.l[1].cp}&`));
 });

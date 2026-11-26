@@ -20,6 +20,8 @@ Sync with the game: screenshots of the game's XXL list show which rows you no lo
 - Search terms gone, evolved and unsure for the sync's marks.
 - A level the HP leaves open shows both ("28.5 or 29") until the CP is typed; the editor's CP
   field shows the CPs they'd give, and "Name to copy" has the lower level with a ?.
+- The find-in-game button works without a CP too: with both levels' CPs ("cp1238,cp1251") where
+  the HP leaves two open, else with what the row has (species, size, HP, IVs, year).
 - The debug report says what a sync read and marked (counts, no names).
 
 
