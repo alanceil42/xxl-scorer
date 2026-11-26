@@ -8,6 +8,9 @@ collect under "Unreleased".
 
 ## Unreleased
 
+
+## 1.14 - 2026-11-26
+
 Sync with the game: screenshots of the game's XXL list show which rows you no longer have.
 
 - Sync with the game (the header's Backup menu, now called Sync): Copy the search, screenshot
