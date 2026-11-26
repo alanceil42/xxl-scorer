@@ -13,6 +13,7 @@
 //   npm install --no-save --ignore-scripts playwright-core@<version in .github/workflows/ci.yml>
 //   node --test tests/browser/smoke.js                                # Google Chrome installed
 //   XXL_CHROME=/path/to/chromium node --test tests/browser/smoke.js   # another Chromium
+// Without Google Chrome it takes Playwright's own Chromium (npx playwright-core install chromium).
 //
 // No game art and no screenshots: the game data and the backup are made up (tests/synthetic.js).
 import { test, before, after } from 'node:test';
@@ -61,7 +62,9 @@ before(async () => {
 	});
 	await new Promise(r => server.listen(0, '127.0.0.1', r));
 	base = `http://127.0.0.1:${server.address().port}/`;
-	browser = await chromium.launch(process.env.XXL_CHROME ? { executablePath: process.env.XXL_CHROME } : { channel: 'chrome' });
+	// Google Chrome, else Playwright's own Chromium for this playwright-core version, if installed
+	browser = process.env.XXL_CHROME ? await chromium.launch({ executablePath: process.env.XXL_CHROME })
+		: await chromium.launch({ channel: 'chrome' }).catch(() => chromium.launch());
 });
 
 after(async () => {
