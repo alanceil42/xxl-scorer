@@ -1,19 +1,19 @@
 # Working on xxl-scorer (for Claude sessions)
 
-Read the private decision log first (project knowledge). docs/HOW-IT-WORKS.md has the core
-(score, IVs, reading, merging), written for a Pokémon GO player who codes.
+Read the private decision log first (the maintainer's setup says where). docs/HOW-IT-WORKS.md
+has the core (score, IVs, reading, merging), written for a Pokémon GO player who codes.
 
 - One task, one branch `claude/<topic>` from an up-to-date main, one pull request. Never push
   to main. `git fetch origin main` and rebase before starting and before pushing. Merging: as
   the private decision log says. Force-push (`--force-with-lease`) only the open pull request's
   own branch, when the maintainer asks to amend it.
-- Commits: repo-local `git config user.name Claude` and `user.email noreply@anthropic.com`;
-  end each message with `Co-Authored-By: Claude <model> <noreply@anthropic.com>`. No
-  `Claude-Session:` line and no session links in commits; pull request texts may carry the
-  session link.
+- Commits as Claude: repo-local `git config user.name Claude` and `user.email
+  noreply@anthropic.com`, or `git -c` where .git/config is read-only; end each message with
+  `Co-Authored-By: Claude <model> <noreply@anthropic.com>`. No `Claude-Session:` line and no
+  session links in commits; pull request texts may carry the session link.
 - Before pushing: `npm test` and `bash tools/vendor.sh --check`. For changes to reading or
-  merging screenshots, say in the pull request that the maintainer's real-screenshot tests
-  (log X09) have to run before the merge.
+  merging screenshots, say in the pull request that the real-screenshot tests (log X09) run
+  before the merge.
 - Decisions go into the private decision log, not into this repository. Code comments give
   the reason where it matters, without decision numbers. docs/HOW-IT-WORKS.md changes only
   when the core changes, and stays at about 100 lines.
