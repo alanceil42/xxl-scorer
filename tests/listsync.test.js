@@ -8,7 +8,7 @@ import { compactGameMaster, formsOf } from '../src/core/gm.js';
 import { compactText } from '../src/core/text.js';
 import { makeContext, evaluate, levelText } from '../src/core/evaluate.js';
 import { levelTable, cpOf, levelsForHp } from '../src/core/ivs.js';
-import { runSync, cpFromList, markCounts, markOf, newLeft, newSearch, syncSearch, inListNow, MARKS } from '../src/core/listsync.js';
+import { runSync, syncRows, cpFromList, markCounts, markOf, newLeft, newSearch, syncSearch, inListNow, MARKS } from '../src/core/listsync.js';
 import { isListView } from '../src/core/listview.js';
 import { compileSearch } from '../src/core/search.js';
 import { formatName, nameValues } from '../src/core/nickname.js';
@@ -270,4 +270,102 @@ test('a tile without its CP: named, its rows not sure and the rest gone; else it
 	assert.equal(named.marks[b.row.id].k, 'unsure');
 	assert.equal(named.marks[c.row.id].k, 'gone');
 	assert.equal(named.marks[a.row.id], undefined);
+});
+
+test('sorted by number: screenshots without an overlap in Pokédex order; a CP one digit off; a row\'s CPs from its HP', () => {
+	const a = item('TESTMON', [15, 15, 15], 20), d = item('TESTMON', [0, 0, 0], 10), b = item('MR_FAKE', [10, 12, 14], 25);
+	a.e.inGame = 1000;
+	const c = item('FAKEON', [1, 2, 3], 15, { cp: null });
+	c.e.hp = Math.max(10, Math.floor((100 + 3) * lv.get(15)));
+	const cps = levelsForHp(rowOf('FAKEON'), c.e.ivs, c.e.hp, gm.cpm);
+	assert.ok(cps.length);
+	// a's CP misread by one digit; its name says every value, the score too
+	const misread = Number(String(a.e.cp).slice(0, -1) + ((a.e.cp % 10) + 1) % 10);
+	const p = { style: 'new', raw: 'XX1000^100(15)[20]', prefix: 'XX1000', atk: 15, ivPct: 100, level: 20 };
+	const first = { count: 4, field: 'xxl', pill: null, num: true, rows: [{ y: 0, slots: [
+		{ ...tile(misread, p), col: 0 }, { ...tile(d.e.cp), col: 1 }, { ...tile(cps[0].cp), col: 2 },
+	] }] };
+	const second = { ...shot([tile(b.e.cp, { style: 'none', raw: 'Mr. Fake' })], { count: 4 }), num: true };
+	for (const shots of [[first, second], [second, first]]) {
+		const res = runSync(shots, [a, b, c, d], ctx, { now: 1 });
+		assert.equal(res.complete, true, res.why);
+		assert.equal(res.matched, 4);
+		assert.deepEqual(res.marks, {});
+	}
+});
+
+test('the rows a sync takes: its size class, no megas, IVs sure or not, a score range; names that disagree', () => {
+	const a = item('TESTMON', [15, 15, 15], 20), m = item('MR_FAKE', [10, 12, 14], 25), x = item('FAKEON', [1, 2, 3], 15);
+	m.e.mega = true;
+	x.e.xxl = false; x.e.xxs = true;
+	const u = item('TESTMON', [3, 4, 5], 30);
+	u.e.ivSource = 'cp';
+	const r = item('TESTMON', [6, 7, 8], 31);
+	r.e.score = { total: 900, hi: 950 };
+	const none = { row: { id: 'x' }, e: null };
+	const res = runSync([shot([tile(a.e.cp), tile(u.e.cp), tile(r.e.cp)])], [a, m, x, u, r, none], ctx, { now: 1 });
+	assert.equal(res.matched, 3);
+	assert.deepEqual(res.marks, {});
+	const xs = runSync([shot([tile(x.e.cp)], { field: 'xxs' })], [a, x], ctx, { mode: 'xxs', now: 1 });
+	assert.equal(xs.matched, 1);
+	// two rows of one CP, alike but for the score: the name's score settles it; a level or IV %
+	// neither has, nothing (one value off contradicts no row)
+	const pair = level => {
+		const x = item('TESTMON', [15, 15, 15], level), y = item('MR_FAKE', [15, 15, 15], level, { cp: x.e.cp });
+		x.e.inGame = 1000; y.e.inGame = 1200;
+		return [x, y];
+	};
+	const [p1, p2] = pair(20);
+	const n = more => ({ style: 'new', raw: 'n', prefix: 'XX1000', atk: 15, ivPct: 100, level: 20, ...more });
+	const sync = (p, rows) => runSync([shot([tile(rows[0].e.cp, p)])], rows, ctx, { now: 1 });
+	assert.equal(sync(n(), [p1, p2]).matched, 1);
+	const other = sync(n({ prefix: 'XX1200' }), [p1, p2]);
+	assert.equal(other.matched, 1);
+	assert.equal(other.marks[p2.row.id], undefined, 'the other row took it');
+	for (const p of [n({ level: 21 }), n({ ivPct: 90 })]) assert.equal(sync(p, [p1, p2]).matched, 0, JSON.stringify(p));
+	const [h1, h2] = pair(19.5);
+	assert.equal(sync(n({ level: 19, halfMaybe: true }), [h1, h2]).matched, 1, 'a ½ maybe');
+	assert.equal(sync(n({ level: 19 }), [h1, h2]).matched, 0);
+});
+
+test('why nothing is marked: no count, counts that differ, more tiles than the count, hidden tiles, CPs not read', () => {
+	const a = item('TESTMON', [15, 15, 15], 20), b = item('MR_FAKE', [10, 12, 14], 25);
+	const why = (shots, items = [a, b]) => runSync(shots, items, ctx, { now: 1 }).why;
+	assert.match(why([shot([tile(a.e.cp), tile(b.e.cp)], { count: null })]), /count in the header wasn't read/);
+	assert.match(why([shot([tile(a.e.cp), tile(b.e.cp)]), shot([tile(a.e.cp)], { count: 3 })]), /different counts/);
+	assert.match(why([shot([tile(a.e.cp), tile(b.e.cp)], { count: 1 })]), /2 Pokémon read, the game counts 1/);
+	const hidden = shot([tile(a.e.cp), 'covered', tile(b.e.cp)], { count: 2 });
+	assert.match(why([hidden]), /1 hidden under the buttons/);
+	const blind = { ...shot([tile(a.e.cp), tile(null), tile(null)], { count: 3 }), file: 'IMG_1.PNG' };
+	assert.match(why([blind]), /2 CPs weren't read \(IMG_1\.PNG: take it again\)/);
+	const one = shot([tile(a.e.cp), tile(b.e.cp), tile(null)], { count: 3 });
+	assert.match(why([one]), /a CP wasn't read;?/);
+});
+
+test('a Pokémon scanned twice: one row takes the tile, the other goes as its second row', () => {
+	const a = item('TESTMON', [15, 15, 15], 20), twin = item('TESTMON', [15, 15, 15], 20);
+	const res = runSync([shot([tile(a.e.cp)])], [a, twin], ctx, { now: 1 });
+	assert.equal(res.complete, true, res.why);
+	assert.equal(res.matched, 1);
+	const gone = Object.values(res.marks);
+	assert.equal(gone.length, 1);
+	assert.match(gone[0].why, /a second row of a Pokémon that is/);
+});
+
+test('CPs not read on four screenshots: the first three named, and "…"', () => {
+	const a = item('TESTMON', [15, 15, 15], 20);
+	delete a.e.dex; a.e.name = '';
+	const shots = [1, 2, 3, 4].map(i => ({ ...shot([tile(5000 + i), tile(null)], { count: 9 }), file: `IMG_${i}.PNG` }));
+	const res = runSync(shots, [a], ctx, { now: 1 });
+	assert.match(res.why, /4 CPs weren't read \(IMG_\d\.PNG, IMG_\d\.PNG, IMG_\d\.PNG, …: take them again\)/);
+});
+
+test('syncRows: a form the game data lacks falls back to the base form for the CPs its HP gives', () => {
+	const c = item('FAKEON', [1, 2, 3], 15, { cp: null });
+	c.e.hp = Math.max(10, Math.floor((100 + 3) * lv.get(15)));
+	const base = syncRows([c], ctx)[0].cps;
+	assert.ok(base.length);
+	c.e.form = 'FAKEON_NOPE';
+	assert.deepEqual(syncRows([c], ctx)[0].cps, base);
+	assert.deepEqual(syncRows([c], ctx, null).length, 1, 'mode null: every size');
 });
