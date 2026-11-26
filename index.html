@@ -52,8 +52,9 @@
 						</label>
 						<p class="muted small">Last export: <span id="export-status">never</span></p>
 						<p class="menu-head small"><strong>Sync with the game</strong></p>
-						<p class="muted small sync-steps">Copy the search, paste it into the game's search and screenshot the whole list, scrolling (any order, overlap is fine). Add the screenshots here: rows not in the game get marked, nothing is deleted.</p>
-						<button class="btn" id="sync-copy" type="button">Copy search <code id="sync-search">xxl</code></button>
+						<p class="muted small">Find Pokémon you no longer have.</p>
+						<button class="btn" id="sync-copy" type="button">Copy the search</button>
+						<button class="btn small ghost" id="sync-help" type="button">How it works</button>
 					</div>
 				</details>
 				<button class="btn small icon" id="settings-btn" type="button" aria-label="Settings" title="Settings" aria-expanded="false" aria-controls="settings"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="vendor/lucide/icons.svg#settings"/></svg></button>
@@ -266,10 +267,23 @@
 			<ul class="help-tips">
 				<li>Many at once is fine: swipe through your storage, once with the appraisal and once without.</li>
 				<li>Whole screenshots, not cropped or edited. The game in English (other languages are not supported yet).</li>
+				<li>A row without a CP (the Pokémon covered it): tap the magnifier next to its name, paste the search into the game and screenshot the list it shows. Added here, that screenshot gives the row its CP.</li>
 				<li>Nothing is uploaded: screenshots are read on this device and dropped.</li>
 			</ul>
-			<h3 id="help-sync">Sync with the game</h3>
-			<p>Pokémon traded, transferred or evolved stay in this list until you delete them. To find them, sync with the game: under <em>Sync</em>, copy the search, paste it into the game's search, screenshot the whole list as you scroll, and add those screenshots here. Each row then is found in the game, or marked <em>not in the game</em> (<em>Select them</em> selects those to delete), <em>evolved, scan again</em> or <em>not sure</em>. Pokémon the game lists and this list doesn't are counted, with a search to find them for a scan.</p>
+			<h3 id="help-sync" tabindex="-1">Sync with the game</h3>
+			<p>Traded, transferred or evolved Pokémon stay in this list until you delete them. A sync finds them:</p>
+			<ol class="help-tips">
+				<li><em>Sync</em> → <em>Copy the search</em>.</li>
+				<li>In the game, paste it into the search and screenshot the whole list as you scroll (any order, overlap is fine).</li>
+				<li>Add the screenshots here.</li>
+			</ol>
+			<p>The rows then show:</p>
+			<ul class="help-tips">
+				<li><em>not in the game</em>: <em>Select them</em>, then <em>Delete</em>.</li>
+				<li><em>evolved, scan again</em>: a new screenshot replaces the row.</li>
+				<li><em>not sure</em>: the list could mean several rows.</li>
+			</ul>
+			<p>Pokémon the game has and this list doesn't are counted, with a search to scan them. Nothing is deleted without your tap.</p>
 			<h3 id="help-evolve">Evolving</h3>
 			<p>Sort by <em>Evolve: Gain</em> to see which Pokémon would score more after evolving, or by <em>Evolve: Score</em> to see the list as it would be with those evolved; <em>n to evolve</em> (search <code>gain</code>) shows only those. After evolving, add a new screenshot: it replaces the old row.</p>
 			<footer class="ed-foot"><span class="spacer"></span><button class="btn primary" value="close">Close</button></footer>

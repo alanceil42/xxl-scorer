@@ -223,7 +223,6 @@ tr.selected .tick { background: var(--accent); color: var(--accent-text); border
 .chip.mark.gone { background: var(--bad-soft); color: var(--bad); }
 .chip.mark.evolved { background: var(--warn-soft); color: var(--warn); }
 .chip.mark.unsure { background: var(--accent-soft); color: var(--text); }
-.sync-steps { max-width: 260px; }
 /* Evolve gain: a column on wider screens ("+42 Bewear"), a line of its own on a phone */
 td.c-evo { font-size: 13px; color: var(--muted); }
 td.c-evo.gain { color: var(--accent); font-weight: 600; }

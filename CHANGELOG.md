@@ -10,7 +10,7 @@ collect under "Unreleased".
 
 Sync with the game: screenshots of the game's XXL list show which rows you no longer have.
 
-- Sync with the game (the header's Backup menu, now called Sync): copy the search, screenshot
+- Sync with the game (the header's Backup menu, now called Sync): Copy the search, screenshot
   the game's list of it as you scroll (any order, overlap is fine), add the screenshots. Rows the
   game no longer lists are marked "not in the game", nothing is deleted: "Select them" selects
   them in select mode, Delete takes them with Undo. A row whose Pokémon evolved is marked
@@ -25,6 +25,8 @@ Sync with the game: screenshots of the game's XXL list show which rows you no lo
   HP; without an HP no CP term.
 - A screenshot of the game's list for that search, added like any other, gives the row its CP
   (as if typed in), where its tile fits no other row.
+- Help: the sync as steps with what the marks mean (the Sync menu's How it works opens it), and
+  a tip for rows without a CP; the row's note says the same.
 - The debug report says what a sync read and marked (counts, no names).
 
 

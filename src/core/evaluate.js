@@ -274,7 +274,7 @@ function levelByHp(res, lv, issues) {
 	if (lv.length < 2) return;
 	res.levels = lv.map(l => l.level);
 	res.cpExpected = lv.map(l => l.cp);
-	issues.push({ code: 'level', msg: `Level ${levelText(res)} by the HP: type the CP to settle it` });
+	issues.push({ code: 'level', msg: `Level ${levelText(res)} by the HP. Type the CP, or find it in the game with the magnifier and add a screenshot of the list` });
 }
 
 /**

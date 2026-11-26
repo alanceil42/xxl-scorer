@@ -738,6 +738,12 @@ test('at 375 px: a list sync\'s marks and notices, the rows not in the game sele
 		await page.click('#backup > summary');
 		await page.click('#sync-copy');
 		assert.equal(await page.evaluate(() => globalThis.xxlCopied), 'xxl');
+		// its help: the dialog opens at the sync section
+		await page.click('#backup > summary');
+		await page.click('#sync-help');
+		assert.ok(await page.isVisible('#help'));
+		assert.equal(await page.evaluate(() => document.activeElement.id), 'help-sync');
+		await page.click('#help button[value="close"]');
 
 		// Select them: select mode, the rows not in the game shown and selected; Delete with Undo
 		await page.click('#banners button:has-text("Select them")');

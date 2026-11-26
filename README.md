@@ -101,9 +101,9 @@ won't run JavaScript modules from `file://`.
    visit). Import the file to restore it or move it to another device; it brings back the "Name
    to copy" pattern and the backup file name (Settings) too, unless the browser has one set more
    recently.
-6. **Sync → Sync with the game** when Pokémon were traded, transferred or evolved: copy the
-   search (`xxl`), paste it into the game's search, screenshot the whole list as you scroll (any
-   order, overlap is fine) and add the screenshots. Rows the game no longer lists are marked
+6. **Sync → Copy the search** (`xxl`) when Pokémon were traded, transferred or evolved: paste
+   it into the game's search, screenshot the whole list as you scroll (any order, overlap is
+   fine) and add the screenshots. Rows the game no longer lists are marked
    *not in the game* (**Select them**, then **Delete**; nothing goes without that tap), evolved
    ones *evolved, scan again*; Pokémon new to the list are counted, with a search to scan them.
 

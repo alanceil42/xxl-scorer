@@ -1339,7 +1339,6 @@ async function setMode(mode) {
 
 function renderMode() {
 	const xxs = state.mode === 'xxs';
-	$('#sync-search').textContent = syncSearch(state.mode);
 	$('#mode-xxl').setAttribute('aria-pressed', String(!xxs));
 	$('#mode-xxs').setAttribute('aria-pressed', String(xxs));
 	$('#mode-line').hidden = !xxs;
@@ -1377,11 +1376,11 @@ function showFileExample(pattern) {
 
 /** The help dialog, at its top (the search terms) or, with 'shots', at which screenshots to take. */
 function openHelp(section) {
-	const d = $('#help'), h = $(section === 'shots' ? '#help-shots' : '#help-title');
+	const d = $('#help'), h = (section && $(`#help-${section}`)) || $('#help-title');
 	d.showModal();
 	h.focus({ preventScroll: true });
 	// the section's heading at the dialog's top (focus alone scrolls it just into view)
-	d.scrollTop = section === 'shots' ? h.offsetTop - 12 : 0;
+	d.scrollTop = h.id === 'help-title' ? 0 : h.offsetTop - 12;
 }
 
 // ---------- wiring ----------
@@ -1399,6 +1398,7 @@ function wire() {
 		const q = syncSearch(state.mode), ok = await copyText(q);
 		toast(ok ? 'Search copied. Paste it into the game\'s search, then screenshot the list.' : 'Couldn\'t copy. The search for the game:', q, !ok);
 	});
+	$('#sync-help').addEventListener('click', () => { $('#backup').open = false; openHelp('sync'); });
 	document.addEventListener('click', ev => {
 		if (!ev.target.closest('#backup')) $('#backup').open = false;
 		if (!ev.target.closest('#sort')) $('#sort').open = false;
