@@ -728,7 +728,7 @@ export function stitch(shots, { at = null } = {}) {
  * in that order: mergeSlot's "the later reading", so a shuffle changes nothing.
  */
 function canonical(shots, at) {
-	const plain = t => (t && typeof t === 'object' ? (({ si, late, ...r }) => r)(t) : t);
+	const plain = t => (t && typeof t === 'object' ? (({ si, late, file, ...r }) => r)(t) : t);
 	const keyed = shots.map(s => {
 		const nums = at ? s.rows.flatMap(r => r.slots).filter(t => t && typeof t === 'object').map(t => at(t)).filter(x => x != null).sort((a, b) => a - b) : [];
 		return { s, mid: nums.length ? nums[nums.length >> 1] : null, text: JSON.stringify(s.rows.map(r => r.slots.map(plain))) };

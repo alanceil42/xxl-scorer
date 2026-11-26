@@ -317,7 +317,7 @@ function drainRun(run) {
 function takeReading(run, f, res, idx) {
 	const { added, merged } = run;
 	if (res.error) { state.errors.push(`${f.name}: ${res.error.message || res.error}`); return; }
-	if (res.list) { run.lists.push(res.list); return; }
+	if (res.list) { run.lists.push({ ...res.list, file: f.name }); return; }
 	const { reading, thumb } = res;
 	run.read++;
 	if (reading.bars) run.withBars++;
@@ -1309,8 +1309,11 @@ function syncBanners(s) {
 			s.other ? `${s.other} screenshot${s.other > 1 ? 's' : ''} of another search left out.` : '',
 			s.why,
 		].filter(Boolean).join(' ');
+		// the rows to act on, as "n to check" shows its rows: by the search
+		const show = n.evolved || n.unsure ? () => { const q = [n.evolved && 'evolved', n.unsure && 'unsure'].filter(Boolean).join(','); $('#search').value = q; setSearch(q); } : null;
 		out.push(el('div', { class: 'banner info' }, el('p', {}, text),
 			n.gone ? el('button', { class: 'btn', type: 'button', onclick: selectGone }, 'Select them') : null,
+			show ? el('button', { class: n.gone ? 'btn ghost' : 'btn', type: 'button', onclick: show }, `Show ${n.evolved + n.unsure}`) : null,
 			el('button', { class: 'btn ghost', type: 'button', onclick: dismiss('seen') }, 'OK')));
 	}
 	const left = newLeft(s, evaluated());

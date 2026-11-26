@@ -84,6 +84,19 @@ test('list sync on real screenshots', { skip, timeout: 3_600_000 }, async t => {
 			const cpOnly = runSync(bare, items, ctx, { now: 0 });
 			const wrong = Object.entries(cpOnly.marks).filter(([id, m]) => m.k === 'gone' && res.marks[id]?.k !== 'gone');
 			assert.deepEqual(wrong, [], 'CP alone marks a row gone the names saw');
+			// one CP not read (as a phone's reading had it): no row gone the whole list didn't
+			// have, and where nothing is, the screenshot named
+			for (const k of [0, Math.floor(shots.length / 2)]) {
+				const s = shots[k];
+				const r = s.rows.findIndex(x => x.slots.some(t => typeof t === 'object' && t.cp != null));
+				if (r < 0) continue;
+				const c = s.rows[r].slots.findIndex(t => typeof t === 'object' && t.cp != null);
+				const lost = shots.map((x, i) => (i !== k ? x : { ...x, file: `shot ${k}`, rows: x.rows.map((y, j) => (j !== r ? y : { ...y, slots: y.slots.map((t, m) => (m === c ? { ...t, cp: null } : t)) })) }));
+				const one = runSync(lost, items, ctx, { now: 0 });
+				const extra = Object.entries(one.marks).filter(([id, m]) => m.k === 'gone' && res.marks[id]?.k !== 'gone');
+				assert.deepEqual(extra, [], `a CP lost on shot ${k}: no new gone`);
+				if (!one.complete && one.why.includes('CP')) assert.match(one.why, new RegExp(`shot ${k}`), 'the screenshot named');
+			}
 			// new: rows taken out of the backup (seen, a CP no other row has) leave their tiles new
 			const cpCount = new Map();
 			for (const x of items) cpCount.set(x.e.cp, (cpCount.get(x.e.cp) || 0) + 1);

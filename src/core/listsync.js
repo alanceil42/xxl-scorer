@@ -266,7 +266,8 @@ function evolvedScans(rows, ctx) {
 
 /**
  * The sync. shots: readListShot's results (any order, overlapping or not); items: the rows,
- * evaluated ([{row, e}]). → {at, mode, search, shots, other, count, read, complete, why,
+ * evaluated ([{row, e}]); a shot's file (its name) is named where a CP wasn't read. → {at, mode,
+ * search, shots, other, count, read, complete, why,
  * matched, marks: {rowId: {k: 'gone' | 'evolved' | 'unsure', why}}, newCps, newSearch, unsure}
  * newSearch: a search for the new tiles ("xxl&cp512,cp1480"), '' when there are none.
  */
@@ -279,7 +280,9 @@ export function runSync(shots, items, ctx, { mode = 'xxl', now = Date.now() } = 
 	// the list's order helps only where every screenshot shows it sorted by number
 	const numbered = own.every(s => s.num === true);
 	const at = numbered ? dexAt(rows, ctx) : null;
-	const st = stitch(own, { at });
+	// each tile knows its screenshot's file, to name the one to take again
+	const tagged = own.map(s => (s.file ? { ...s, rows: s.rows.map(r => ({ ...r, slots: r.slots.map(t => (t && typeof t === 'object' ? { ...t, file: s.file } : t)) })) } : s));
+	const st = stitch(tagged, { at });
 	res.read = st.tiles.length;
 	const { tiles, used, evolved, could } = matchTiles(st.tiles, rows, ctx, { window: numbered });
 	res.matched = tiles.filter(t => t.match && t.how !== 'evolved').length;
@@ -304,7 +307,13 @@ export function runSync(shots, items, ctx, { mode = 'xxl', now = Date.now() } = 
 	else if (st.tiles.length < count) why.push(`${count - st.tiles.length} of the ${count} Pokémon are on no screenshot`);
 	else if (st.tiles.length > count) why.push(`${st.tiles.length} Pokémon read, the game counts ${count}`);
 	if (st.covered - st.trailing > 0) why.push(`${st.covered - st.trailing} hidden under the buttons`);
-	if (st.tiles.some(t => t.cp == null)) why.push('a CP wasn\'t read');
+	// a tile without its CP whose name points to rows: those are "not sure", the rest can go;
+	// one whose name says nothing could be any row
+	const blind = tiles.filter(t => t.cp == null && !could(t).length);
+	if (blind.length) {
+		const files = [...new Set(blind.map(t => t.file).filter(Boolean))];
+		why.push(`${blind.length > 1 ? `${blind.length} CPs weren't` : 'a CP wasn\'t'} read${files.length ? ` (${files.slice(0, 3).join(', ')}${files.length > 3 ? ', …' : ''}: take ${files.length > 1 ? 'them' : 'it'} again)` : ''}`);
+	}
 	res.complete = !why.length;
 	res.why = why.length ? `Nothing marked as not in the game: ${why.join('; ')}.` : '';
 	if (res.complete) {

@@ -235,3 +235,19 @@ test('a CP from a list screenshot of any search, for a row without one, where on
 	// rows with a CP only: nothing to do
 	assert.deepEqual(cpFromList([shot([tile(510, plain('Testmon'))])], [b, c], ctx), []);
 });
+
+test('a tile without its CP: named, its rows not sure and the rest gone; else it blocks and its screenshot is named', () => {
+	const a = item('TESTMON', [15, 15, 15], 20), b = item('MR_FAKE', [10, 12, 14], 25), c = item('FAKEON', [1, 2, 3], 15);
+	// a name that says nothing: any row could be it, nothing gone, the file to take again
+	const blind = runSync([{ ...shot([tile(a.e.cp), tile(null, { style: 'none', raw: 'Xyz' })], { count: 3 }), file: 'shot-7.png' }], [a, b, c], ctx, { now: 1 });
+	assert.equal(blind.complete, false);
+	assert.match(blind.why, /a CP wasn't read \(shot-7\.png: take it again\)/);
+	assert.equal(markCounts(blind.marks).gone, 0);
+	// a name whose values point to one row (Attack 10, level 25: Mr. Fake): that row not sure,
+	// the other gone
+	const named = runSync([shot([tile(a.e.cp), tile(null, { style: 'new', atk: 10, level: 25, ivPct: 80, raw: 'x' })], { count: 2 })], [a, b, c], ctx, { now: 1 });
+	assert.equal(named.complete, true, named.why);
+	assert.equal(named.marks[b.row.id].k, 'unsure');
+	assert.equal(named.marks[c.row.id].k, 'gone');
+	assert.equal(named.marks[a.row.id], undefined);
+});
