@@ -14,7 +14,8 @@ Sync with the game: screenshots of the game's XXL list show which rows you no lo
   the game's list of it as you scroll (any order, overlap is fine), add the screenshots. Rows the
   game no longer lists are marked "not in the game", nothing is deleted: "Select them" selects
   them in select mode, Delete takes them with Undo. A row whose Pokémon evolved is marked
-  "evolved, scan again"; a tile that could be several rows leaves them "not sure". Pokémon the
+  "evolved, scan again", its Find in game searching for the evolved Pokémon with the list's
+  CP; a tile that could be several rows leaves them "not sure". Pokémon the
   list doesn't have yet: "Found 3 new Pokémon. Please scan" with a Copy search string button.
   Nothing is marked gone unless the screenshots cover the whole list (the game's count).
 - Search terms gone, evolved and unsure for the sync's marks.

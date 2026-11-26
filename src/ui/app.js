@@ -697,7 +697,7 @@ function renderRow({ row, e, dup, evo, end, tags }) {
 	const sel = state.selecting && state.selected.has(row.id);
 	// In select mode the find and copy buttons stay, dimmed and out of reach (a tap marks the
 	// row): a card keeps its height, so the list doesn't jump when select mode ends.
-	const btns = rowButtons(row.id, e);
+	const btns = rowButtons(row, e);
 	if (btns && state.selecting) btns.inert = true;
 	const act = () => (state.selecting ? toggleSelected(row.id) : openEditor(row.id));
 	return el('tr', {
@@ -805,8 +805,9 @@ async function deleteSelected() {
 // ---------- find in game, then copy the nickname ----------
 
 /** One pill: find (a search for the game) on the left, the nickname on the right. */
-function rowButtons(id, e) {
-	const find = findButton(id, e), name = nameButton(id, e);
+function rowButtons(row, e) {
+	const id = row.id;
+	const find = findButton(id, e, rowMark(row)), name = nameButton(id, e);
 	return find || name ? el('span', { class: 'pair' }, find, name) : null;
 }
 
@@ -827,8 +828,10 @@ function nameButton(id, e) {
 	return b;
 }
 
-function findButton(id, e) {
-	const q = gameSearch(e);
+function findButton(id, e, mark) {
+	// marked evolved by the list sync: the row's own search finds nothing now, the tile's does
+	const as = mark && mark.k === 'evolved' && mark.as && mark.as.cp != null ? mark.as : null;
+	const q = gameSearch(e, as);
 	if (!q) return null;
 	const title = 'Copy a search that finds this Pokémon in the game';
 	const b = el('button', { class: 'btn copy find', type: 'button', title, 'aria-label': title }, icon('scan-search'));
@@ -852,7 +855,8 @@ function findButton(id, e) {
 		}
 		toast(!ok ? 'Couldn\'t copy. The search for the game:'
 			: others ? `Search copied. It also fits ${others} other Pokémon in this list: compare height and weight in the game.`
-				: 'Search copied. Paste it into the game\'s search.', q, !ok || others > 0);
+				: as ? `Search copied: it's a ${as.name} now. Paste it into the game's search, then scan it again.`
+					: 'Search copied. Paste it into the game\'s search.', q, !ok || others > 0);
 	});
 	b.addEventListener('keydown', ev => ev.stopPropagation());
 	return b;

@@ -287,7 +287,11 @@ export function runSync(shots, items, ctx, { mode = 'xxl', now = Date.now() } = 
 	const { tiles, used, evolved, could } = matchTiles(st.tiles, rows, ctx, { window: numbered });
 	res.matched = tiles.filter(t => t.match && t.how !== 'evolved').length;
 	const marks = {};
-	for (const [r, { target }] of evolved) marks[r.rowId] = { k: 'evolved', why: `Evolved into ${ctx.text.names[String(target.dex)] || target.id}: scan it again` };
+	// the evolved Pokémon as the list shows it, for Find in game: the row's search finds nothing now
+	for (const [r, { tile, target }] of evolved) {
+		const name = ctx.text.names[String(target.dex)] || target.id;
+		marks[r.rowId] = { k: 'evolved', why: `Evolved into ${name}: scan it again`, as: { dex: target.dex, name, cp: tile.cp } };
+	}
 	// tiles no row took: the rows they could be are not sure; a tile no row could be is new
 	const unsureTiles = [];
 	for (const t of tiles) {

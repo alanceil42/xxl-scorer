@@ -78,6 +78,13 @@ test('a tile showing the evolved species: "evolved, scan again", not gone', () =
 	assert.equal(res.marks[a.row.id].k, 'evolved');
 	assert.match(res.marks[a.row.id].why, /Fakeon/);
 	assert.deepEqual(res.newCps, []);
+	// Find in game while marked: the evolved species with the tile's CP (the row's own search
+	// finds nothing in the game now); IVs stay, HP doesn't
+	const as = res.marks[a.row.id].as;
+	assert.deepEqual(as, { dex: gm.species.FAKEON.dex, name: 'Fakeon', cp: evolvedCp });
+	const e = { ...a.e, hp: 90, caught: '5/1/2024' };
+	assert.equal(gameSearch(e), `${a.e.dex}&xxl&cp${a.e.cp}&hp90&3attack&3defense&3hp&year2024`);
+	assert.equal(gameSearch(e, as), `${as.dex}&xxl&cp${evolvedCp}&3attack&3defense&3hp&year2024`);
 });
 
 test('a name that says another Pokémon (Attack and IV % off): not matched, the row not sure, never gone', () => {

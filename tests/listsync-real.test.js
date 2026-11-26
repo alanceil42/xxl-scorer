@@ -18,6 +18,7 @@ import { compactText } from '../src/core/text.js';
 import { makeContext, evaluate } from '../src/core/evaluate.js';
 import { cleanRow } from '../src/core/backup.js';
 import { runSync, markCounts } from '../src/core/listsync.js';
+import { gameSearch } from '../src/core/gamesearch.js';
 import { listEngines, readShots, tessdata } from './lib/listshots.js';
 import { IMAGE } from './lib/sets.js';
 
@@ -59,6 +60,13 @@ test('list sync on real screenshots', { skip, timeout: 3_600_000 }, async t => {
 			const res = runSync(shots, items, ctx, { now: 0 });
 			const n = markCounts(res.marks);
 			t.diagnostic(`${rel}: ${res.shots} shots (${res.other} other), ${res.read} read of ${res.count}, matched ${res.matched}, gone ${n.gone}, evolved ${n.evolved}, not sure ${n.unsure}, new ${res.newCps.length}${res.why ? `; ${res.why}` : ''}`);
+			// a row marked evolved: Find in game searches for the evolved Pokémon, with its tile's CP
+			for (const it of items) {
+				const m = res.marks[it.row.id];
+				if (m?.k !== 'evolved') continue;
+				assert.ok(m.as && m.as.cp != null && m.as.dex !== it.e.dex, `${it.e.name}: the evolved tile in the mark`);
+				t.diagnostic(`evolved: ${it.e.name} CP ${it.e.cp} -> ${gameSearch(it.e, m.as)}`);
+			}
 			// rows whose level the HP alone leaves open ("level": [{row, levels, cp, level}])
 			for (const l of sync.level || []) {
 				const it = items.find(x => x.row.id === l.row);
